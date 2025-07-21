@@ -1150,8 +1150,9 @@ sa.maturity_date,sa.id_scheme_account,s.store_closing_balance ,
 				    classification_name,flexible_sch_type,s.min_weight,
 				    br.branch,br.address1 as brn_address1,br.address2 as brn_address2,br.state as brn_state, br.city as brn_city,br.country as brn_country,br.pincode as brn_pincode,
 				    bil.pur_ref_no,p.receipt_no,s.is_digi,s.wgt_convert,s.wgt_store_as,
-				    p.payment_amount,IFNULL(sa.pan_no,c.pan) as pan_no,s.show_ins_type,c.email,sa.duplicate_passbook_issued,s.allow_general_advance,
-					ifnull(sa.total_paid_ins,0) as paid_installments
+					ifnull(sa.total_paid_ins,0) as paid_installments,
+					p.payment_amount,IF(sa.pan_no IS NULL OR sa.pan_no = '', c.pan, sa.pan_no) AS pan_no,s.show_ins_type,c.email,sa.duplicate_passbook_issued,s.allow_general_advance,s.scheme_type as sch_typ,s.wgt_convert,
+					s.id_purity,s.id_metal
 				from customer c
 					left join address  a on(a.id_customer=c.id_customer)
 					left join country cy on (a.id_country=cy.id_country)
@@ -3559,4 +3560,45 @@ group by gm.id_other_item;");
         $sql = $this->db->query("UPDATE payment SET is_print_taken = 1 where id_scheme_account = " . $id_sch_acc);
         return true;
     }
+    
+    function getPurityName($purityId){
+		// this function used to get a purity only
+
+		$this->db->select('purity');
+		$this->db->from(' ret_purity');
+		$this->db->where('id_purity', $purityId);
+		$query = $this->db->get();
+		$data = $query->row_array();
+
+		// Company Name 
+		$this->db->select('company_name');
+		$this->db->from('company');
+		$query= $this->db->get();
+		$companyName = $query->row_array();
+		$data = array_merge($data, $companyName);
+		// print_r($data);exit;
+		// print_r($query);exit;
+		return $data;
+
+	}
+
+
+	function getMetalName($id_metal){
+		// print_r($id_metal);exit;
+		$this->db->select('metal');
+		$this->db->from('metal');
+		$this->db->where('id_metal', $id_metal);
+		$query = $this->db->get();
+		return $query->row_array();
+
+	}
+
+	function paymentModeName($paymentShortCode){
+
+		$this->db->select('mode_name');
+		$this->db->from('payment_mode');
+		$this->db->where('short_code', $paymentShortCode);
+		$query = $this->db->get();
+		return $query->row_array();
+	}
 }

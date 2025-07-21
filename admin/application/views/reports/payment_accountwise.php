@@ -602,6 +602,15 @@
                             </div>
                             <div class="row">
                                 <div class="col-sm-12" align="right">
+                                    <?php
+									if($account['customer']['one_time_premium'] == 1 && $account['customer']['paid_installments'] > 0){
+										?>
+										<a class="btn bg-purple" href="<?php echo base_url().'index.php/admin_manage/passbook_print/bond/'.$account['payment'][0]['id_scheme_account'].'/'. $pay['id_payment']?>"target="_blank"><i class="fa fa-print"></i> Chit Bond</a>
+										<?php 
+									}else{
+									
+								?>
+                                
                                     <a class="btn bg-green passbook_print"
                                         href="<?php echo base_url() . 'index.php/admin_manage/passbook_print/F/' . $account['payment'][0]['id_scheme_account']; ?>"
                                         target="_blank"><i class="fa fa-print"></i> Passbook Print Front</a>

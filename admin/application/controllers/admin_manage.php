@@ -3477,7 +3477,61 @@ class Admin_manage extends CI_Controller
             $dompdf->set_paper($customPaper, "portriat");
             $dompdf->render();
             $dompdf->stream("Passbook.pdf", array('Attachment' => 0));
-        }
+        }else if($page == 'bond' && $id_payment != "" && $id_scheme_account != ''){
+			$paymentModel=	self::PAY_MODEL;
+			// Gold Rate
+				$goldMetalData = $this->$paymentModel->get_metalrate_by_branch(2, 1, 1, $data['payment'][0]['date_payment']);
+			// Silver Rate
+			$silverMetalData = $this->$paymentModel->get_metalrate_by_branch(2, 2, 16, $data['payment'][0]['date_payment']);
+			$customerPan = !empty($data['customer']['pan_no'])? $data['customer']['pan_no']: '-';
+			$customerAddress2 = empty($data['customer']['address2']) ? $data['customer']['city'] : $data['customer']['address2'];
+			$customerAddress2 = $customerAddress2 . ' - ' . $data['customer']['pincode'];
+			// echo("<pre>");
+			// print_r($data['acc']);
+			// print_r($data['payment']);
+			// print_r($data['customer']);
+			// exit;
+			$purityDetails = $this->$acc_model->getPurityName($data['customer']['id_purity']);
+			// print_r($data['customer']['id_metal']);exit;
+			$metalName = $this->$acc_model->getMetalName($data['customer']['id_metal']);
+			$paymentModeFullName = $this->$acc_model->paymentModeName($data['payment'][0]['payment_mode']);
+			$dateStr = $data['payment'][0]['date_payment']; 
+			$date = DateTime::createFromFormat('d-m-y', $dateStr);
+			$data['paymentDate'] = $date ? $date->format('d-m-Y') : '';
+			// print_r($data['paymentDate']);exit;
+			// print_r($paymentModeFullName);exit;
+			// print_r($purityDetails);exit;
+			$data =[
+				'paymentDate' =>$data['paymentDate'],
+				'customerName' => $data['customer']['customer_name'],
+				'customerAddress1' => $data['customer']['address1'],
+				'customerAddress2' => $customerAddress2,
+				'city' => $data['customer']['city'],
+				'customerMobile' => $data['customer']['mobile'],
+				'customerPan' => $customerPan,
+				'schemeName' => $data['customer']['scheme_name'],
+				'paymentMode' => strtoupper($paymentModeFullName['mode_name']),
+				'paymentWeight' => $data['payment'][0]['metal_weight'],
+				'schemeMasterPurity' => $purityDetails['purity'],
+				'maturity' => $data['customer']['maturity_installment'],
+				'companyName' =>$purityDetails['company_name'],
+				'metalName' => $metalName['metal'],	
+				'maturityDate' => $data['customer']['maturity_date'],	
+				'payment_ref_number' => $data['payment'][0]['payment_ref_number'],
+				'payment_amount' => $data['payment'][0]['payment_amount'],
+				'goldRate' => $goldMetalData,
+				'silverRate' => $silverMetalData
+			];
+			// print_r($data);exit;
+			$this->load->helper(array('dompdf', 'file'));
+				$dompdf = new DOMPDF();
+				$html = $this->load->view('scheme/print/bond_print', $data, true);
+				$dompdf->load_html($html);
+				// $customPaper = array(0, 0, 595, 841); 
+				$dompdf->set_paper('A4', 'portrait');
+				$dompdf->render();
+				$dompdf->stream("Bond_Receipt.pdf", array("Attachment" => 0));
+		}
     }
     //15-12-2022 Immanuvel customer sch detail print start
     function receipt_account_ForBarCOde($id_scheme_account)
