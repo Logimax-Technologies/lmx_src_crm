@@ -1,0 +1,1 @@
+[{"last_tag_code":"CHA-00001","new_tag_code":"00002","tag_id":193574,"date_time":"2025-04-04 13:44:36","ip_address":"182.60.76.217"}][{"last_tag_code":"CHA-00002","new_tag_code":"00003","tag_id":193575,"date_time":"2025-04-04 13:49:35","ip_address":"182.60.76.217"}]

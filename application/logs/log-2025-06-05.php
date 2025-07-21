@@ -1,0 +1,32 @@
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed'); ?>
+
+ERROR - 2025-06-05 11:18:21 --> Severity: Notice  --> Undefined index: token /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 3049
+ERROR - 2025-06-05 11:18:27 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-05 11:18:30 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-05 11:18:30 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 11:18:30 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 11:18:30 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 11:18:30 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 11:18:30 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 11:18:30 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 12:30:59 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
+ERROR - 2025-06-05 12:31:00 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
+ERROR - 2025-06-05 13:27:23 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
+ERROR - 2025-06-05 14:34:43 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
+ERROR - 2025-06-05 14:39:36 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
+ERROR - 2025-06-05 16:59:54 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-05 16:59:56 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-05 16:59:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 16:59:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 16:59:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 16:59:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 16:59:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 16:59:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 17:49:54 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-05 17:49:56 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-05 17:49:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 17:49:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 17:49:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 17:49:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 17:49:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657
+ERROR - 2025-06-05 17:49:56 --> Severity: Notice  --> Undefined index: goldrate_22ct /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 657

@@ -1,0 +1,1 @@
+[{"last_tag_code":"HRM-00029","new_tag_code":"00030","tag_id":191175,"date_time":"2025-02-19 13:00:58","ip_address":"59.98.128.95"}]

@@ -1,0 +1,1 @@
+[{"last_tag_code":"456-00025","new_tag_code":"00026","tag_id":191344,"date_time":"2025-03-09 11:50:49","ip_address":"223.185.21.121"}][{"last_tag_code":"456-00026","new_tag_code":"00027","tag_id":191345,"date_time":"2025-03-09 11:51:55","ip_address":"223.185.21.121"}]

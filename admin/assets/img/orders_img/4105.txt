@@ -1,0 +1,18 @@
+{
+    "order_img": [
+        {
+            "name": "65e94ead227cb.jpeg",
+            "tmp_name": "\/tmp\/tempimgbJKTt3",
+            "size": 7334,
+            "error": 0,
+            "type": "image\/jpeg"
+        },
+        {
+            "name": "65e94ead22943.jpeg",
+            "tmp_name": "\/tmp\/tempimghquFMr",
+            "size": 12845,
+            "error": 0,
+            "type": "image\/jpeg"
+        }
+    ]
+}

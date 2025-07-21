@@ -1,0 +1,4 @@
+
+25-06-2025 17:35:54
+ API : mobile_api 
+ Response : {"status":false,"e":"","q":"select * from customer_reg where record_to=2 and is_registered_online=0 and is_closed=0 and id_branch='7' and mobile=9488577633","msg":"No records to update in scheme account tables"}

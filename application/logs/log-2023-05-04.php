@@ -1,0 +1,212 @@
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed'); ?>
+
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed'); ?>
+
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed'); ?>
+
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed'); ?>
+
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed'); ?>
+
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed'); ?>
+
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed'); ?>
+
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:45 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:46 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:46 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:49 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:51 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:51 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:51 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:51 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:52 --> Severity: Notice  --> Undefined property: CI_Loader::$login_model /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 9
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 05:59:52 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:02 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:02 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:02 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:02 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:15 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:15 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:15 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:15 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:15 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:15 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:16 --> Severity: Notice  --> Undefined property: CI_Loader::$login_model /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 9
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:16 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:17 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:17 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:17 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:17 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:17 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:17 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:18 --> Severity: Notice  --> Undefined property: CI_Loader::$login_model /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 9
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:18 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Notice  --> Undefined property: CI_Loader::$login_model /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 9
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:19 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:27 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:27 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:27 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:27 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:29 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:29 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:00:29 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:00:29 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:03 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:03 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:03 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:03 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:04 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:04 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:04 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:04 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:05 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:05 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:05 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:05 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:06 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:06 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:06 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:06 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:07 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:07 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:07 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:07 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:07 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:07 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:08 --> Severity: Notice  --> Undefined property: CI_Loader::$login_model /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 9
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:01:13 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:01:13 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:02:06 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:02:06 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:02:06 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:02:06 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:02:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:02:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:02:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:02:08 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:56 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:57 --> Severity: Notice  --> Undefined property: CI_Loader::$login_model /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 9
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 133
+ERROR - 2023-05-04 06:58:57 --> Severity: Warning  --> Creating default object from empty value /home/retaillogimaxind/public_html/etail_v3/application/libraries/REST_Controller.php 322

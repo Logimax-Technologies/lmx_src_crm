@@ -1,0 +1,300 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Repair Order Receipt</title>
+	<link rel="stylesheet" href="<?php echo base_url(); ?>assets/css/metalissue_ack.css">
+	<style type="text/css">
+		body,
+		html {
+			margin-bottom: 0;
+			font-size: 12px !important;
+		}
+
+		span {
+			display: inline-block;
+		}
+
+		.addr_headers_labels {
+			display: inline-block;
+			width: 20%;
+		}
+
+		.addr_rate_labels {
+			display: inline-block;
+			width: 10%;
+		}
+
+		.addr_labels {
+			display: inline-block;
+			width: 20%;
+		}
+
+		.addr_values {
+			display: inline-block;
+			padding-left: -5px;
+		}
+
+		.addr_delv_labels {
+			display: inline-block;
+			width: 25%;
+		}
+
+		.addr_delv_values {
+			display: inline-block;
+			padding-left: 5px;
+		}
+
+		.addr_brch_labels {
+			display: inline-block;
+			width: 20%;
+		}
+
+		.addr_brch_values {
+			display: inline-block;
+			padding-left: 5px;
+		}
+	</style>
+</head>
+
+<body>
+	<?php
+	function moneyFormatIndia($num)
+	{
+		return preg_replace("/(\d+?)(?=(\d\d)+(\d)(?!\d))(\.\d+)?/i", "$1,", $num);
+	}
+	?>
+	<span class="PDFReceipt">
+
+		<div style="width: 100%; text-transform:uppercase;font-size: 11px !important;" align="center;">
+			<img alt="" src="<?php echo base_url(); ?>assets/img/receipt_logo.png"><br>
+			<div><?php echo strtoupper($comp_details['address1']) ?> , <?php echo strtoupper($comp_details['city']) ?></div>
+			<div><?php echo strtoupper($comp_details['address2']) ?></div>
+			<?php ($comp_details['email'] != '' ? '<div>Email : ' . $comp_details['email'] . ' :</div>' : '') ?>
+			<?php ($comp_details['gst_number'] != '' ? '<div>GST No ' . $comp_details['gst_number'] . ' :</div>' : '') ?>
+			<div><?php echo $comp_details['state'] ?></div>
+		</div>
+		
+
+		<!-- <div style="width: 100%; text-transform:uppercase;font-size: 11px !important;">
+			<div style="display: inline-block; width: 48%; padding-left:0px;">
+				<label><?php echo '<div class="addr_labels">Name</div><div class="addr_values">:&nbsp;&nbsp;' . 'Mr./Ms.' . $repair[0]['firstname'] . "</div>"; ?></label><br>
+				<label><?php echo '<div class="addr_labels">Mobile</div><div class="addr_values">:&nbsp;&nbsp;' . $repair[0]['mobile'] . "</div>"; ?></label><br>
+				<label><?php echo ($repair[0]['cus_address1'] != '' ? '<div class="addr_labels">Address</div><div class="addr_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['cus_address1']) . ',' . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['cus_address2'] != '' ? '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;&nbsp;' . strtoupper($repair[0]['cus_address2']) . ',' . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['cus_address3'] != '' ? '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;&nbsp;' . strtoupper($repair[0]['cus_address3']) . ',' . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['village_name'] != '' ? '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;&nbsp;' . strtoupper($repair[0]['village_name']) . ',' . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['cus_ciy'] != '' ? '<div class="addr_labels">city</div><div class="addr_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['cus_ciy']) . ($repair[0]['pincode'] != '' ? ' - ' . $repair[0]['pincode'] . '.' : '') . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['cus_state'] != '' ? '<div class="addr_labels">State</div><div class="addr_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['cus_state'] . ($repair[0]['state_code'] != '' ? '-' . $repair[0]['state_code'] : '')) . '.' . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['emp_name'] != '' ? '<div class="addr_labels">Emp Name</div><div class="addr_values">:&nbsp;&nbsp;' . strtoupper(($repair[0]['emp_name'] != '' ? $repair[0]['emp_name'] : '')) . '.' . "</div><br>" : ''); ?></label>
+			</div>
+			<div style="display: inline-block; width: 10%; padding-left:0px;"></div>
+			<div style="width: 50%; text-align: right !important; display: inline-block; vertical-align: top;margin-top:-14px !important;">
+				<div style="text-align: left !important;width: 100%; display: inline-block;">
+					<label><?php echo ($comp_details['name'] != '' ? '<div class="addr_brch_labels">Branch</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper($comp_details['name']) . ',' . "</div><br>" : ''); ?></label>
+					<label><?php echo ($comp_details['address1'] != '' ? '<div class="addr_brch_labels">Address</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper($comp_details['address1']) . ',' . "</div><br>" : ''); ?></label>
+					<label><?php echo ($comp_details['address2'] != '' ? '<div class="addr_brch_labels"></div><div class="addr_brch_values">&nbsp;&nbsp;&nbsp;' . strtoupper($comp_details['address2']) . ',' . "</div><br>" : ''); ?></label>
+					<label><?php echo ($comp_details['city'] != '' ? '<div class="addr_brch_labels">Place</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper($comp_details['city']) . ($comp_details['pincode'] != '' ? ' - ' . $comp_details['pincode'] . '.' : '') . "</div>" : ''); ?><br></label>
+					<label><?php echo ($comp_details['state'] != '' ? '<div class="addr_brch_labels">State</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper($comp_details['state'] . ($comp_details['state_code'] != '' ? '-' . $comp_details['state_code']  : '')) . '.' . "</div><br>" : ''); ?></label>
+					<label><?php echo ($comp_details['gst_number'] != '' ? '<div class="addr_brch_labels">GST NO</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper(($comp_details['gst_number'] != '' ? $comp_details['gst_number']  : '')) . '.' . "</div><br>" : ''); ?></label>
+					<label><?php echo ($comp_details['cin_number'] != '' ? '<div class="addr_brch_labels">CIN NO</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper(($comp_details['cin_number'] != '' ? $comp_details['cin_number']  : '')) . '.' . "</div><br>" : ''); ?></label>
+				</div>
+			</div>
+		</div> -->
+
+		<p></p>
+
+		<div style="width: 100%; text-transform:uppercase;font-size: 11px !important;text-align:center;margin-top:-45px !important;">
+			<label><b> <?= $repair[0]['order_for'] ?> Repair Order</b></label>
+		</div>
+		<br><br>
+		<p></p>
+
+		<div style="width: 100%; text-transform:uppercase;font-size: 11px !important;">
+			<div style="display: inline-block; width: 48%; padding-left:0px;">
+				<label><?php echo '<div class="addr_labels">Name</div><div class="addr_values">:&nbsp;&nbsp;' . 'Mr./Ms.' . $repair[0]['firstname'] . "</div>"; ?></label><br>
+				<label><?php echo '<div class="addr_labels">Mobile</div><div class="addr_values">:&nbsp;&nbsp;' . $repair[0]['mobile'] . "</div>"; ?></label><br>
+				<label><?php echo ($repair[0]['cus_address1'] != '' ? '<div class="addr_labels">Address</div><div class="addr_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['cus_address1']) . ',' . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['cus_address2'] != '' ? '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;&nbsp;' . strtoupper($repair[0]['cus_address2']) . ',' . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['cus_address3'] != '' ? '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;&nbsp;' . strtoupper($repair[0]['cus_address3']) . ',' . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['village_name'] != '' ? '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;&nbsp;' . strtoupper($repair[0]['village_name']) . ',' . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['cus_ciy'] != '' ? '<div class="addr_labels">city</div><div class="addr_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['cus_ciy']) . ($repair[0]['pincode'] != '' ? ' - ' . $repair[0]['pincode'] . '.' : '') . "</div><br>" : ''); ?></label>
+				<label><?php echo ($repair[0]['cus_state'] != '' ? '<div class="addr_labels">State</div><div class="addr_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['cus_state'] . ($repair[0]['state_code'] != '' ? '-' . $repair[0]['state_code']	 : '')) . '.' . "</div><br>" : ''); ?></label>
+				<label><?php echo (isset($repair[0]['emp_name']) && $repair[0]['emp_name'] != '' ? '<div class="addr_labels">Emp Name</div><div class="addr_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['emp_name']) . "</div><br>" : ''); ?></label>
+			</div>
+
+			
+
+			<div style="display: inline-block; width: 10%; padding-left:0px;"></div>
+				<div style="width: 50%; text-align: right !importan; display: inline-block; vertical-align: top;margin-top:-14px !important;">
+				<div style="text-align: right !important;width: 210%; display: inline-block;">
+						<label><?php echo ($repair[0]['order_date'] != '' ? '<div class="addr_brch_labels">Order Date</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['order_date']) . '' . "</div><br>" : ''); ?></label>
+						<label><?php echo ($repair[0]['order_no'] != '' ? '<div class="addr_brch_labels">Order No</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['order_no']) . '' . "</div><br>" : ''); ?></label>
+						<label><?php echo ($repair[0]['cus_due_date'] != '' ? '<div class="addr_brch_labels">Customer Due Date</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['cus_due_date']) . '' . "</div><br>" : ''); ?></label>
+						<label><?php echo ($repair[0]['deliverydate'] != '' ? '<div class="addr_brch_labels">Order No</div><div class="addr_brch_values">:&nbsp;&nbsp;' . strtoupper($repair[0]['deliverydate']) . '' . "</div><br>" : ''); ?></label>
+
+					</div>
+				</div>
+			</div>
+
+
+		</div>
+
+
+
+		
+
+		<br><br>
+
+		<div class="content-wrapper">
+			<div class="box">
+				<div class="box-body">
+					<div class="container-fluid">
+						<div id="printable">
+							<div class="row" style="margin-top:-8%;">
+								<div class="col-xs-12">
+									<div class="table-responsive">
+										<!-- <hr class="item_dashed" style="width:95% !important;"> -->
+										
+										<table id="pp" class="table text-center" style="text-transform:uppercase;">
+											<!--	<thead> -->
+											<tr>
+												<td colspan="10">
+													<hr class="item_dashed" style="width:100% !important;">
+												</td>
+											</tr>
+											<tr>
+												<th width="15%;" style="text-align:left;">S.NO</th>
+												<th width="25%;" style="text-align:left;">Product</th>
+												<th width="25%;" style="text-align:left;">Design</th>
+												<th width="40%;" style="text-align:left;">Sub Design</th>
+												<th width="25%;" style="text-align:left;">Pcs</th>
+												<th width="25%;" style="text-align:left;">Gross Wt(Gms)</th>
+												<th width="25%;" style="text-align:left;">Less Wt</th>
+												<th width="25%;" style="text-align:left;">Net Wt</th>
+												<th width="25%;" style="text-align:left;">Tag Code</th>
+												<th width="25%;" style="text-align:left;">Type</th>
+											</tr>
+											<tr>
+												<td colspan="10">
+													<hr class="item_dashed" style="width:100% !important;">
+												</td>
+											</tr>
+											<!--</thead>
+										<tbody>-->
+											<?php
+											$i = 1;
+											$total_wt = 0;
+											$totalitems = 0;
+											$stone_charges = 0;
+											foreach ($repair_details as $val) {
+												$totalitems += $val['totalitems'];
+												$total_wt += $val['gross_wt'];
+												$total_less_wt += $val['less_wt'];
+												$total_net_wt += $val['net_wt'];
+												foreach ($val['stone_details'] as $sval) {
+													$stone_charges += $sval['amount'];
+												}
+
+											?>
+												<tr>
+													<td style="text-align:left;"><?php echo $i; ?></td>
+													<td style="text-align:left;"><?php echo $val['product_name']; ?></td>
+													<td style="text-align:left;"><?php echo $val['design_name']; ?></td>
+													<td style="text-align:left;"><?php echo $val['sub_design_name']; ?></td>
+													<td style="text-align:left;"><?php echo $val['totalitems']; ?></td>
+													<td style="text-align:left;"><?php echo $val['gross_wt']; ?></td>
+													<td style="text-align:left;"><?php echo $val['less_wt']; ?></td>
+													<td style="text-align:left;"><?php echo $val['net_wt']; ?></td>
+													<td style="text-align:left;"><?php echo $val['tag_code']; ?></td>
+													<td style="text-align:left;"><?php echo $val['repair_type']; ?></td>
+												</tr>
+
+												<?php
+												foreach ($val['stone_details'] as $sval) { ?>
+													<tr>
+														<td></td>
+														<td></td>
+														<td></td>
+														<td><?php echo $sval['stone_name']; ?></td>
+														<td></td>
+														<td style="text-align:left;"><?php echo $sval['wt'] . '/' . $sval['uom_short_code']; ?></td>
+														<td style="text-align:left;">Rs.<?php echo $sval['rate_per_gram'] . '/' . $sval['uom_short_code']; ?></td>
+														<td style="text-align:left;">Rs.<?php echo moneyFormatIndia(number_format($sval['amount'], 2, '.', '')) ?></td>
+														<td style="text-align:left;"></td>
+													</tr>
+												<?php } ?>
+
+												<?php if ($stone_charges > 0) { ?>
+													<tr style="font-weight:bold;">
+														<td></td>
+														<td></td>
+														<td></td>
+														<td></td>
+														<td></td>
+														<td style="text-align:left;"></td>
+														<td style="text-align:left;">TOTAL</td>
+														<td style="text-align:left;">Rs.<?php echo moneyFormatIndia(number_format($stone_charges, 2, '.', '')) ?></td>
+														<td style="text-align:left;"></td>
+													</tr>
+												<?php } ?>
+												<?php
+												if ($val['description'] != '') { ?>
+													<tr>
+														<td></td>
+														<td colspan="11">REMARKS :- <?php echo $val['description']; ?></td>
+													</tr>
+												<?php }
+												?>
+
+											<?php $i++;
+											} ?>
+											<!-- <tr>
+												<td>
+													<hr class="item_dashed" style="width:1600% !important;">
+												</td>
+											</tr> -->
+											<!--</tbody> -->
+											<tr>
+												<td colspan="10">
+													<hr class="item_dashed" style="width:100% !important;">
+												</td>
+											</tr>
+											<tfoot>
+												<tr>
+													<td colspan="4"><b>TOTAL</b></td>
+													<td><b><?php echo number_format((float)$totalitems, 0, '.', '') ?></b></td>
+													<td><b><?php echo number_format((float)$total_wt, 3, '.', '') ?></b></td>
+													<td><b><?php echo number_format((float)$total_less_wt, 3, '.', '') ?></b></td>
+													<td><b><?php echo number_format((float)$total_net_wt, 3, '.', '') ?></b></td>
+												</tr>
+											</tfoot>
+											<!-- <tr>
+												<td>
+													<hr class="item_dashed" style="width:1600% !important;">
+												</td>
+											</tr> -->
+											<tr>
+												<td colspan="10">
+													<hr class="item_dashed" style="width:100% !important;">
+												</td>
+											</tr>
+
+										</table><br>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div><!-- /.box-body -->
+			</div>
+
+			<div class="row" style="text-transform:uppercase;margin-top:30%;">
+				<label>For Customer Sign</label>
+				<label style="margin-left:60%;">For Company Sign</label>
+			</div>
+
+	</span>
+</body>
+
+</html>

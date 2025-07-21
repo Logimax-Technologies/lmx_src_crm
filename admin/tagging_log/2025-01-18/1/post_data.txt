@@ -1,0 +1,1 @@
+[{"last_tag_code":"GBT-00542","new_tag_code":"00543","tag_id":191043,"date_time":"2025-01-18 19:42:28","ip_address":"106.195.38.77"}]

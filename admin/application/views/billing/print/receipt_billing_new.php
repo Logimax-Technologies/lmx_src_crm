@@ -1,0 +1,1994 @@
+<html><head>
+		<meta charset="utf-8">
+		<title>Billing Receipt</title>
+		<link rel="stylesheet" href="<?php echo base_url();?>assets/css/billing_receipt.css">
+		<style >
+		 .head
+		 {
+			 color: black;
+			 font-size: 30px;
+		 }
+		 .alignCenter {
+			 text-align: center;
+		 }
+		 .alignRight {
+			 text-align: right;
+		 }
+		 .table_heading {
+			 font-weight: bold;
+		 }
+		 .textOverflowHidden {
+			white-space: nowrap; 
+			overflow: hidden;
+			text-overflow: ellipsis;
+		 }
+		.duplicate_copy * {
+			font-size: 9px;
+		}
+		.duplicate_copy #pp th, .duplicate_copy #pp td{
+			font-size: 9px !important;
+		}
+		.return_dashed {
+			width:700px !important;
+		}
+		.old_metal_dashed {
+			width:700px !important;
+		}
+
+		.stones, .charges {
+			font-style: italic;
+		}
+		.stones .stoneData, .charges .chargeData {
+			font-size: 10px !important;
+		}
+		
+        .addr_labels {
+            display: inline-block;
+            width: 30%;
+        }
+		
+        .addr_values {
+            display: inline-block;
+            padding-left: -5px;
+        }
+		
+		.rate_labels {
+            display: inline-block;
+            width: 30%;
+        }
+		
+		.addr_brch_labels {
+			display: inline-block;
+			width: 30%;
+		}
+
+		.addr_brch_values {
+			display: inline-block;
+			padding-left: 2px;
+		}
+
+        </style>
+</head>
+<body>
+<span class="PDFReceipt" >
+            <!--<div>
+                <img alt="" src="<?php echo base_url();?>assets/img/receipt_logo.png">
+            </div>-->
+<?php 
+
+$login_emp = $billing['emp_name'];
+
+$esti_sales_emp = '';
+$esti_purchase_emp = '';
+$esti_return_emp = '';
+
+$esti_sales_id = '';
+$esti_purchase_id = '';
+$esti_return_id = '';
+
+function moneyFormatIndia($num) {
+	return preg_replace("/(\d+?)(?=(\d\d)+(\d)(?!\d))(\.\d+)?/i", "$1,", $num);
+}
+
+$gold_metal_rate = ($billing['goldrate_22ct']>0 ? $billing['goldrate_22ct']:$metal_rate['goldrate_22ct']);
+$silver_metal_rate = ($billing['silverrate_1gm']>0 ?$billing['silverrate_1gm'] :$metal_rate['silverrate_1gm']);
+$metal_type = 0;
+
+$tot_sales_amt=0;
+$sales_cost = 0;
+foreach($est_other_item['item_details'] as $items) {
+	$sales_cost += $items['item_cost'];
+}
+$tot_sales_amt  =  $sales_cost;
+
+$total_return=0;
+foreach($est_other_item['return_details'] as $items) {
+	$total_return  += $items['item_cost'];
+}
+
+$pur_total_amt=0;
+foreach($est_other_item['old_matel_details'] as $items) {
+	$pur_total_amt += $items['amount'];
+}
+?>
+    <div style="margin-top:23px !important;">
+			<div class="hare_krishna"> </div>
+			<div class="header_top">
+			
+			</div><br>
+			<div style="width: 100%; text-transform:uppercase;height:140px;">
+			    <?php if($billing['billing_for']==1 || $billing['billing_for']==2){?>
+
+				<div style="display: inline-block; width: 50%; padding-left:0px;">
+                    <?php echo ($billing['bill_type']==11 ? 'BILL TO'.'<br><br>' :'')?> 						
+					<label><?php echo '<div class="addr_labels">Name</div><div class="addr_values">:&nbsp;&nbsp;'.'Mr./Ms.'.$billing['customer_name']."</div>"; ?></label><br>
+					<label><?php echo '<div class="addr_labels">Mobile</div><div class="addr_values">:&nbsp;&nbsp;'.$billing['mobile']."</div>"; ?></label><br>
+					<label><?php echo ($billing['address1']!='' ? '<div class="addr_labels">Address</div><div class="addr_values">:&nbsp;&nbsp;'.strtoupper($billing['address1']).','."</div><br>" :''); ?></label>
+					<label><?php echo ($billing['address2']!='' ? '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;&nbsp;'.strtoupper($billing['address2']).','."</div><br>" :''); ?></label>
+					<label><?php echo ($billing['village_name']!='' ? '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;&nbsp;'.strtoupper($billing['village_name']).','."</div><br>" :''); ?></label>
+					<label><?php echo ($billing['city']!='' ? '<div class="addr_labels">city</div><div class="addr_values">:&nbsp;&nbsp;'.strtoupper($billing['city']).($billing['pincode']!='' ? ' - '.$billing['pincode'].'.' :'')."</div><br>" :''); ?></label>
+					<label><?php echo ($billing['cus_state']!='' ? '<div class="addr_labels">State</div><div class="addr_values">:&nbsp;&nbsp;'.strtoupper($billing['cus_state'].'-'.$billing['state_code']).','."</div><br>" :''); ?></label>
+					<label><?php echo ($billing['cus_country']!='' ? '<div class="addr_labels">Country</div><div class="addr_values">:&nbsp;&nbsp;'.strtoupper($billing['cus_country'])."</div><br>" :''); ?></label>
+					<label><?php echo (isset($billing['pan_no']) && $billing['pan_no']!='' ? '<div class="addr_labels">PAN</div><div class="addr_values">:&nbsp;&nbsp;'.strtoupper($billing['pan_no'])."</div><br>" :''); ?></label>
+					<label><?php echo (isset($billing['gst_number']) && $billing['gst_number']!='' ? '<div class="addr_labels">GST IN</div><div class="addr_values">:&nbsp;&nbsp;'.strtoupper($billing['gst_number'])."</div><br>" :''); ?></label>
+                </div>
+
+				
+                <?php }else if($billing['billing_for']==3 && $billing['bill_type']!=13 && $billing['bill_type']!=14){?>
+                <div style="display: inline-block; width: 50%;">
+                    
+                    <label><?php echo '<div class="addr_labels">Name</div><div class="addr_values">:&nbsp;&nbsp;'.'Mr./Ms.'.$billing['karigar_name']."</div>"; ?></label><br>
+					<label><?php echo '<div class="addr_labels">Mobile</div><div class="addr_values">:&nbsp;&nbsp;'.$billing['mobile']."</div>"; ?></label><br>
+					<label><?php echo ($billing['karigar_address1']!='' ? '<div class="addr_labels">Address</div><div class="addr_values">:&nbsp;&nbsp;'.strtoupper($billing['karigar_address1']).','."</div><br>" :''); ?></label>
+					<label><?php echo ($billing['karigar_address2']!='' ? '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;&nbsp;'.strtoupper($billing['karigar_address2']).','."</div><br>" :''); ?></label>
+					<label><?php echo (isset($billing['pan_no']) && $billing['pan_no']!='' ? '<div class="addr_labels">PAN</div><div class="addr_values">:&nbsp;&nbsp;'.strtoupper($billing['pan_no'])."</div><br>" :''); ?></label>
+					<label><?php echo (isset($billing['karigar_gst_number']) && $billing['karigar_gst_number']!='' ? '<div class="addr_labels">GST IN</div><div class="addr_values">:&nbsp;&nbsp;'.strtoupper($billing['karigar_gst_number'])."</div><br>" :''); ?></label>
+					<br>
+					<label><?php echo '<div class="addr_labels">place of supply</div><div class="addr_values">:&nbsp;&nbsp;'.$comp_details['state'].'-'.$comp_details['state_code']."</div>"; ?></label><br>
+					<label><?php echo '<div class="addr_labels">reverse charge</div><div class="addr_values">:&nbsp;&nbsp;No</div>'; ?></label><br>
+                </div>
+                <?php }else{?>
+                <div style="display: inline-block; width: 50%;">
+                    
+                    <label><?php echo '<div class="addr_labels">Name</div><div class="addr_values">:&nbsp;&nbsp;'.$billing['transfer_details']['name']."</div>"; ?></label><br>
+                    <label><?php echo '<div class="addr_labels">Address1</div><div class="addr_values">:&nbsp;&nbsp;'.$billing['transfer_details']['address1']."</div>"; ?></label><br>
+                    <label><?php echo '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;'.$billing['transfer_details']['address2']."</div>"; ?></label><br>
+                    <label><?php echo '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;'.$billing['transfer_details']['city'].''.$billing['transfer_details']['pincode']."</div>"; ?></label><br>
+                    <label><?php echo '<div class="addr_labels"></div><div class="addr_values">&nbsp;&nbsp;'.$billing['transfer_details']['state']."</div>"; ?></label><br>
+					<label><?php echo '<div class="addr_labels">GST</div><div class="addr_values">:&nbsp;&nbsp;'.$billing['transfer_details']['gst_number']."</div>"; ?></label><br>
+                    
+                </div>
+                <?php }?>
+                
+                <div style="display: inline-block; width: 10%; padding-left:20px;"></div>
+               <div style="width: 50%; text-align: right !important; display: inline-block; vertical-align: top;">
+					<div style="text-align: left !important;width: 100%; display: inline-block;"> 
+    						<label><?php echo ($comp_details['name']!='' ? '<div class="addr_brch_labels">Branch</div><div class="addr_brch_values">:&nbsp;&nbsp;'.strtoupper($comp_details['name']).','."</div><br>" :''); ?></label>
+    						<label><?php echo ($comp_details['address1']!='' ? '<div class="addr_brch_labels">Address</div><div class="addr_brch_values">:&nbsp;&nbsp;'.strtoupper($comp_details['address1']).','."</div><br>" :''); ?></label>
+    						<label><?php echo ($comp_details['address2']!='' ? '<div class="addr_brch_labels"></div><div class="addr_brch_values">&nbsp;&nbsp;&nbsp;'.strtoupper($comp_details['address2']).','."</div><br>" :''); ?></label>
+    						<label><?php echo ($comp_details['city']!='' ? '<div class="addr_brch_labels">city</div><div class="addr_brch_values">:&nbsp;&nbsp;'.strtoupper($comp_details['city']).($comp_details['pincode']!='' ? ' - '.$comp_details['pincode'].'.' :'')."</div>" :''); ?><br></label>
+    						<label><?php echo ($comp_details['state']!='' ? '<div class="addr_brch_labels">State</div><div class="addr_brch_values">:&nbsp;&nbsp;'.strtoupper($comp_details['state'].($comp_details['state_code']!='' ? '-'.$comp_details['state_code']  :'')).'.'."</div><br>" :''); ?></label>
+    						<label><br><?php echo '<div class="addr_brch_labels">Place of supply</div><div class="addr_brch_values">:&nbsp;&nbsp;'.strtoupper($comp_details['state'].($comp_details['state_code']!='' ? '-'.$comp_details['state_code']  :'')).'.'."</div><br>"; ?></label>
+    						<label><div class="addr_brch_labels">Reverse Charges</div><div class="addr_brch_values">:&nbsp;&nbsp;NO</div><br></label>
+					</div>
+				</div>
+			</div>
+			
+			<?php 
+    		    if(sizeof($est_other_item['item_details'])>0) //SALES BILL 
+    		    {
+    		         if($billing['bill_type'] == 15){
+    		             $invoice_no = $billing['branch_code'].'-SA-'.$billing['metal_code'].'-'.$billing['approval_ref_no'];
+    		         }else{
+    		            $invoice_no = $billing['branch_code'].'-SA-'.$billing['metal_code'].'-'.$billing['sales_ref_no'];
+    		         }
+    		    }else if(sizeof($est_other_item['old_matel_details'])>0) // OLD METAL ITEMS
+    		    {
+    		        $invoice_no =  $billing['branch_code'].'-PU-'.$billing['metal_code'].'-'.$billing['pur_ref_no'];
+    		    }
+    		    else if(sizeof($est_other_item['return_details'])>0) //SALES RETURN
+    		    {
+    		        $invoice_no =  $billing['branch_code'].'-SR-'.$billing['metal_code'].'-'.$billing['s_ret_refno'];
+    		    }
+    		    else if($billing['bill_type']==5) //ORDER ADVANCE
+    		    {
+    		        $invoice_no =  $billing['branch_code'].'-OD-'.$billing['order_adv_ref_no'];
+    		    }
+    		    else if($billing['bill_type']==8)   //CREDIT COLLECTION
+    		    {
+    		        $invoice_no =  $billing['branch_code'].'-CC-'.$billing['credit_coll_refno'];
+    		    }
+    		    else if($billing['bill_type']==10)   //CHIT PRE CLOSE
+    		    {
+    		        $invoice_no =  $billing['branch_code'].'-'.$billing['chit_preclose_refno'];
+    		    }else
+    		    {
+    		        $invoice_no =  $billing['bill_no'];
+    		    }
+		    ?>
+    					    
+			<div style="width: 100%; text-transform:uppercase;margin-top:-20px;">
+			    <div style="display: inline-block; width: 30%; padding-left:0px;">
+    					<label><?php echo ($billing['goldrate_18ct']!=0 ? '<div class="rate_labels" style="height: 18px;">18 KT GOLD</div><div class="addr_values" style="height: 18px;">:&nbsp;&nbsp;'.number_format($billing['goldrate_18ct'],2,'.','').'/'.'Gm'."</div>" :''); ?></label><br>
+    					<label><?php echo '<div class="rate_labels" style="height: 18px;">22 KT GOLD</div><div class="addr_values" style="height: 18px;">:&nbsp;&nbsp;'.number_format($gold_metal_rate,2,'.','').'/'.'Gm'."</div>"; ?></label><br>
+    					<label><?php echo '<div class="rate_labels" style="height: 18px;">SILVER</div><div class="addr_values" style="height: 18px;">:&nbsp;&nbsp;'.number_format($silver_metal_rate,2,'.','').'/'.'Gm'."</div>"; ?></label><br>
+    		    </div>
+    		    <div style="display: inline-block; width: 30%;margin-top:-30px;padding-left:30px;font-weight: bold;">
+    		        <label>
+    					<?php echo ($billing['bill_type'] !=15 ? "TAX INVOICE - " : "").($billing['bill_type']==1 ? 'Sales': ($billing['bill_type']==2 ? 'Sales And Purchase':($billing['bill_type']==3 ? 'Sales and purchase' :($billing['bill_type']==4 ? 'Purchase Bill':($billing['bill_type']==5 ? 'Order Advance' :($billing['bill_type']==6 ? 'Advance' :($billing['bill_type']==7 ? 'Sales Return':($billing['bill_type']==9 ? 'Order Delivery' :($billing['bill_type']==10 ? 'Chit PreClose': ($billing['bill_type']==11 ? 'Repair Order' : ($billing['bill_type']==13 ? 'Sales Transfer' : ($billing['bill_type']==15 ? 'Approval Bill Acknowledgement' :'Credit Collection') ))))))))))).($billing['bill_status']==2 ? '- Cancelled' : '');?>
+    				</label>
+    		    </div>
+    		    <div style="width: 40%; text-align: right !important; display: inline-block; vertical-align: top;padding-left:80px;">
+					<div style="text-align: left !important;width: 100%; display: inline-block;"> 
+    						<label><?php echo '<div class="addr_brch_labels" style="height: 18px;">Invoice Date</div><div class="addr_brch_values" style="height: 18px;font-weight: bold;">:&nbsp;&nbsp;'.$billing['bill_date']."</div><br>"; ?></label>
+        						<label><?php 
+        						            $disp_label = $billing['bill_type'] == 15 ? 'Ack No' : 'Invoice No'; 
+        						            echo '<div class="addr_brch_labels" style="height: 18px;">'.$disp_label.'</div><div class="addr_brch_values" style="height: 18px;">:&nbsp;&nbsp;'.$invoice_no."</div><br>"; ?>
+        						</label>
+    				</div>
+				</div>
+			</div>
+			<div  class="content-wrapper" style="margin-top:-30px;">
+			<div class="box">
+			<div class="box-body">
+						<div  class="container-fluid">
+							<div id="printable">
+								<?php if(sizeof($est_other_item['item_details'])>0){?>
+							    <?php 
+							    if($est_other_item['item_details'][0]['order_no']!='')
+							    {?>
+							        <div align="center">
+    									<label><b>Order No.<?php echo $est_other_item['item_details'][0]['order_no'];?></b></label>
+    								</div><p></p>
+							    <?php }
+							    ?>
+								
+											
+									<hr class="header_dashed">
+										<div class="col-xs-12">
+											<div class="table-responsive">
+											<table id="pp" class="table text-center" >
+													<thead style="text-transform:uppercase;font-size:10px;">
+														<tr>
+															<td class="table_heading" style="width: 5%">S.No</td>
+															<td class="table_heading" style="width: 26%">Description of Goods</td>
+															<td class="table_heading" style="width: 15%">HSN</td>
+															<td class="table_heading" style="width: 9%">purity</td>
+															<td class="table_heading alignRight" style="width: 9%">PCS</td>
+															<td class="table_heading alignRight" style="width: 15%">Gwt(g)</td>
+															<td class="table_heading alignRight" style="width: 15%">Nwt(g)</td>
+															<td class="table_heading alignRight" style="width: 15%">Amount</td>
+														</tr>
+													</thead>
+														<tr>
+															<td><hr class="item_dashed"></td>
+														</tr>
+													
+													<!--<tbody>-->
+													<?php
+													$i=1; 
+													$pieces=0;
+													$gross_wt=0;
+													$net_wt=0;
+													$discount=0;
+													$taxable_amt=0;
+													$tot_tax=0;
+													$sales_cost=0;
+													$tot_tax_per=0;
+													$total_cgst=0;
+													$total_sgst=0;
+													$total_igst=0;
+													$bill_discount=0;
+													$mc=0;
+													$wastge_wt=0;
+													$total_stone_amount=0;
+													$total_mc=0;
+													$tot_wastage_wt=0;
+													
+												    $savings_in_making_charge = 0;
+												    $savings_in_wastage = 0;
+												    $closing_weight = 0;
+												    $closing_amount = 0;
+												    $scheme_benefit = 0;
+													foreach($est_other_item['chit_details'] as $chit)
+													{
+													    if($chit['closing_weight'] > 0)
+													    {
+													        $savings_in_making_charge+=$chit['savings_in_making_charge'];
+    													    $savings_in_wastage+=($chit['savings_in_wastage']*$billing['goldrate_22ct']);
+    													    $closing_weight+=number_format($chit['closing_weight'],3,'.','');
+    													    $closing_amount+=($chit['closing_amount']);
+    													    $scheme_benefit = number_format((($closing_weight*$billing['goldrate_22ct'])-$closing_amount+$savings_in_making_charge+$savings_in_wastage),2,'.','');
+													     }
+													 }
+													    
+													
+													foreach($est_other_item['item_details'] as $items)
+														{
+															$esti_sales_emp = $items['esti_emp_name'];
+															$esti_sales_id = $items['esti_emp_id'];
+
+															$mc=0;
+															$wastge_wt=0;
+
+															$stone_amount=0;
+															if(count($items['stone_details']) > 0) {
+																foreach($items['stone_details'] as $stoneItems) { 
+																	if($stoneItems['uom_short_code']=='CT')
+																    {
+																        $stone_amount += $stoneItems['amount'];
+																    }
+																}
+															}
+
+															$total_stone_amount += $stone_amount;
+
+															$metal_type = $items['metal_type'];
+															$pieces         +=$items['piece'];
+															$gross_wt       +=$items['gross_wt'];
+															$net_wt         +=$items['net_wt'];
+															$discount       +=$items['discount'];
+															$tot_tax        +=$items['item_total_tax'];
+															$sales_cost     +=$items['item_cost'];
+															$total_cgst     +=$items['total_cgst'];
+															$total_sgst     +=$items['total_sgst'];
+															$total_igst     +=$items['total_igst'];
+														    $bill_discount  +=($items['bill_discount']-$items['wastage_discount']-$items['mc_discount']-$items['item_blc_discount']);
+															$item_discount  =($items['bill_discount']-$items['wastage_discount']-$items['mc_discount']-$items['item_blc_discount']);
+														
+															$taxable_amt    +=$items['item_cost']-$items['item_total_tax'];
+															$amt_in_words   = $this->ret_billing_model->no_to_words($billing['tot_bill_amount']);
+
+															$item_taxable   =number_format((float)$items['item_cost']-$items['item_total_tax'],2,'.','');
+															$tax_percentage =number_format(($items['item_total_tax']*100)/$item_taxable,'2','.','');
+															$tot_tax_per    +=$tax_percentage;
+
+															if($items['calculation_based_on']==0)
+															{
+																$wastge_wt=($items['gross_wt']*($items['wastage_percent']/100));
+																$mc = ($items['mc_type']== 1 ? ($items['mc_value'] * $items['gross_wt'] ) : ($items['mc_value'] * 1));
+
+															}else if($items['calculation_based_on']==1)
+															{
+																$wastge_wt=($items['net_wt']*($items['wastage_percent']/100));
+																$mc = ($items['mc_type']== 1 ? ($items['mc_value'] * $items['net_wt'] ) : ( $items['mc_value'] * 1 ));
+															}else if($items['calculation_based_on']==2)
+															{
+																$wastge_wt=($items['net_wt']*($items['wastage_percent']/100));
+																$mc = ($items['mc_type']== 2 ? ($items['mc_value'] * $items['gross_wt'] ) : ( $items['mc_value'] * 1 ));
+															}
+															
+															if($items['wastage_discount']>0)
+                                                            {
+                                                                $discount_weight = ($items['wastage_discount']/$items['rate_per_grm']);
+                                                                $item_wastge_wt = $wastge_wt - $discount_weight;
+                                                            }
+                                                            else
+                                                            {
+                                                                $item_wastge_wt = $wastge_wt;
+                                                            }
+                                                            if($items['mc_discount']>0)
+                                                            {
+                                                                $mc        = $mc - $items['mc_discount'];
+                                                            }
+                                                            $total_mc        +=$mc;
+															$tot_wastage_wt+=$item_wastge_wt;
+															
+														?>
+
+														<tr>
+														<td><?php echo $i;?></td>
+														<td style="font-size:10px !important;" class='textOverflowHidden'><?php echo $items['product_name'];?><?php echo $items['size'] > 0 ? "-".$items['size_name'] : '';?></td>
+														<td><?php echo $items['hsn_code'];?></td>
+														<td><?php echo $items['purname'];?></td>
+														<td class="alignRight"><?php echo $items['piece'];?></td>
+														<td class="alignRight"><?php echo $items['gross_wt'];?></td>
+														<td class="alignRight"><?php echo $items['net_wt'];?></td>
+														<td class="alignRight"><?php echo moneyFormatIndia(number_format((float)($item_taxable>0 ? ($item_taxable+$item_discount-$stone_amount):0),2,'.',''));?></td>
+														</tr>
+														<?php
+														    if(count($items['stone_details']) > 0) {
+																foreach($items['stone_details'] as $stoneItems) { 
+																    if($stoneItems['uom_short_code']=='CT')
+																    {
+																	?>
+																	<tr class="stones">
+																		<td></td>
+																		<td class='textOverflowHidden stoneData'><?php echo $stoneItems['stone_name'];?></td>
+																		<td></td>
+																		<td></td>
+																		<td class="alignRight stoneData"><?php echo $stoneItems['pieces'];?></td>
+																		<td class="alignRight stoneData"><?php echo $stoneItems['wt'];?></td>
+																		<td class="alignRight"></td>
+																		<td class="alignRight stoneData"><?php echo moneyFormatIndia(number_format((float)($stoneItems['amount']),2,'.',''));?></td>
+																	</tr>
+															 <?php }}
+															}
+
+															if(count($items['charges']) > 0) {
+																foreach($items['charges'] as $chargeItems) { ?>
+																	<tr class="charges" style="display:none;">
+																		<td></td>
+																		<td></td>
+																		<td></td>
+																		<td class="chargeData"><?php echo $chargeItems['code_charge'];?></td>
+																		<td></td>
+																		<td></td>
+																		<td></td>
+																		<td></td>
+																	</tr>
+															 <?php }
+															}
+														?>
+													<?php $i++;}?>
+												<!--</tbody> -->
+														<tr>
+															<td><hr class="item_dashed"></td>
+														</tr>
+														<tr class="total" style="font-weight: bold" >
+															<td>Total</td>
+															<td></td>
+															<td></td>
+															<td></td>
+															<td class="alignRight"><?php echo $pieces;?></td>
+															<td class="alignRight"><?php echo number_format($gross_wt,3,'.','');?></td>
+															<td class="alignRight"><?php echo number_format($net_wt,3,'.','');?></td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format((float)($taxable_amt),2,'.',''));?></td>
+														</tr>
+														<tr>
+															<td><hr class="item_dashed"></td>
+														</tr>
+														
+									
+														<?php if($taxable_amt>0){?>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">SUB TOTAL</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format((float)($taxable_amt),2,'.',''));?></td>
+														</tr>
+														<?php } ?>
+														<?php if($total_sgst>0){?>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">SGST</td>
+															<td class="alignRight"><?php echo ($est_other_item['item_details'][0]['tax_percentage']/2).'%'?></td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format((float)($total_sgst),2,'.',''));?></td>
+														</tr>
+														<?php }?>
+														
+														<?php if($total_cgst>0){?>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">CGST</td>
+															<td class="alignRight"><?php echo ($est_other_item['item_details'][0]['tax_percentage']/2).'%'?></td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format((float)($total_cgst),2,'.',''));?></td>
+														</tr>
+                                                        <?php }?>
+                                                        
+														<?php if($total_igst>0){?>
+															<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">IGST</td>
+															<td class="alignRight"><?php echo ($est_other_item['item_details'][0]['tax_percentage']).'%'?></td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format((float)($total_igst),2,'.',''));?></td>
+														</tr>
+														<?php }?>
+														
+														<?php if($scheme_benefit>0){?>
+															<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">CHIT BENEFIT</td>
+															<td class="alignRight">RS</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format((float)($scheme_benefit),2,'.',''));?></td>
+														</tr>
+														<?php }?>
+														
+														<?php if($billing['handling_charges']>0){?>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">H.C</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format($billing['handling_charges'],2,'.',''));?></td>
+														</tr>
+														<?php }?>
+														
+														<?php
+														if((sizeof($est_other_item['return_details'])==0) && ((sizeof($est_other_item['old_matel_details'])==0)) && ($billing['round_off_amt']!=0))
+														{?>
+														    <tr>
+    															<td colspan="5"></td>
+    															<td class="alignRight">Round Off</td>
+    															<td class="alignRight">Rs.</td>
+    															<td class="alignRight"><?php echo moneyFormatIndia(number_format($billing['round_off_amt'],2,'.',''));?></td>
+    														</tr>
+    														
+    														<tr>
+    															<td colspan="5"></td>
+    															<td class="alignRight">TOTAL</td>
+    															<td class="alignRight">Rs.</td>
+    															<td class="alignRight"><?php echo moneyFormatIndia(number_format(round($tot_sales_amt+$billing['handling_charges']+$billing['round_off_amt']-$scheme_benefit),2,'.',''));?></td>
+    														</tr>
+														
+														<?}else {?>
+														    <tr>
+    															<td colspan="5"></td>
+    															<td class="alignRight">TOTAL</td>
+    															<td class="alignRight">Rs.</td>
+    															<td class="alignRight"><?php echo moneyFormatIndia(number_format(($tot_sales_amt+$billing['handling_charges']-$scheme_benefit),2,'.',''));?></td>
+    														</tr>
+														<?php }?>
+														
+														<?php if($billing['tcs_tax_amt']>0){?>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">TCS %</td>
+															<td class="alignRight"><?php echo $billing['tcs_tax_per'];?></td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format($billing['tcs_tax_amt'],2,'.',''));?></td>
+														</tr>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">Net Amt</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format($tot_sales_amt+$billing['handling_charges']+$billing['tcs_tax_amt']-$scheme_benefit,2,'.',''));?></td>
+														</tr>
+														<?php }?>
+												</table>
+											</div>	
+										</div>	
+									</div>
+									<?php }
+									//echo "<pre>"; print_r($stones); echo "</pre>";exit;
+									?>
+									
+								
+									<?php if(sizeof($est_other_item['return_details'])>0){?>
+									<span style="font-weight: bold">SALES RETURN INVOICE NO : <?php echo  $billing['branch_code'].'-SR-'.$billing['metal_code'].'-'.$billing['s_ret_refno'];?></span>
+
+											<table id="pp" class="table text-center">
+												<!--	<thead> -->
+														<tr>
+															<td><hr class="return_dashed"></td>
+														</tr>
+														 <?php if(sizeof($est_other_item['item_details'])==0 && sizeof($est_other_item['old_matel_details'])==0){?>
+														<tr style="text-transform:uppercase;">
+															<td style="width: 5%" class="table_heading">S.No</td>
+															<td style="width: 25%" class="table_heading">Description</td>
+															<td style="width: 15%" class="table_heading">HSN Code</td>
+															<td style="width: 15%" class="table_heading">PURITY</td>
+															<td style="width: 10%" class="table_heading alignRight">PCS</td>
+															<td style="width: 15%" class="table_heading alignRight">Gwt(g)</td>
+															<td style="width: 15%" class="table_heading alignRight">Nwt(g)</td>
+															<td style="width: 15%" class="table_heading alignRight">Amount</td>
+														</tr>
+														<tr>
+															<td><hr class="return_dashed"></td>
+														</tr>
+														<?php }?>
+													<!--</thead>
+													<tbody>-->
+													<tr style="font-weight:bold; text-transform: uppercase;"><td colspan="9">Exchange</td></tr>
+													<?php
+													$i=1; 
+													$pieces=0;
+													$gross_wt=0;
+													$net_wt=0;
+													$return_item_cost=0;
+													$discount=0;
+													$tax_percentage=0;
+													$total_cgst=0;
+													$total_igst=0;
+													$total_sgst=0;
+													$mc = 0;
+													$wastge_wt=0;
+													foreach($est_other_item['return_details'] as $items)
+														{
+															$esti_return_emp = $items['esti_emp_name'];
+															$esti_return_id = $items['esti_emp_id'];
+
+															$mc = 0;
+															$wastge_wt=0;
+															$pieces             +=$items['piece'];
+															$gross_wt           +=$items['gross_wt'];
+															$net_wt             +=$items['net_wt'];
+															$discount           +=$items['discount'];
+															$total_sgst         +=$items['total_sgst'];
+															$total_igst         +=$items['total_igst'];
+															$total_cgst         +=$items['total_cgst'];
+															$return_item_cost   +=$items['item_cost']-$items['item_total_tax'];
+															$tax_percentage     =$items['tax_percentage']/2;
+
+															if($items['calculation_based_on']==0)
+															{
+																$wastge_wt=($items['gross_wt']*($items['wastage_percent']/100));
+																$mc = ($items['mc_type']== 1 ? ($items['mc_value'] * $items['gross_wt'] ) : ($items['mc_value'] *$items['piece']));
+
+															}else if($items['calculation_based_on']==1)
+															{
+																$wastge_wt=($items['net_wt']*($items['wastage_percent']/100));
+																$mc = ($items['mc_type']== 1 ? ($items['mc_value'] * $items['net_wt'] ) : ( $items['mc_value'] * $items['piece'] ));
+															}else if($items['calculation_based_on']==2)
+															{
+																$wastge_wt=($items['net_wt']*($items['wastage_percent']/100));
+																$mc = ($items['mc_type']== 1 ? ($items['mc_value'] * $items['gross_wt'] ) : ( $items['mc_value'] * $items['piece'] ));
+															}
+														?>
+														<tr>
+															<td colspan="9" style="text-transform:uppercase; font-weight: bold">Refer sale  bill no : <?php echo $items['ref_bill_no'].' Dt '.$items['ref_bill_date']?> </td>
+														</tr>
+														<tr>
+														<td style="width: 5%"><?php echo $i;?></td>
+														<td style="width: 26%; font-size:10px;" class='textOverflowHidden'><?php echo $items['product_name'];?></td>
+														<td style="width: 15%"><?php echo $items['hsn_code'];?></td>
+														<td style="width: 15%"><?php echo $items['purname'];?></td>
+														<td style="width: 9%" class="alignRight"><?php echo $items['piece'];?></td>
+														<td style="width: 15%" class="alignRight"><?php echo $items['gross_wt'];?></td>
+														<td style="width: 15%" class="alignRight"><?php echo $items['net_wt'];?></td>
+														<td style="width: 15%" class="alignRight"><?php echo moneyFormatIndia(number_format($items['item_cost'],2,'.',''));?></td>
+														</tr>
+													<?php $i++;}?>
+														<tr >
+															<td><hr class="return_dashed"></td>
+														</tr>
+												<!--</tbody> -->
+													<!--<tfoot>-->
+														<tr style="font-weight: bold">
+															<td>Total</td>
+															<td></td>
+															<td></td>
+															<td></td>
+															<td></td>
+															<td></td>
+															<td></td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format((float)$total_return,'2','.',''));?></td>
+														</tr>
+														<tr>
+															<td><hr class="return_dashed"></td>
+														</tr>
+														<?php 
+														if($pur_total_amt == 0) { 
+														if($tot_sales_amt+$billing['handling_charges'] > 0){?>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">Sales Amount</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format($tot_sales_amt+$billing['handling_charges']-$scheme_benefit,2,'.',''));?></td>
+														</tr>
+														<?php }?>
+														
+														<?php if($billing['credit_due_amt'] != 0) { ?>
+														
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">Return Amount</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format($total_return,2,'.',''));?></td>
+														</tr>
+														
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">Credit Due Amt</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo $billing['credit_due_amt'] ?></td>
+														</tr>
+														<?php } ?>
+														
+														<?php if($total_return>0){?>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">Exchange Amount</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format($total_return-$billing['credit_due_amt'],2,'.',''));?></td>
+														</tr>
+														<?php } ?>
+														
+														
+														
+														<?php $round_off = moneyFormatIndia(number_format($billing['round_off_amt'],2,'.','')); ?>
+														<?php if($round_off != 0) { ?>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">Round Off</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo $round_off ?></td>
+														</tr>
+														<?php } ?>
+														<?php if($tot_sales_amt > 0 && $total_return > 0){?>
+														<tr>
+															<td colspan="5"></td>
+															<td class="alignRight">Net Amount</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format(round(($tot_sales_amt+$billing['handling_charges']) -$total_return+$round_off) ,2,'.',''));?></td>
+														</tr>
+														<?php } } ?>
+												</table>
+									<?php }?>
+									
+									<?php if(sizeof($est_other_item['sales_ret_trans_details'])>0){?>
+                				        <hr class="header_dashed">
+                							<div class="col-xs-12">
+                								<div class="table-responsive" >
+                								<table id="pp" class="table text-center" >
+                										<thead style="text-transform:uppercase;font-size:10px;">
+                											<tr>
+                												<td width="5%;">S.No</td>
+                												<td width="10%;">HSN</td>
+                												<td width="15%;">Description</td>
+                												<td width="10%;">PCS</td>
+                												<td width="10%;">Gwt(g)</td>
+                												<td width="10%;">Rate</td>
+                												<td width="5%;" style="text-align:right;">Amount(Rs)</td>
+                											</tr>
+                										</thead>
+                											<tr>
+                                        						<td><hr class="item_dashed" style="width:1350% !important;"></td>
+                                        					</tr>
+                										
+                										<!--<tbody>-->
+                										<?php
+                										$i=1; 
+                										$pieces=0;
+                										$gross_wt=0;
+                										$net_wt=0;
+                										$discount=0;
+                										$taxable_amt=0;
+                										$tot_tax=0;
+                										$sales_cost=0;
+                										$tot_sales_amt=0;
+                										$tot_tax_per=0;
+                										$total_cgst=0;
+                										$total_sgst=0;
+                										$total_igst=0;
+                										$bill_discount=0;
+                										foreach($est_other_item['sales_ret_trans_details'] as $items)
+                											{
+                											    $mc=0;
+                												$pieces         +=$items['piece'];
+                												$gross_wt       +=$items['gross_wt'];
+                												$net_wt         +=$items['net_wt'];
+                												$tot_tax        +=$items['item_total_tax'];
+                												$sales_cost     +=$items['item_cost'];
+                												$total_cgst     +=$items['total_cgst'];
+                												$total_sgst     +=$items['total_sgst'];
+                												$total_igst     +=$items['total_igst'];
+                												$taxable_amt    +=$items['item_cost']-$items['item_total_tax'];
+                												$amt_in_words   = $this->ret_billing_model->no_to_words($billing['tot_bill_amount']);
+                												$tot_sales_amt  =number_format($sales_cost,2,'.','');
+                											    $item_taxable   =number_format((float)$items['item_cost']-$items['item_total_tax'],2,'.','');
+                												$tax_percentage =number_format(($items['item_total_tax']*100)/$item_taxable,'2','.','');
+                												$tot_tax_per    +=$tax_percentage;
+                											
+                											?>
+                											
+                											<tr>
+                											<td><?php echo $i;?></td>
+                											<td><?php echo $items['hsn_code'];?></td>
+                											<td style="font-size:10px !important;"><?php echo $items['category_name'];?></td>
+                											<td><?php echo $items['piece'];?></td>
+                											<td><?php echo $items['gross_wt'];?></td>
+                											<td><?php echo $items['rate_per_grm'];?></td>
+                											<td  style="text-align:right;"><?php echo number_format($item_taxable,2,'.','');?></td>
+                											</tr>
+                										<?php $i++;}?>
+                									<!--</tbody> -->
+                											<tr>
+                                        						<td><hr class="item_dashed" style="width:1350% !important;"></td>
+                                        					</tr>
+                											<tr class="total" >
+                												<td></td>
+                												<td></td>
+                												<td>Total</td>
+                												<td><?php echo $pieces;?></td>
+                												<td><?php echo number_format($gross_wt,3,'.','');?></td>
+                												<td></td>
+                												<td  style="text-align:right;"><?php echo number_format((float)($taxable_amt+$bill_discount),2,'.','');?></td>
+                											</tr>
+                									    	<tr>
+                                        						<td><hr class="item_dashed" style="width:1350% !important;"></td>
+                                        					</tr>
+                									        <?php if($bill_discount>0){?>
+                											<tr>
+                												<td colspan="3" ></td>
+                												<td width="">LESS DISC</td>
+                												<td width="1%;"></td>
+                												<td style="text-align:right;"><?php echo number_format($bill_discount,2,'.','');?></td>
+                											</tr>
+                											<?php }?>
+                											<?php if($taxable_amt>0){?>
+                											<tr>
+                												<td colspan="4" ></td>
+                												<td width="">SUB TOTAL</td>
+                												<td width="1%;">Rs.</td>
+                												<td style="text-align:right;"><?php echo number_format((float)($taxable_amt),2,'.','');?></td>
+                											</tr>
+                											<?php }?>
+                											
+                											<?php if($total_sgst>0){?>
+                											<tr>
+                												<td colspan="4"><?php if($billing['remark']!='' && strlen($billing['remark']) > 1) { ?>
+                                                                    REMARK &nbsp;:<?php echo $billing['remark']; ?>
+                                                                    <?php } else { ?>
+                                                                    REMARK &nbsp;:<?php echo '&nbsp;'.'-';
+                                                                    }
+                                                                    ?>
+                    											 </td>
+                												<td width="4">SGST</td>
+                												<td width="1%;"><?php echo ($est_other_item['sales_ret_trans_details'][0]['tax_percentage']/2).'%'?></td>
+                												<td  style="text-align:right;"><?php echo $total_sgst;?></td>
+                											</tr>
+                											<?php }?>
+                											
+                											<?php if($total_cgst>0){?>
+                											<tr>
+                												<td colspan="4"></td>
+                												<td width="">CGST</td>
+                												<td width="1%;"><?php echo ($est_other_item['sales_ret_trans_details'][0]['tax_percentage']/2).'%'?></td>
+                										    	<td  style="text-align:right;"><?php echo $total_cgst;?></td>
+                											</tr>
+                											<?php }?>
+                											
+                											<?php if($total_igst>0){?>
+                												<tr>
+                												<td colspan="4"></td>
+                												<td width="">IGST</td>
+                												<td width="1%;"><?php echo ($est_other_item['sales_ret_trans_details'][0]['tax_percentage']).'%'?></td>
+                												<td style="text-align:right;"><?php echo $total_igst;?></td>
+                											</tr>
+                											<?php }?>
+                											
+                											<?php if($billing['round_off_amt']>0) { ?>
+                											<tr>
+                												<td colspan="4" ></td>
+                												<td width="">Round Off</td>
+                												<td width="1%;">Rs.</td>
+                												<td style="text-align:right;"><?php echo number_format($billing['round_off_amt'],2,'.','');?></td>
+                
+                											</tr>
+                											
+                											<?php } ?>
+                											
+                											<tr>
+                												<td colspan="4"></td>
+                												<td><hr class="total_dashed" style="width:250% !important;"></td>
+                												<td></td>
+                												<td></td>
+                                        					</tr>
+                								
+                											
+                											<tr>
+                												<td colspan="4" ></td>
+                												<td width="">Total</td>
+                												<td width="1%;">Rs.</td>
+                												<td style="text-align:right;"><?php echo number_format(($billing['tot_bill_amount']< 0 ? ($billing['tot_bill_amount']*-1) :$billing['tot_bill_amount']),2,'.','');?></td>
+                
+                											</tr>
+                											
+                											<tr>
+                												<td colspan="3"></td>
+                												<td></td>
+                												<td></td>
+                												<td></td>
+                                        					</tr>
+                									</table>
+                								</div>	
+                							 </div>	
+                						</div><br>
+                						<?php }?>
+                						
+									
+										<?php if($billing['bill_type']==5){?>
+										<?php if(sizeof($est_other_item['advance_details'])>0){
+											$amount=0;
+											$order_no='';
+											$order_adv_pur=0;
+											foreach($est_other_item['advance_details'] as $item)
+											{
+													$order_no=$item['order_no'];
+													if($item['advance_type']==1)
+													{	
+														if($item['store_as']==1)
+														{
+															$amount +=$item['advance_amount'];
+														}
+														else
+														{
+															$amount +=$item['advance_weight']*$item['rate_per_gram'];
+														}
+													}
+													
+											
+											}
+										}
+										?>
+
+										<?php ?>
+										<div  class="row">
+											<div align="center">
+												<label><b>Order No.<?php echo $order_no;?></b></label>
+											</div>
+										<div class="col-xs-12">
+											<div class="table-responsive">
+											<table id="pp" class="table text-center">
+												<!--	<thead> -->
+														<tr>
+															<td><hr class="old_metal_dashed"></td>
+														</tr>
+														<tr>
+															<td class="table_heading" width="15%;">S.No</td>
+															<td class="table_heading" width="25%;">Description</td>
+															<td class="table_heading" width="25%;">Design</td>
+															<td class="table_heading" width="35%;">SUB DESIGN</td>
+															<td class="table_heading" width="20%;">SIZE</td>
+															<td class="table_heading alignRight" width="20%;">PCS</td>
+															<td class="table_heading alignRight" width="20%;">Gwt(g)</td>
+														</tr>
+														<tr>
+															<td><hr class="old_metal_dashed"></td>
+														</tr>
+													<!--</thead>
+													<tbody>-->
+														<?php 
+														$i=1; 
+														$weight=0;
+														foreach($est_other_item['order_details'] as $items){
+														$weight+=$items['weight'];
+														?>
+															<tr>
+																<td><?php echo $i;?></td>
+																<td><?php echo $items['product_name'];?></td>
+																<td><?php echo $items['design_name'];?></td>
+																<td><?php echo $items['sub_design_name'];?></td>
+																<td><?php echo $items['size_name'];?></td>
+																<td class="alignRight"><?php echo $items['totalitems'];?></td>
+																<td class="alignRight"><?php echo $items['weight'];?></td>
+															</tr>
+														<?php $i++;}
+														?>
+														
+												<!--</tbody> -->
+													<tr>
+														<td><hr class="old_metal_dashed"></td>
+													</tr>
+													
+													<tr>
+														<td>Total</td>
+														<td></td>
+														<td></td>
+														<td></td>
+														<td></td>
+														<td></td>
+														<td class="alignRight"><?php echo number_format($weight,3,'.','');?></td>
+													</tr>
+													
+													<tr>
+														<td><hr class="old_metal_dashed"></td>
+													</tr>
+													
+													<tr>
+															<td colspan="6"><?php echo 'Received with thanks from Mr./Ms.'.$billing['customer_name'].' Towards Order  No : '.$order_no.'';?></td>
+															<td colspan="2"><b><?php echo 'Rs. '.moneyFormatIndia($amount+$pur_total_amt);?></b></td>
+													</tr>
+													
+												</table><br>	
+											</div>	
+										</div>	
+									</div><br>
+									<?php }?>
+                                    
+                                    					<?php if(sizeof($est_other_item['sales_trasnfer_details'])>0){?>
+				        <hr class="header_dashed">
+							<div class="col-xs-12">
+								<div class="table-responsive" >
+								<table id="pp" class="table text-center" >
+										<thead style="text-transform:uppercase;font-size:10px;">
+											<tr>
+												<td width="5%;">S.No</td>
+												<td width="10%;">HSN</td>
+												<td width="15%;">Description</td>
+												<td width="10%;">PCS</td>
+												<td width="10%;">Gwt(g)</td>
+												<td width="10%;">Rate</td>
+												<td width="5%;" style="text-align:right;">Amount(Rs)</td>
+											</tr>
+										</thead>
+											<tr>
+                        						<td><hr class="item_dashed" style="width:1350% !important;"></td>
+                        					</tr>
+										
+										<!--<tbody>-->
+										<?php
+										$i=1; 
+										$pieces=0;
+										$gross_wt=0;
+										$net_wt=0;
+										$discount=0;
+										$taxable_amt=0;
+										$tot_tax=0;
+										$sales_cost=0;
+										$tot_sales_amt=0;
+										$tot_tax_per=0;
+										$total_cgst=0;
+										$total_sgst=0;
+										$total_igst=0;
+										$bill_discount=0;
+										foreach($est_other_item['sales_trasnfer_details'] as $items)
+											{
+											    $mc=0;
+												$pieces         +=$items['piece'];
+												$gross_wt       +=$items['gross_wt'];
+												$net_wt         +=$items['net_wt'];
+												$tot_tax        +=$items['item_total_tax'];
+												$sales_cost     +=$items['item_cost'];
+												$total_cgst     +=$items['total_cgst'];
+												$total_sgst     +=$items['total_sgst'];
+												$total_igst     +=$items['total_igst'];
+												$taxable_amt    +=$items['item_cost']-$items['item_total_tax'];
+												$amt_in_words   = $this->ret_billing_model->no_to_words($billing['tot_bill_amount']);
+												$tot_sales_amt  =number_format($sales_cost,2,'.','');
+											    $item_taxable   =number_format((float)$items['item_cost']-$items['item_total_tax'],2,'.','');
+												$tax_percentage =number_format(($items['item_total_tax']*100)/$item_taxable,'2','.','');
+												$tot_tax_per    +=$tax_percentage;
+											
+											?>
+											
+											<tr>
+											<td><?php echo $i;?></td>
+											<td><?php echo $items['hsn_code'];?></td>
+											<td style="font-size:10px !important;"><?php echo $items['category_name'];?></td>
+											<td><?php echo $items['piece'];?></td>
+											<td><?php echo $items['gross_wt'];?></td>
+											<td><?php echo $items['rate_per_grm'];?></td>
+											<td  style="text-align:right;"><?php echo number_format($item_taxable,2,'.','');?></td>
+											</tr>
+										<?php $i++;}?>
+									<!--</tbody> -->
+											<tr>
+                        						<td><hr class="item_dashed" style="width:1350% !important;"></td>
+                        					</tr>
+											<tr class="total" >
+												<td></td>
+												<td></td>
+												<td>Total</td>
+												<td><?php echo $pieces;?></td>
+												<td><?php echo number_format($gross_wt,3,'.','');?></td>
+												<td></td>
+												<td  style="text-align:right;"><?php echo number_format((float)($taxable_amt+$bill_discount),2,'.','');?></td>
+											</tr>
+									    	<tr>
+                        						<td><hr class="item_dashed" style="width:1350% !important;"></td>
+                        					</tr>
+									        <?php if($bill_discount>0){?>
+											<tr>
+												<td colspan="3" ></td>
+												<td width="">LESS DISC</td>
+												<td width="1%;"></td>
+												<td style="text-align:right;"><?php echo number_format($bill_discount,2,'.','');?></td>
+											</tr>
+											<?php }?>
+											<?php if($taxable_amt>0){?>
+											<tr>
+												<td colspan="4" ></td>
+												<td width="">SUB TOTAL</td>
+												<td width="1%;">Rs.</td>
+												<td style="text-align:right;"><?php echo number_format((float)($taxable_amt),2,'.','');?></td>
+											</tr>
+											<?php }?>
+											
+											<?php if($total_sgst>0){?>
+											<tr>
+												<td colspan="4"><?php if($billing['remark']!='' && strlen($billing['remark']) > 1) { ?>
+                                                    REMARK &nbsp;:<?php echo $billing['remark']; ?>
+                                                    <?php } else { ?>
+                                                    REMARK &nbsp;:<?php echo '&nbsp;'.'-';
+                                                    }
+                                                    ?>
+    											 </td>
+												<td width="4">SGST</td>
+												<td width="1%;"><?php echo ($est_other_item['sales_trasnfer_details'][0]['tax_percentage']/2).'%'?></td>
+												<td  style="text-align:right;"><?php echo $total_sgst;?></td>
+											</tr>
+											<?php }?>
+											
+											<?php if($total_cgst>0){?>
+											<tr>
+												<td colspan="4"></td>
+												<td width="">CGST</td>
+												<td width="1%;"><?php echo ($est_other_item['sales_trasnfer_details'][0]['tax_percentage']/2).'%'?></td>
+										    	<td  style="text-align:right;"><?php echo $total_cgst;?></td>
+											</tr>
+											<?php }?>
+											
+											<?php if($total_igst>0){?>
+												<tr>
+												<td colspan="4"></td>
+												<td width="">IGST</td>
+												<td width="1%;"><?php echo ($est_other_item['sales_trasnfer_details'][0]['tax_percentage']).'%'?></td>
+												<td style="text-align:right;"><?php echo $total_igst;?></td>
+											</tr>
+											<?php }?>
+											
+											<?php if($billing['round_off_amt']>0) { ?>
+											<tr>
+												<td colspan="4" ></td>
+												<td width="">Round Off</td>
+												<td width="1%;">Rs.</td>
+												<td style="text-align:right;"><?php echo number_format($billing['round_off_amt'],2,'.','');?></td>
+
+											</tr>
+											
+											<?php } ?>
+											
+											<tr>
+												<td colspan="4"></td>
+												<td><hr class="total_dashed" style="width:250% !important;"></td>
+												<td></td>
+												<td></td>
+                        					</tr>
+											
+										
+											
+											
+										
+											
+											<?php if($billing['handling_charges']>0){?>
+											<tr>
+												<td colspan="3" ></td>
+												<td width="">H.C</td>
+												<td width="1%;">Rs.</td>
+												<td style="text-align:right;"><?php echo $billing['handling_charges'];?></td>
+											</tr>
+											<?php }?>
+											
+										
+											<tr>
+												<td colspan="4" ></td>
+												<td width="">Total</td>
+												<td width="1%;">Rs.</td>
+												<td style="text-align:right;"><?php echo number_format($billing['tot_bill_amount'],2,'.','');?></td>
+
+											</tr>
+											
+											<tr>
+												<td colspan="3"></td>
+												<td></td>
+												<td></td>
+												<td></td>
+                        					</tr>
+									</table>
+								</div>	
+							 </div>	
+						</div><br>
+						<?php }?>
+						
+									<?php if(sizeof($est_other_item['old_matel_details'])>0){?>
+									    <?php 
+									    if(sizeof($est_other_item['item_details'])!=0)
+									    {?>
+									        <span style="font-weight: bold">PURCHASE INVOICE NO : <?php echo $billing['branch_code'].'-PU-'.$billing['metal_code'].'-'.$billing['pur_ref_no'];?></span>
+									    <?php }
+									    ?>
+										
+											<table id="pp" class="table text-center">
+												<!--	<thead> -->
+												        <tr style="">
+															<td><hr class="old_metal_dashed"></td>
+														</tr>
+												        <?php if(sizeof($est_other_item['item_details'])==0){?>
+														
+														<tr style="text-transform:uppercase;">
+															<td style="width: 5%" class="table_heading">S.No</td>
+															<td style="width: 25%;" class="table_heading">DESCRIPTION OF GOODS</td>
+															<td style="width: 15%" class="table_heading">HSN</td>
+															<td style="width: 24%" class="table_heading alignRight">GROSS WT(g)</td>
+															<td style="width: 15%" class="table_heading alignRight">Nwt(g)</td>
+															<td style="width: 15%" class="table_heading alignRight">Amount</td>
+														</tr>
+														<tr>
+															<td><hr class="old_metal_dashed"></td>
+														</tr>
+														<?php }?>
+													<!--</thead>
+													<tbody>-->
+													<?php
+													/*$old_metal_details = array();
+													foreach ($est_other_item['old_matel_details'] as $olditem) {
+														$key = $olditem['metal_type'];
+														if (!array_key_exists($key, $old_metal_details)) {
+															$old_metal_details[$key] = array(
+																'metal_type'=> $olditem['metal_type'],
+																'gross_wt' => $olditem['gross_wt'],
+																'net_wt' => $olditem['net_wt'],
+																'amount' => $olditem['amount'],
+															);
+														} else {
+															$old_metal_details[$key]['gross_wt'] = $old_metal_details[$key]['gross_wt'] + $olditem['gross_wt'];
+															$old_metal_details[$key]['net_wt'] = $old_metal_details[$key]['net_wt'] + $olditem['net_wt'];
+															$old_metal_details[$key]['amount'] = $old_metal_details[$key]['amount'] + $olditem['amount'];
+														}
+													}*/
+
+													$i=1; 
+													$total_amt=0;
+													$pieces=0;
+													$gross_wt=0;
+													$net_wt=0;
+													foreach($est_other_item['old_matel_details'] as $items)
+														{
+															$esti_purchase_emp = $items['esti_emp_name'];
+															$esti_purchase_id = $items['esti_emp_id'];
+
+															$gross_wt+=$items['gross_wt'];
+															$net_wt+=($items['net_wt']);
+														?>
+														<tr>
+														<td style="width: 5%"><?php echo $i;?></td>
+														<td style="font-size:10px; width: 26%" class='textOverflowHidden'><?php echo $items['old_metal_type'];?></td>
+														<td style="width: 15%">71080000</td>
+														<td style="width: 24%" style="width: 9%" class="alignRight"><?php echo number_format($items['gross_wt'],3,'.','');?></td>
+														<td style="width: 15%" class="alignRight"><?php echo number_format($items['net_wt'],3,'.','');?></td>
+														<td style="width: 15%" class="alignRight"><?php echo moneyFormatIndia(number_format($items['amount'],2,'.',''));?></td>
+														</tr>
+													<?php $i++;}?>
+												<!--</tbody> -->
+														<tr>
+															<td><hr class="old_metal_dashed"></td>
+														</tr>
+														<tr style="font-weight: bold">
+															<td>Total</td>
+															<td></td>
+															<td></td>
+															<td class="alignRight"><?php echo number_format($gross_wt,3,'.','');?></td>
+															<td class="alignRight"><?php echo number_format($net_wt,3,'.','');?></td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format((float)$pur_total_amt,2,'.',''));?></td>
+														</tr>
+														<tr style="display: none;">
+															<td><hr class="old_metal_dashed"></td>
+														</tr>
+														<?php if($tot_sales_amt+$billing['handling_charges'] > 0){?>
+														<tr>
+															<td colspan="2"></td>
+															<td class="alignRight" colspan="2">Sales Amount</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia((number_format($tot_sales_amt+$billing['handling_charges'],2,'.','')));?></td>
+														</tr>
+														<?php }?>
+														<?php if($total_return>0){?>
+														<tr>
+															<td colspan="2"></td>
+															<td class="alignRight" colspan="2">Exchange Amount</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format($total_return,2,'.',''));?></td>
+														</tr>
+														<?php }?>
+														<?php if($pur_total_amt > 0) { ?>
+														<tr style="font-weight:bold;">
+															<td colspan="2">
+																<?php
+																	$cgst_sgst_perc = ($est_other_item['item_details'][0]['tax_percentage']/2);
+																	$cgst_sgst_amt = ($pur_total_amt * $cgst_sgst_perc / 100);
+																?>	
+																	<!--RCM : (CGST <?php echo  $cgst_sgst_perc ."% - ". number_format($cgst_sgst_amt,2,'.','') ?>,  SGST <?php echo  $cgst_sgst_perc ."% - ". number_format($cgst_sgst_amt,2,'.','') ?>)-->
+															</td>
+															<td class="alignRight" colspan="2">Purchase Amount</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format($pur_total_amt ,2,'.',''));?></td>
+														</tr>
+														<?php } ?>
+														<?php $round_off = moneyFormatIndia(number_format($billing['round_off_amt'],2,'.','')); ?>
+														<?php if($round_off != 0) { ?>
+														<tr>
+															<td colspan="2"></td>
+															<td class="alignRight" colspan="2">Round Off</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo $round_off ?></td>
+														</tr>
+														<?php } ?>
+														<?php if($tot_sales_amt>0){?>
+														<tr>
+															<td colspan="2"></td>
+															<td class="alignRight" colspan="2">Net Amount</td>
+															<td class="alignRight">Rs.</td>
+															<td class="alignRight"><?php echo moneyFormatIndia(number_format(round(($tot_sales_amt+$billing['handling_charges']) -$total_return-$pur_total_amt+$round_off),2,'.',''));?></td>
+														</tr>
+														<?php }?>
+												</table>
+									<?php }?>
+									
+									<?php if(sizeof($est_other_item['repair_order_details'])>0){?>
+                        <div class="row">
+                            <div align="center">
+								<label><b>ORDER NO : <?php echo $est_other_item['repair_order_details'][0]['order_no'];?></b></label>
+							</div>
+                            <hr class="old_metal_header_dashed">
+                            <div class="col-xs-12">
+                                <div class="table-responsive">
+
+                                    <table id="pp" class="table text-center">
+                                        <!--	<thead> -->
+                                        <tr style="text-transform:uppercase;">
+                                            <td>S.No</td>
+                                            <td>Description</td>
+                                            <td>Repair WT(g)</td>
+                                            <td>Completed Wt(g)</td>
+                                            <td>Amount</td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <hr class="old_metal_dashed" style="width:500% !important;">
+                                            </td>
+                                        </tr>
+                                        <!--</thead>
+										<tbody>-->
+                                        <?php
+										$i=1; 
+										$tot_repair_amt=0;
+										$gst=0;
+										$tot_gst=0;
+										$igst=0;
+										$tot_igst=0;
+										$taxable_amt=0;
+										$tot_order_wt=0;
+										$tot_completed_wt=0;
+										$amt_in_words   = $this->ret_billing_model->no_to_words($billing['tot_bill_amount']);
+										foreach($est_other_item['repair_order_details'] as $items)
+											{
+												$tot_order_wt+=$items['weight'];
+												$tot_completed_wt+=$items['completed_weight'];
+												$tot_repair_amt+=$items['rate'];
+												$tot_gst+=$items['repair_tot_tax'];
+												$igst+=$items['igst'];
+												$cgst+=$items['cgst'];
+												$sgst+=$items['sgst'];
+												$taxable_amt+=$items['rate']-$items['repair_tot_tax'];
+
+											?>
+                                        <tr>
+                                            <td><?php echo $i;?></td>
+                                            <td><?php echo $items['product_name'];?></td>
+                                            <td><?php echo ($items['weight']);?></td>
+                                            <td><?php echo $items['completed_weight'];?></td>
+                                            <td><?php echo number_format($items['rate']-$items['repair_tot_tax'],2,'.','');?>
+                                            </td>
+                                        </tr>
+
+                                        <?php $i++;}?>
+                                        <!--</tbody> -->
+                                        <tr>
+                                            <td>
+                                                <hr class="old_metal_dashed" style="width:500% !important;">
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td></td>
+                                            <td>Total</td>
+                                            <td><?php echo number_format($tot_order_wt,3,'.',''); ?></td>
+                                            <td><?php echo number_format($tot_completed_wt,3,'.',''); ?></td>
+                                            <td><?php echo number_format($taxable_amt,2,'.',''); ?></td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <hr class="old_metal_dashed" style="width:500% !important;">
+                                            </td>
+                                        </tr>
+
+                                        <?php if($tot_repair_amt>0){?>
+                                        <tr>
+                                            <td colspan="2"></td>
+                                            <td width="">SUB TOTAL</td>
+                                            <td>Rs.</td>
+                                            <td><?php echo number_format($taxable_amt,2,'.','');?></td>
+                                        </tr>
+                                        <?php }?>
+
+                                        <?php if($cgst>0 || $sgst>0){?>
+                                        <tr>
+                                            <td colspan="2"></td>
+                                            <td width="">CGST</td>
+                                            <td>Rs.</td>
+                                            <td><?php echo number_format($cgst,2,'.','');?></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="2"></td>
+                                            <td width="">SGST</td>
+                                            <td>Rs.</td>
+                                            <td><?php echo number_format($sgst,2,'.','');?></td>
+                                        </tr>
+                                        <?php }?>
+                                        <?php if($igst>0){?>
+                                        <tr>
+                                            <td colspan="2"></td>
+                                            <td width="">IGST</td>
+                                            <td>Rs.</td>
+                                            <td><?php echo number_format($igst,2,'.','');?></td>
+                                        </tr>
+                                        <?php }?>
+                                       
+                                        <?php if($tot_repair_amt>0){?>
+                                        
+                                         <tr>
+                                            <td colspan="2"></td>
+                                            <td>
+                                                <hr class="total_dashed" style="width:300% !important;">
+                                            </td>
+                                        </tr>
+                                        
+                                        <tr>
+                                            <td colspan="2"></td>
+                                            <td width="">Total</td>
+                                            <td>Rs.</td>
+                                            <td><?php echo number_format($tot_repair_amt,2,'.','');?></td>
+                                        </tr>
+                                        
+                                        <tr>
+                                            <td colspan="2"></td>
+                                            <td>
+                                                <hr class="total_dashed" style="width:300% !important;">
+                                            </td>
+                                        </tr>
+                                        
+                                        <?php }?>
+                                        
+                                    </table><br>
+                                </div>
+                            </div>
+                        </div><br>
+                        <?php }?>
+
+									<?php if($billing['bill_type']==8){?>
+										<div  class="row">
+											<!--<div align="center" style="text-transform:uppercase;">
+												<label>Credit No : <?php echo $billing['ref_bill_id'];?></label>
+											</div>-->
+											
+										<div class="col-xs-12">
+											<div class="table-responsive">
+												<table id="pp" class="table text-center">
+													<tr>
+														<td><hr class="old_metal_dashed"></td>
+													</tr>
+													<tr>
+														<td style="width: 70%; font-weight: bold">Description</td>
+														<td style="width: 30%; font-weight: bold">Amount</td>
+													</tr>
+													<tr>
+														<td><?php echo 'Received with thanks from Mr./Ms.'.$billing['customer_name'].' Towards Credit Bill No : '.$billing['ref_bill_no'];?></td>
+														<td><?php echo $billing['due_amount'];?></td>
+													</tr>
+													<tr>
+														<td><hr class="old_metal_dashed"></td>
+													</tr>
+												</table>
+												<br>	
+											</div>	
+										</div>	
+									</div><br>
+									<?php }?>
+									
+									<?php if($billing['bill_type']==10){?>
+										<div  class="row">
+										
+										<div class="col-xs-12">
+    											<div class="table-responsive">
+    												<table id="pp" class="table text-center">
+    													
+    													<tr>
+    														<td style="width: 70%; font-weight: bold">S.No</td>
+    														<td style="width: 70%; font-weight: bold">Ref No</td>
+    														<td style="width: 30%; font-weight: bold">Amount</td>
+    													</tr>
+    													<tr>
+    														<td><hr class="old_metal_dashed"></td>
+    													</tr>
+    													<?php
+														$i=1; 
+														foreach($est_other_item['chit_details'] as $chit)
+														{?>
+    														<tr>
+        														<td><?php echo $i;?></td>
+        														<td><?php echo $chit['scheme_acc_number'];?></td>
+        														<td><?php echo moneyFormatIndia($chit['utilized_amt']);?></td>
+    														</tr>
+														<?php $i++;}?>
+														<tr>
+    														<td><hr class="old_metal_dashed"></td>
+    													</tr>
+    												</table>
+    												<br>	
+    											</div>	
+    										</div>	
+    									</div><br>
+									<?php }?>
+
+								
+										
+												<?php 
+												   $due_amount=0;
+												    
+												    if($billing['bill_type']==8)
+													{
+														
+														if($billing['is_credit']==1)
+														{
+														    $due_amount=number_format(($billing['tot_bill_amount']-$billing['tot_amt_received']),2,'.','');
+														}else
+														{
+														    /*if($billing['due_amount']!=$billing['tot_paid_amt'])
+														    {
+														        $due_amount=number_format(($billing['due_amount']-($billing['tot_amt_received']-$billing['tot_paid_amt']+$pur_total_amt)),2,'.','');
+														    }*/
+														    
+														    $due_amount=number_format(($billing['tot_bill_amount']-$billing['tot_amt_received']),2,'.','');
+														}
+														
+													}
+													else{
+														if($billing['is_credit']==1)
+														{
+															$due_amount=number_format(($billing['tot_bill_amount']-$billing['tot_amt_received']),2,'.','');
+														}
+													}
+													
+													if(sizeof($payment['pay_details'])>0){
+													$cash_amt=0;
+													$card_amt=0;
+													$net_banking_amt=0;
+													
+													$gift_amount=0;
+													$chit_amount=0;
+													$total_amt=0;
+													$adv_adj=0;
+													$imps_amt=0;
+													$rtgs_amt=0;
+													$upi_amt=0;
+													$chq_amt=0;
+												
+													
+													foreach($payment['pay_details'] as $items)
+														{
+															$total_amt+=$items['payment_amount'];
+															
+															if($items['payment_mode']=='Cash')
+															{
+																$cash_amt+=$items['payment_amount'];
+															}
+															if($items['payment_mode']=='CHQ')
+															{
+																$chq_amt+=$items['payment_amount'];
+															}
+															if($items['payment_mode']=='DC' || $items['payment_mode']=='CC')
+															{
+																$card_amt+=$items['payment_amount'];
+															}
+															if($items['payment_mode']=='NB' && $items['transfer_type'] == 'RTGS')
+															{
+																$net_banking_amt+=$items['payment_amount'];
+																$rtgs_amt+=$items['payment_amount'];
+															}
+															if($items['payment_mode']=='NB' && $items['transfer_type'] == 'IMPS')
+															{
+																$net_banking_amt+=$items['payment_amount'];
+																$imps_amt+=$items['payment_amount'];
+															}
+															if($items['payment_mode']=='NB' && $items['transfer_type'] == 'UPI')
+															{
+																$net_banking_amt+=$items['payment_amount'];
+																$upi_amt+=$items['payment_amount'];
+															}
+														}
+												}?>
+										
+										<?php if(sizeof($est_other_item['chit_details'])>0 && (($billing['bill_type']!=10))){
+										$chit_adj=0;
+										$bouns_amt=0;
+										foreach($est_other_item['chit_details'] as $chit)
+										{
+											if(($chit['paid_installments']==$chit['total_installments']) && ($chit['scheme_type']==0) && $chit['firstPayDisc_value']>0)
+											{
+												$bouns_amt+=($chit['paid_installments']*$chit['firstPayDisc_value']);
+											}
+											$chit_adj +=$chit['closing_amount'];
+										}
+										$chit_adj=$chit_adj;
+										?>
+										<?php }?>
+										
+										<?php if(sizeof($est_other_item['voucher_details'])>0){
+										foreach($est_other_item['voucher_details'] as $voc)
+										{
+											$gift_amount +=$voc['gift_voucher_amt'];
+										}
+										?>
+										<?php }?>
+										
+										<?php if(sizeof($est_other_item['order_adj'])>0){
+										$ord_adj_amt=0;
+										$chit_adj_wt=0;
+										foreach($est_other_item['order_adj'] as $ord)
+										{
+											
+										/*	if($ord['received_weight']>0)
+											{
+												$chit_adj_wt +=($ord['received_weight']*($ord['rate_per_gram']));
+											}*/
+											$ord_adj_amt +=$ord['advance_amount'];
+										}
+										$ord_adj_amt=$ord_adj_amt+$chit_adj_wt;
+										
+										?>
+										
+										
+										
+										<?php }?>
+										
+										
+										               <?php 
+										                if($cash_amt > 0 || $chq_amt>0 || $card_amt > 0 || $rtgs_amt > 0 || $imps_amt > 0 || $adv_adj > 0 || $gift_amount > 0 || $billing['advance_deposit']> 0)
+										                {?>
+										                    <div align="left">
+										                        <label><b>RECEIPTS : </label>
+										                    </div>
+										                    
+										                  <table id="pp" class="pay_mode_totals table text-center" style="font-weight: bold;">
+    														<tr>
+    														    
+    														    <?php if($cash_amt>0){?>
+    															<td>CASH</td>
+    															<?php }?>
+    															
+    															<?php if($chq_amt>0){?>
+    															<td>CHQ</td>
+    															<?php }?>
+    															
+    															<?php if($card_amt>0) { ?>
+    															<?php foreach($payment['pay_details'] as $cardItem) {
+    															if($cardItem['payment_mode']=='DC' || $cardItem['payment_mode']=='CC') { ?>
+    															<td>CARD(<?php echo $cardItem['card_no'] ?>)</td>
+    															<?php } } }  ?>
+    															
+    															<?php if($rtgs_amt > 0) { ?>
+    															<td>RTGS</td>
+    															<?php } ?>
+    															
+    															<?php if($imps_amt > 0) { ?>
+    															<td>IMPS</td>
+    															<?php } ?>
+    															
+    															<?php if($upi_amt > 0) { ?>
+    															<td>UPI</td>
+    															<?php } ?>
+    															
+    															<?php if($due_amount != 0){?>
+    															<td>DUE AMOUNT</td>
+    															<?php }?>
+    															
+    															<?php if($adv_adj>0){?>
+    															<td>ADVANCE ADJ</td>
+    															<?php }?>
+    															<?php if($chit_adj != 0 && ($billing['bill_type']!=10) ){?>
+    															<td>CHIT ADJ</td>
+    															<?php }?>
+    															
+    															<?php if($bouns_amt != 0){?>
+    															<td>BONUS</td>
+    															<?php }?>
+    															
+    															<?php if($ord_adj_amt != 0 || $billing['adv_adj_amt'] != 0){?>
+    															<td>ADV ADJ</td>
+    															<?php }?>
+    															<?php if($gift_amount != 0){?>
+    															<td>GIFT UTILIZED</td>
+    															<?php }?>
+    
+    															<?php if($billing['credit_disc_amt'] != 0){?>
+    															<td>DISCOUNT</td>
+    															<?php }?>
+    															
+    															<?php if($billing['advance_deposit'] != 0){?>
+                							        	        <td>Advance</td>
+                							        	        <?php }?>
+    															
+    													
+    														</tr>
+    														<tbody>
+    															<tr>
+    													
+                                                                    <?php 
+    																    if($cash_amt>0)
+    																    {?>
+    																    <td><?php echo moneyFormatIndia(number_format($cash_amt,2,'.',''));?></td>
+    																<?php }?>
+    																
+    																<?php 
+    																    if($chq_amt>0)
+    																    {?>
+    																    <td><?php echo moneyFormatIndia(number_format($chq_amt,2,'.',''));?></td>
+    																<?php }?>
+    																<?php if($card_amt != 0){?>
+    																	<?php foreach($payment['pay_details'] as $cardItem) {
+    																	if($cardItem['payment_mode']=='DC' || $cardItem['payment_mode']=='CC') { ?>
+    																	<td><?php echo moneyFormatIndia(number_format($cardItem['payment_amount'],2,'.',''));?></td>
+    																<?php } } }?>
+    																
+    																<?php 
+    																    if($rtgs_amt>0)
+    																    {?>
+    																    <td><?php echo moneyFormatIndia(number_format($rtgs_amt,2,'.',''));?></td>
+    																<?php }?>
+    																
+    																<?php 
+    																    if($imps_amt>0)
+    																    {?>
+    																    <td><?php echo moneyFormatIndia(number_format($imps_amt,2,'.',''));?></td>
+    																<?php }?>
+    																
+    															    <?php 
+    																    if($upi_amt>0)
+    																    {?>
+    																    <td><?php echo moneyFormatIndia(number_format($upi_amt,2,'.',''));?></td>
+    																<?php }?>
+                                                                    
+    																<?php if($due_amount != 0){?>
+    																<td><?php echo moneyFormatIndia(number_format($due_amount,2,'.',''));?></td>
+    																<?php }?>
+
+    																<?php if($adv_adj != 0){?>
+    																<td><?php echo moneyFormatIndia(number_format($adv_adj,2,'.',''));?></td>
+    																<?php }?>
+    																
+    																<?php if($chit_adj != 0  && ($billing['bill_type']!=10)){?>
+    																<td><?php echo moneyFormatIndia(number_format($chit_adj,2,'.',''));?></td>
+    																<?php }?>
+    																
+    																<?php if($bouns_amt>0){?>
+    																<td><?php echo moneyFormatIndia(number_format($bouns_amt,2,'.',''));?></td>
+    																<?php }?>
+    																
+    																<?php if($ord_adj_amt != 0 || $billing['adv_adj_amt'] != 0){?>
+    																<td><?php echo moneyFormatIndia(number_format($ord_adj_amt+$billing['adv_adj_amt'],2,'.',''));?></td>
+    																<?php }?>
+    																
+    																<?php if($gift_amount != 0){?>
+    																<td><?php echo moneyFormatIndia(number_format($gift_amount,2,'.',''));?></td>
+    																<?php }?>
+    																
+    																<?php if($billing['credit_disc_amt'] != 0){?>
+    																<td><?php echo moneyFormatIndia(number_format($billing['credit_disc_amt'],2,'.',''));?></td>
+    																<?php }?>
+    
+    																<?php if($billing['advance_deposit'] != 0){?>
+                							        	                <td><?php echo number_format($billing['advance_deposit'],2,'.','') ?></td>
+                							        	            <?php }?>
+                							        	            
+    															
+    															</tr>
+    														</tbody>
+    													</table>
+													
+										                <?php }
+										                ?>
+
+													
+													<?php 
+										                if($cash_amt < 0 || $chq_amt<0  || $rtgs_amt < 0 || $imps_amt < 0 )
+										                {?>
+										                    <div align="left">
+										                        <label><b>PAYMENTS : </label>
+										                    </div>
+										                    
+										                    <table id="pp" class="pay_mode_totals table text-center" style="font-weight: bold;">
+														<tr>
+														    
+														    <?php if($cash_amt<0){?>
+															<td>CASH</td>
+															<?php }?>
+															
+															<?php if($chq_amt<0){?>
+															<td>CHQ</td>
+															<?php }?>
+															
+															
+															
+															<?php if($rtgs_amt < 0) { ?>
+															<td>RTGS</td>
+															<?php } ?>
+															
+															<?php if($imps_amt < 0) { ?>
+															<td>IMPS</td>
+															<?php } ?>
+															
+															<?php if($upi_amt < 0) { ?>
+															<td>UPI</td>
+															<?php } ?>
+															
+															
+														</tr>
+														<tbody>
+															<tr>
+													
+                                                                <?php 
+																    if($cash_amt<0)
+																    {?>
+																    <td><?php echo moneyFormatIndia(number_format(($cash_amt*-1),2,'.',''));?></td>
+																<?php }?>
+																
+																<?php 
+																    if($chq_amt<0)
+																    {?>
+																    <td><?php echo moneyFormatIndia(number_format(($chq_amt*-1),2,'.',''));?></td>
+																<?php }?>
+																
+																<?php 
+																    if($rtgs_amt<0)
+																    {?>
+																    <td><?php echo moneyFormatIndia(number_format(($rtgs_amt*-1),2,'.',''));?></td>
+																<?php }?>
+																
+																<?php 
+																    if($imps_amt<0)
+																    {?>
+																    <td><?php echo moneyFormatIndia(number_format(($imps_amt*-1),2,'.',''));?></td>
+																<?php }?>
+																
+															    <?php 
+																    if($upi_amt<0)
+																    {?>
+																    <td><?php echo moneyFormatIndia(number_format(($upi_amt*-1),2,'.',''));?></td>
+																<?php }?>
+                                                                
+															
+															</tr>
+														</tbody>
+													</table>
+													
+										                <?php }
+										                ?>
+													
+										
+										<?php if((sizeof($est_other_item['chit_details'])>0) && $billing['bill_type']!=10){?>
+											<div class="col-xs-6">
+												<div class="table-responsive">
+													<table id="pp" class="table text-center">
+														<tr>
+															<td width="2%;">S.No</td>
+															<td width="5%;">Ref No</td>
+															<td width="25%;">Amount</td>
+														</tr>
+														<tr>
+															<td><hr class="item_dashed" style="width:450% !important;"></td>
+														</tr>
+														<?php
+														$i=1; 
+														foreach($est_other_item['chit_details'] as $chit)
+														{?>
+														<tr>
+														<td><?php echo $i;?></td>
+														<td><?php echo $chit['scheme_acc_number'];?></td>
+														<td><?php echo moneyFormatIndia($chit['closing_amount']);?></td>
+														</tr>
+														<?php $i++;}?>
+													</table>
+												</div>
+											</div>
+										<?php }?>
+									<br>	
+									<?php if(sizeof($est_other_item['order_adj'])>0){?>
+										<div class="col-xs-6" style="width:50%;">
+											<div class="table-responsive">
+												<table id="pp" class="table text-center">
+													<tr>
+														<td>Date</td>
+														<td class="alignRight">Amount</td>
+														<td class="alignRight">Rate</td>
+														<td class="alignRight">Weight</td>
+													</tr>
+													<tr>
+														<td><hr class="item_dashed" style="width:400% !important;"></td>
+													</tr>
+										<?php  
+										$i=1;
+										$adv_paid_amount=0;
+										$adv_paid_weight=0;
+										foreach($est_other_item['order_adj'] as $ord)
+										{
+										$adv_paid_amount+=($ord['store_as']==1 ? $ord['advance_amount'] :( $ord['received_weight']* $ord['rate_per_gram']));
+										$adv_paid_weight+=($ord['store_as']==1 ? ($ord['advance_amount']/$ord['rate_per_gram']):$ord['received_weight']);
+										?>
+											<tr>
+												<td><?php echo $ord['bill_date'];?></td>
+												<td class="alignRight"><?php echo number_format(($ord['store_as']==1 ? $ord['advance_amount'] :( $ord['received_weight']* $ord['rate_per_gram'])),2,'.','');?></td>
+												<td class="alignRight"><?php echo $ord['rate_per_gram'];?></td>
+												<td class="alignRight"><?php echo number_format(($ord['store_as']==1 ? ($ord['advance_amount']/$ord['rate_per_gram']):$ord['received_weight']),3,'.','');?></td>
+											</tr>
+											
+										<?php $i++; } ?>
+												<tr>
+													<td><hr class="item_dashed" style="width:400% !important;"></td>
+												</tr>
+												<tr>
+													<td>Total</td>
+													<td class="alignRight"><?php echo moneyFormatIndia(number_format($adv_paid_amount,2,'.',''))?></td>
+													<td class="alignRight"></td>
+													<td class="alignRight"><?php echo number_format($adv_paid_weight,3,'.','')?></td>
+												</tr>
+											</table>
+											</div>
+										</div>
+									<?php }?>
+										
+										<?php if($billing['gift_issue_amount']>0){?>
+											<span>Gift Voucher Worth Rs. <?php echo ' '.$billing['gift_issue_amount'].' '?>Valid Till <?php echo $billing['valid_to'].'. Voucher Code - '.$billing['code'].'';?></span>
+										<?php }else if($billing['gift_issue_weight']>0){?>
+											<span>Gift Voucher Worth <?php echo ' '.$billing['gift_issue_weight'].' '.(($billing['utilize_for'])==1 ? ' Gold ' :' Silver ').' '?>Valid Till <?php echo $billing['valid_to'].'. Voucher Code - '.$billing['code'].'';?></span>
+										<?php } ?>
+										<?php 
+										if($billing['note']!='')
+										{?>
+										<label>Terms and Conditions</label>
+										<?php  echo $billing['note'];?>
+										<?php } ?>
+								
+							</div><br>
+							
+							<?php if(sizeof($receiptDetails)>0){
+                                $tot_adv=0;
+                                $adj_amt=0;
+                                
+                                foreach($receiptDetails as $val)
+                                {?>
+                                   <div>
+                                        <table id="pp" class="table text-center"style="width:85%" >
+                                          <tr>
+                                           <td><b>Receipt  No</b></td>
+                                           <td><b>Receipt  Date</b></td> 
+                                           <td><b>Receipt  Amount</b></td>
+                                           <td><b>Adjusted Amount</b></td>
+                                           <td><b>Utilized Amount</b></td>
+                                           <td><b>Balance  Amount</b></td>
+                                           
+            
+                                       </tr>
+                                          <tbody>
+                                              <tr>
+                                              <td><?php  echo ($val['bill_no']);?></td>
+                                              <td><?php  echo ($val['bill_date']);?></td>
+                                              <td ><?php echo number_format($val['tot_receipt_amount'],2,'.','' );?></td>
+                                              <td ><?php echo number_format($val['adjuseted_amt'],2,'.','' );?></td>
+                                              <td ><?php echo number_format($val['tot_utilized_amt'],2,'.','' );?></td>
+                                              <td ><?php echo number_format($val['bal_amt'],2,'.','' );?></td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div><br>
+                            <?php }}?>
+                            
+							<?php if($amount_total > 0) { ?>
+							<div style="margin-top: 3px; margin-bottom: 3px">
+								<div><span style="font-weight: bold;">Amount in Words</span> : <span >Rupees <?php echo $this->ret_billing_model->no_to_words($amount_in_words); ?> Only</span></div>
+							</div>
+							<?php } ?>
+							<div style="font-weight: bold"> 
+								EMP : <?php echo ($esti_sales_emp != '' ? $esti_sales_emp ."/".$esti_sales_id : ($esti_purchase_emp != '' ? $esti_purchase_emp ."/".$esti_purchase_id : ($esti_return_emp != '' ? $esti_return_emp ."/".$esti_return_id : $login_emp)));?> - REF NO : <?php echo $billing['bill_no'];?> 
+							</div>
+							<!--<div style="font-weight: bold"> 
+								EMP-ID : <?php echo $billing['id_employee'] ?> / <?php echo $billing['emp_name'];?>
+							</div>-->
+						</div>
+			</div><br>
+			
+			<?php if($billing['delivered_at']==2){?>
+			<div class="row" >
+                    <label><b>Delivered safely at : </b><br>
+                    <label><?php echo ($billing['del_add_address1']!='' ? strtoupper($billing['del_add_address1']).','."<br>" :''); ?></label>
+                    <label><?php echo ($billing['del_add_address2']!='' ? strtoupper($billing['del_add_address2']).','."<br>" :''); ?></label>
+                    <label><?php echo ($billing['del_add_address3']!='' ? strtoupper($billing['del_add_address3']).','."<br>" :''); ?></label>
+                    <label><?php echo ($billing['del_city_name']!='' ? strtoupper($billing['del_city_name']).($billing['del_pincode']!='' ? ' - '.$billing['del_pincode'].'.' :''):''); ?><br></label>
+                    <label><?php echo ($billing['del_state_name']!='' ? strtoupper($billing['del_state_name']).','."<br>" :''); ?></label>
+			</div>
+			<?php }?>
+		    
+		    <p>This is computer generated or electronic invoice as per IT Act 2000 and not required to bear a signature or digital signature as per GST Notification No.74/2018- Central Tax dated 31.12.2018</p>
+			</div><!-- /.box-body --> 
+</div>
+<div>
+</span>          
+</body></html>

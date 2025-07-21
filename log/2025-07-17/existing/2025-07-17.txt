@@ -1,0 +1,25 @@
+
+17-07-2025 14:41:21
+ API : mobile_api 
+ Response : {"status":false,"e":"","q":"select * from customer_reg where record_to=2 and is_registered_online=0 and is_closed=0 and id_branch='7' and mobile=9488577633","msg":"No records to update in scheme account tables"}
+17-07-2025 14:43:07
+ API : mobile_api 
+ sync called less than 15 min
+17-07-2025 14:52:53
+ API : mobile_api 
+ sync called less than 15 min
+17-07-2025 15:03:03
+ API : mobile_api 
+ Response : {"status":false,"e":"","q":"select * from customer_reg where record_to=2 and is_registered_online=0 and is_closed=0 and id_branch='7' and mobile=9488577633","msg":"No records to update in scheme account tables"}
+17-07-2025 16:31:11
+ API : mobile_api 
+ Response : {"status":false,"e":"","q":"select * from customer_reg where record_to=2 and is_registered_online=0 and is_closed=0 and id_branch='7' and mobile=9488577633","msg":"No records to update in scheme account tables"}
+17-07-2025 16:33:11
+ API : mobile_api 
+ sync called less than 15 min
+17-07-2025 16:33:29
+ API : mobile_api 
+ sync called less than 15 min
+17-07-2025 16:42:49
+ API : mobile_api 
+ sync called less than 15 min

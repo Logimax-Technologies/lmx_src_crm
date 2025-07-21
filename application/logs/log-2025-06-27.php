@@ -1,0 +1,35 @@
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed'); ?>
+
+ERROR - 2025-06-27 13:06:05 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 13:10:18 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 13:29:50 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
+ERROR - 2025-06-27 13:29:51 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
+ERROR - 2025-06-27 13:55:23 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 14:14:00 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 14:37:56 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
+ERROR - 2025-06-27 16:25:48 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:27:19 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:27:54 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:29:19 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:29:55 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:35:02 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:36:54 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:46:57 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:47:33 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:49:18 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:52:04 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:53:39 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:54:47 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:56:46 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:59:04 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 16:59:53 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 17:00:40 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 17:01:13 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 17:02:06 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 17:02:23 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 17:03:13 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 17:06:32 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 17:09:36 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 17:11:54 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 18:19:24 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217
+ERROR - 2025-06-27 18:20:22 --> Severity: Notice  --> Undefined offset: 0 /home/retaillogimaxind/public_html/etail_v3/application/controllers/mobile_api.php 16217

@@ -1,0 +1,1174 @@
+<?php
+if( ! defined('BASEPATH')) exit('No direct script access allowed');
+use Dompdf\Dompdf;
+class Admin_ret_brntransfer extends CI_Controller
+{
+	const IMG_PATH  = 'assets/img/';
+	const SERV_MODEL = "admin_usersms_model";
+	function __construct()
+	{
+	    
+		parent::__construct();
+		ini_set('date.timezone', 'Asia/Calcutta');
+		$this->load->model('ret_brntransfer_model');
+		$this->load->model('sms_model');
+		$this->load->model('log_model');
+		$this->load->model(self::SERV_MODEL);
+		
+		if(!$this->session->userdata('is_logged'))
+		{
+			redirect('admin/login');
+		}	
+		elseif($this->session->userdata('access_time_from') != NULL && $this->session->userdata('access_time_from') != "")
+		{
+			$now = time(); 
+			$from = $this->session->userdata('access_time_from'); 
+			$to = $this->session->userdata('access_time_to');  
+			$allowedAccess = ($now > $from && $now < $to) ? TRUE : FALSE ;
+			if($allowedAccess == FALSE){
+				$this->session->set_flashdata('login_errMsg','Exceeded allowed access time!!');
+				redirect('chit_admin/logout');	
+			}			
+		}
+	}
+		
+	public function index()
+	{	
+		 
+	}	
+	
+	public function branch_transfer($type="",$id="",$s_type="",$print_type=""){
+		$model = "ret_brntransfer_model"; 
+		switch($type)
+		{
+			case 'approval_list':
+					$data['other_issue_branch'] = $this->$model->getSettigsByName('other_issue_branch');
+					$data['head_office_branch'] = $this->$model->get_headoffice_branch();
+					$data['branch_transfer_download'] = $this->$model->getSettigsByName('branch_transfer_download');
+					$data['profile_settings']=$this->$model->get_profile_settings($this->session->userdata('profile'));
+					$data['main_content'] = "branch_transfer/approval_list" ;
+					$this->load->view('layout/template', $data);
+				break;
+			case 'list':
+					$data['main_content'] = "branch_transfer/list" ;
+					$this->load->view('layout/template', $data);
+				break;
+			case 'add': 
+					$data['other_issue_branch'] = $this->$model->getSettigsByName('other_issue_branch');
+					$data['head_office_branch'] = $this->$model->get_headoffice_branch();
+					$data['is_otp_required_for_approval'] = $this->$model->getSettigsByName('is_otp_required_for_approval');
+					$data['profile_settings']=$this->$model->get_profile_settings($this->session->userdata('profile'));
+					$data['main_content'] = "branch_transfer/form" ;
+					$this->load->view('layout/template', $data);
+				break; 
+			case 'getTagsByFilter_scan':
+				$data = $this->$model->fetchTagsByFilter_scan($_POST);
+				echo json_encode($data);
+			break;
+			
+			case 'download_pending':
+				$list = $this->$model->get_download_data($_POST);
+				$access = $this->admin_settings_model->get_access('admin_ret_brntransfer/branch_transfer/approval_list');
+				$data = array(
+					'list' => $list,
+					'access' => $access
+				);
+				echo json_encode($data);
+			break;
+			
+			case "save":  
+					//echo "<pre>";print_r($_POST);exit;
+					$allowTrans = $_POST['bt_trans_type'];
+					$trans_code = $this->$model->trans_code_generator($allowTrans); 
+					$success = 0; 
+					$failed = 0;
+					$data = array( 
+			 				'branch_trans_code'		=> $trans_code,
+			 				'is_eda'                => $allowTrans,
+			 				'transfer_from_branch'	=> (isset($_POST['transfer_from']) ? $_POST['transfer_from'] : NULL),
+			 				'transfer_to_branch'	=> (isset($_POST['transfer_to']) ? $_POST['transfer_to'] : NULL),
+			 				'transfer_item_type'	=> (isset($_POST['item_tag_type']) ? $_POST['item_tag_type'] : NULL),
+			 				'pieces'				=> (isset($_POST['pieces']) ? $_POST['pieces'] : 0),
+			 				'grs_wt'				=> (isset($_POST['grs_wt']) ? $_POST['grs_wt'] : 0),
+			 				'net_wt'				=> (isset($_POST['net_wt']) ? $_POST['net_wt'] : 0),
+			 				'is_other_issue'		=> (isset($_POST['isOtherIssue']) ? $_POST['isOtherIssue'] : 0),
+			 				'create_by'				=> $this->session->userdata('uid'),
+			 				'created_time'			=> date('Y-m-d H:i:s'),
+						  );
+						  
+					if($_POST['item_tag_type'] == 2){ // Non Tagged
+						$this->db->trans_begin();
+						foreach($_POST['trans_data'] as $nt_data){
+							$data['id_lot_inward_detail']	= (isset($nt_data['id_lot_inward_detail']) ? ($nt_data['id_lot_inward_detail'] == '' ? NULL :$nt_data['id_lot_inward_detail']) : NULL);
+							$data['id_nontag_item']	= (isset($nt_data['id_nontag_item']) && $nt_data['id_nontag_item'] != '' ? $nt_data['id_nontag_item'] : NULL);
+			 				$data['pieces']	= (isset($nt_data['pieces']) ? $nt_data['pieces'] : 0);
+			 				$data['grs_wt']	= (isset($nt_data['grs_wt']) ? $nt_data['grs_wt'] : 0);
+			 				$data['net_wt']	= (isset($nt_data['net_wt']) ? $nt_data['net_wt'] : 0);
+			 				
+							$status = $this->$model->insertData($data,'ret_branch_transfer');
+							if($status){
+								$success = $success+1;
+							}
+						}
+					}
+					if($_POST['item_tag_type'] == 1){ // Tagged
+						$this->db->trans_begin();
+						$data['id_lot_inward_detail'] = (isset($_POST['id_lot_inward_detail']) ? $_POST['id_lot_inward_detail'] : NULL);
+						$branch_transfer_id = $this->$model->insertData($data,'ret_branch_transfer');
+						if($branch_transfer_id > 0 && isset($_POST['trans_data'])){
+							if(sizeof($_POST['trans_data']) > 0){
+								foreach($_POST['trans_data'] as $tag_data){
+								    if($tag_data['tag_id'] > 0){
+    									$items = array(
+    												'transfer_id'	=> $branch_transfer_id,
+    												'tag_id'		=> $tag_data['tag_id'], 
+    												'id_lot_inward_detail'		=> $tag_data['id_lot_inward_detail'],
+    												);
+    									$status = $this->$model->insertData($items,'ret_brch_transfer_tag_items');
+    									if($status){
+    										$success = $success+1;
+    									}
+								    }else{
+										$failed++;
+									}
+								}
+							} 
+						}
+					}
+					if($_POST['item_tag_type'] == 3)
+					{
+						$this->db->trans_begin();
+						$branch_transfer_id = $this->$model->insertData($data,'ret_branch_transfer');
+						foreach($_POST['trans_data'] as $pur_items)
+						{
+							$items=array(
+								'transfer_id'       => $branch_transfer_id,
+								'item_type'         => $pur_items['item_type'],
+								'old_metal_sale_id' => ($pur_items['item_type']==1 ?$pur_items['trans_id'] :NULL), //item_type 1-Old Metal,2-Sales Return ,3-Partly Sale
+								'tag_id'            => ($pur_items['tag_id']!='' ? $pur_items['tag_id'] :NULL),
+								'sold_bill_det_id'  => ($pur_items['bill_det_id']!='' ? $pur_items['bill_det_id'] :NULL),
+								'is_non_tag'        => ($pur_items['is_non_tag']!='' ? $pur_items['is_non_tag'] :0),
+                				'gross_wt'          => $pur_items['gross_wt'],
+                				'net_wt'            => $pur_items['net_wt'],
+							);
+							$status = $this->$model->insertData($items,'ret_brch_transfer_old_metal');
+							//print_r($this->db->last_query());exit;
+							if($status)
+							{
+								$success = $success+1;
+							}
+						}
+					}
+					else if($_POST['item_tag_type'] == 4) // Packaging Items
+					{
+					    $this->db->trans_begin();
+						$branch_transfer_id = $this->$model->insertData($data,'ret_branch_transfer');
+						foreach($_POST['trans_data'] as $pack_items)
+						{
+							$items=array(
+								'branch_transfer_id'=> $branch_transfer_id,
+								'id_other_inv_item' => $pack_items['id_other_item'],
+								'no_of_pcs'         => $pack_items['no_of_pcs'],
+							);
+							$status = $this->$model->insertData($items,'ret_branch_transfer_other_inventory');
+							//print_r($this->db->last_query());exit;
+							if($status)
+							{
+								$success = $success+1;
+							}
+						}
+					}
+					else if($_POST['item_tag_type'] == 5)
+					{ // Order
+						$this->db->trans_begin();
+						$fb_entry_date=NULL;
+						$dCData = $this->admin_settings_model->getAllBranchDCData();
+						foreach($dCData as $dayClose){
+					        if($data['transfer_from_branch'] == $dayClose['id_branch']){ // From Branch
+					            $fb_entry_date = $dayClose['entry_date'];
+					        }
+					    }
+						if(sizeof($_POST['trans_data']) > 0){
+							$insId=$this->$model->insertData($data,'ret_branch_transfer');
+								foreach($_POST['trans_data'] as $req_data)
+								{
+									if($insId)
+									{
+										$insData=array(
+												   'status'			=>1,
+												   'branch_transfer_id'=>$insId,
+												   'date'			=>$fb_entry_date,
+												   'id_orderdetails'=>$req_data['id_orderdetails'],
+												   'from_branch'	=>$_POST['transfer_from'],
+												   'to_branch'		=>$_POST['transfer_to'],
+												   'created_on'		=>date('Y-m-d H:i:s'),
+												   'created_by'		=>$this->session->userdata('uid'),
+												  );
+										$status=$this->$model->insertData($insData,'ret_bt_order_log');
+										
+									}
+									
+									
+								}
+						}
+					}			  
+					if($this->db->trans_status()===TRUE)
+					{
+					    $log_data = array(
+                        	'id_log'        => $this->session->userdata('id_log'),
+                        	'event_date'	=> date("Y-m-d H:i:s"),
+                        	'module'      	=> 'BT Entry',
+                        	'operation'   	=> 'Add',
+                        	'record'        => $trans_code,  
+                        	'remark'       	=> "Trans code : ".$trans_code." ".$_POST['item_tag_type'] == 1 ? "Tags added to Branch Transfer" : "Non-Tag items added to Branch Transfer"
+                        );
+                        $this->log_model->log_detail('insert','',$log_data);
+						$this->db->trans_commit();
+						$this->session->set_flashdata('chit_alert',array('message'=> ($success >0?$success.' ':'').'Records added successfully. '.($failed >0?$failed.' records failed to add in Branch Transfer':''),'class'=>'success','title'=>'Add to Transfer')); 
+						$result = array( "status" => 1, "trans_code" => $trans_code, "s_type" => $data['transfer_item_type']);
+					}
+					else
+					{ 
+						echo $this->db->last_query();
+						echo $this->db->_error_message(); 
+						
+						$this->db->trans_rollback();			 	
+						$this->session->set_flashdata('chit_alert',array('message'=>'Unable to proceed the requested process','class'=>'danger','title'=>'Add to Transfer')); 
+						$result['status'] = 0;
+					} 
+					echo json_encode($result);
+					break; 	 	
+			case 'updateStatus':  
+					$success = 0;
+					$dCData = $this->admin_settings_model->getAllBranchDCData();
+					$date = ($dCData['entry_date'] == date("Y-m-d") ? date("Y-m-d H:i:s") : $dCData['entry_date'].' '.date("H:i:s"));
+					// approval_type - 1 => Transit Approval, 2 => Stock Download 
+					$data = array( 
+			 				'status'			=> ($_POST['approval_type'] == 2 ? 4 : 2),
+			 				'updated_time'		=> date('Y-m-d H:i:s'),
+						  ); 
+					if($_POST['approval_type'] == 1 ){
+					    $data['approved_by'] = $this->session->userdata('uid');
+						$data['approved_datetime'] = $date;
+					}else{
+					    $data['downloaded_by'] = $this->session->userdata('uid');
+						$data['dwnload_datetime'] = $date;
+					}
+					$this->db->trans_begin();
+					foreach($_POST['trans_ids'] as $trans)
+					{
+					    $fb_entry_date = NULL;
+					    $tb_entry_date = NULL;
+					    foreach($dCData as $dayClose){
+					        	
+					        if($trans['from_branch'] == $dayClose['id_branch']){ // From Branch
+					            $fb_entry_date = $dayClose['entry_date'];
+					        }
+					        if($trans['to_branch'] == $dayClose['id_branch']){ // To Branch
+					            $tb_entry_date = $dayClose['entry_date'];
+					        }
+					    }
+					    
+					    if(strtotime($tb_entry_date) < strtotime($fb_entry_date) && $_POST['approval_type'] == 2 )
+    					{ 
+    						$this->db->trans_rollback();			 	
+    						$result = array('message'=>'Check day closing in to branch. From branch : '.$fb_entry_date.' To Branch : '.$tb_entry_date,'class'=>'danger','title'=>'Branch Transfer Approval') ; 
+    						echo json_encode($result);
+    						exit;
+    					}
+    					
+    					if($_POST['approval_type'] == 1 ){
+					        $date = ($fb_entry_date == date("Y-m-d") ? date("Y-m-d H:i:s") : $fb_entry_date.' '.date("H:i:s"));
+						    $data['approved_datetime'] = $date;
+    					}else{
+    					    $date = ($tb_entry_date == date("Y-m-d") ? date("Y-m-d H:i:s") : $tb_entry_date.' '.date("H:i:s"));
+    						$data['dwnload_datetime'] = $date;
+    					}
+					    
+						$status = $this->$model->updateData($data,'branch_transfer_id',$trans['trans_id'],'ret_branch_transfer'); 
+						if($_POST['trans_type'] == 1){ // Tagged
+							$btTags = $this->$model->getBTtags($trans['trans_id'],$_POST['approval_type']);
+							foreach($btTags as $tag){ 
+								if($_POST['approval_type'] == 1){ // Transit Approval
+									$tag_data = array(
+										'current_branch'	=> $trans['to_branch'],
+										'tag_status'		=> 4,
+										'updated_time'		=> date('Y-m-d H:i:s'),
+									);
+								}
+								else if($_POST['approval_type'] == 2){ // Stock Download 
+								    $tag_data = array(
+										'current_branch'	=> $trans['to_branch'],
+										'updated_time'		=> date('Y-m-d H:i:s'),
+									);
+									if( $_POST['is_other_issue'] == 1){
+										$tag_data['tag_status']	= 3; 
+									}else{
+										$tag_data['tag_status']	= 0;
+									} 
+									
+									$dwn_date = array(
+                                    	'download_date'	=> $tb_entry_date,
+                                    	'download_by'	=> $this->session->userdata('uid'),
+                                    	'created_on'	=> date('Y-m-d H:i:s'),
+                                    );
+                                    $this->$model->updateDatamulti($dwn_date, (array('transfer_id' => $trans['trans_id'])), 'ret_brch_transfer_tag_items');
+
+								}
+								$this->$model->updateData($tag_data,'tag_id',$tag['tag_id'],'ret_taging');
+								$tag_log = array(
+												"tag_id"		=> $tag['tag_id'],
+												"status"		=> $tag_data['tag_status'],
+												"from_branch"	=> ($tag_data['tag_status'] == 3 ? NULL : $trans['from_branch'] ),
+												"to_branch"		=> $trans['to_branch'],
+												"issuspensestock" => $tag['tag_type'],
+												"created_by"	=> $this->session->userdata('uid'),
+												"created_on"	=> date('Y-m-d H:i:s'),
+												"date"			=> $date
+												);
+								$this->$model->insertData($tag_log,'ret_taging_status_log');
+							} 
+						}
+						else if($_POST['trans_type'] == 2) // Non-Tagged
+						{
+						    if($_POST['approval_type'] == 1){ // Transit Approval
+						        // Insert log record
+    							$nontag_log = array(
+												'product'		=> $trans['id_product'],
+												'design'		=> $trans['id_design'],
+												'no_of_piece'	=> $trans['no_of_piece'],
+												'gross_wt'		=> $trans['gross_wt'],
+												'net_wt'		=> $trans['net_wt'],
+												"status"		=> 4,
+												"from_branch"	=> $trans['from_branch'],
+												"to_branch"		=> $trans['to_branch'],
+												"created_by"	=> $this->session->userdata('uid'),
+												"created_on"	=> date('Y-m-d H:i:s'),
+												"date"			=> $date
+												);
+								$this->$model->insertData($nontag_log,'ret_nontag_item_log');
+								//print_r($this->db->last_query());exit;
+						    }
+						    else if($_POST['approval_type'] == 2){ // Stock Download 
+						        // Check if product and design exist in NT Table
+    							$isExist = $this->$model->checkNonTagItemExist($trans);
+    							if($isExist['status'] == TRUE){ // UPDATE 
+    								$nt_data = array(
+    												'gross_wt'		=> $trans['gross_wt'],
+    												'net_wt'		=> $trans['net_wt'],   
+    												'no_of_piece'	=> $trans['no_of_piece'],   
+    												'updated_by'	=> $this->session->userdata('uid'),
+    												'updated_on'	=> date('Y-m-d H:i:s'),
+    											);
+    								if($trans['id_nontag_item'] != ''){ // If BT is from ret_nontag_item Table
+    									// Deduct in `FROM BRANCH` STOCK 
+    									$nt_data['id_nontag_item'] = $trans['id_nontag_item'];
+    									$this->$model->updateNTData($nt_data,'-');
+    								} 
+    								if($_POST['is_other_issue']==0)
+    								{
+    								    // Add in `To BRANCH` STOCK 
+        								$nt_data['id_nontag_item'] = $isExist['id_nontag_item'];
+        								$nt_status = $this->$model->updateNTData($nt_data,'+');
+    								}
+    							}else{ // INSERT
+    								$nt_data = array(
+    												'branch'		=> $trans['to_branch'],
+    												'product'		=> $trans['id_product'],
+    												'design'		=> $trans['id_design'],
+    												'no_of_piece'	=> $trans['no_of_piece'],
+    												'gross_wt'		=> $trans['gross_wt'],
+    												'net_wt'		=> $trans['net_wt'],  
+    												'created_by'	=> $this->session->userdata('uid'),
+    												'created_on'	=> date('Y-m-d H:i:s'),
+    											);
+    								if($trans['id_nontag_item'] != ''){ // NOT Head Office
+    									// Deduct in `FROM BRANCH` STOCK [Only if FROM BRANCH is not Head Office]
+    									$nt_data['id_nontag_item'] = $trans['id_nontag_item'];
+    									$nt_data['updated_by'] = $this->session->userdata('uid');
+    									$nt_data['updated_on'] = date('Y-m-d H:i:s');
+    									$this->$model->updateNTData($nt_data,'-');
+    									unset($nt_data['id_nontag_item']);
+    								} 
+    								$nt_status = $this->$model->insertData($nt_data,'ret_nontag_item');
+    							} 
+						    
+						        if( $_POST['is_other_issue'] == 1){
+									$ntlog_status	= 3; 
+								}else{
+									$ntlog_status	= 0;
+								} 
+						        $nontag_log = array(
+												'product'		=> $trans['id_product'],
+												'design'		=> $trans['id_design'],
+												'no_of_piece'	=> $trans['no_of_piece'],
+												'gross_wt'		=> $trans['gross_wt'],
+												'net_wt'		=> $trans['net_wt'],
+												"status"		=> $ntlog_status,
+												"from_branch"	=> ($ntlog_status==3 ? NULL :$trans['from_branch']),
+												"to_branch"		=> $trans['to_branch'],
+												"created_by"	=> $this->session->userdata('uid'),
+												"created_on"	=> date('Y-m-d H:i:s'),
+												"date"			=> $date
+												);
+								$this->$model->insertData($nontag_log,'ret_nontag_item_log');
+						    
+						    } 
+						}
+					    else if($_POST['trans_type'] == 3)
+						{
+							$btOldMetals = $this->$model->getBTOldMetalDetails($trans['trans_id']);
+							$bt_sales_ret = $this->$model->get_salesreturn_items($trans['trans_id']);
+							$bt_partly_sale = $this->$model->get_partlysale_items($trans['trans_id']);
+							//print_r($btOldMetals);exit;
+							foreach($btOldMetals as $items)
+							{
+								if($_POST['approval_type'] == 1)
+								{
+								    $this->$model->updateData(array('current_branch'=>$trans['to_branch'],'is_transferred'=>1),'old_metal_sale_id',$items['old_metal_sale_id'],'ret_bill_old_metal_sale_details');
+								    
+                                    //Insert to Old Metal Log
+                                    $old_metal_log=array(
+                                        'old_metal_sale_id'=>$items['old_metal_sale_id'],
+                                        'date'			   =>$date,
+                                        'item_type'		    =>1,
+                                        'status'		   =>2,	// Inward
+                                        'from_branch'	   =>$trans['from_branch'],
+                                        'to_branch'	       =>NULL,
+                                        "created_by"	   => $this->session->userdata('uid'),
+                                        "created_on"	   => date('Y-m-d H:i:s'),
+                                    );
+                                    $this->$model->insertData($old_metal_log,'ret_purchase_items_log');
+                                    //Insert to Old Metal Log
+								}else if($_POST['approval_type'] == 2) // Stock Download        
+								{
+								    	//Insert to Old Metal Log
+                                        $old_metal_log=array(
+                                            'old_metal_sale_id'=>$items['old_metal_sale_id'],
+                                            'date'			   =>$date,
+                                            'status'		   =>1,	// Inward
+                                            'from_branch'      =>NULL,
+                                            'item_type'		   =>1,
+                                            'to_branch'	       =>$trans['to_branch'],
+                                            "created_by"	   => $this->session->userdata('uid'),
+                                            "created_on"	   => date('Y-m-d H:i:s'),
+                                        );
+        								$this->$model->insertData($old_metal_log,'ret_purchase_items_log');
+        								//Insert to Old Metal Log
+								}
+							}
+							
+							//sales return items
+							foreach($bt_sales_ret as $items)
+							{
+								if($_POST['approval_type'] == 1)
+								{
+								    if($items['is_non_tag']==0)
+								    {
+								        $this->$model->updateData(array('trans_to_acc_stock'=>1),'tag_id',$items['tag_id'],'ret_taging');
+								    
+                                        //Insert to Old Metal Log
+                                        $old_metal_log=array(
+                                            'tag_id'          =>$items['tag_id'],
+                                            'date'			   =>$date,
+                                            'status'		   =>2,	// Inward
+                                            'from_branch'	   =>$trans['from_branch'],
+                                            'to_branch'	       =>NULL,
+                                             'item_type'	   =>2,
+                                            "created_by"	   => $this->session->userdata('uid'),
+                                            "created_on"	   => date('Y-m-d H:i:s'),
+                                        );
+                                        $this->$model->insertData($old_metal_log,'ret_purchase_items_log');
+								    }
+								    else
+								    {
+								        $this->$model->updateData(array('transferred_to_acc_stock'=>1),'bill_det_id',$items['sold_bill_det_id'],'ret_bill_details');
+								        
+    								    $item_log=array(
+                                            'sold_bill_det_id' =>$items['sold_bill_det_id'],
+                                            'gross_wt'         =>$items['gross_wt'],
+                                            'net_wt'           =>$items['net_wt'],
+                                            'date'			   =>$date,
+                                            'status'		   =>2,	// intransit
+                                            'from_branch'	   =>$trans['from_branch'],
+                                            'to_branch'	       =>NULL,
+                                            'item_type'	       =>9,//Non Tag Sales return
+                                            "created_by"	   => $this->session->userdata('uid'),
+                                            "created_on"	   => date('Y-m-d H:i:s'),
+                                        );
+                                        $this->$model->insertData($partly_sale_log,'ret_purchase_items_log');
+                                    
+								    }
+								}
+								else if($_POST['approval_type'] == 2) // Stock Download        
+								{
+								    if($items['is_non_tag']==0)
+								    {
+								        	//Insert to Old Metal Log
+                                            $old_metal_log=array(
+                                                'tag_id'           =>$items['tag_id'],
+                                                'date'			   =>$date,
+                                                'status'		   =>1,	// Inward
+                                                'from_branch'      =>NULL,
+                                                'item_type'	       =>2,
+                                                'to_branch'	       =>$trans['to_branch'],
+                                                "created_by"	   => $this->session->userdata('uid'),
+                                                "created_on"	   => date('Y-m-d H:i:s'),
+                                            );
+            								$status=$this->$model->insertData($old_metal_log,'ret_purchase_items_log');
+            								if($status)
+            								{
+            								    $this->$model->updateData(array('current_branch'=>$trans['to_branch']),'tag_id',$items['tag_id'],'ret_taging');
+            								}
+								    }
+								    else
+								    {
+								        $this->$model->updateData(array('current_branch'=>$trans['to_branch']),'bill_det_id',$items['sold_bill_det_id'],'ret_bill_details');
+								        
+								        $item_log=array(
+                                            'sold_bill_det_id' =>$items['sold_bill_det_id'],
+                                            'gross_wt'         =>$items['gross_wt'],
+                                            'net_wt'           =>$items['net_wt'],
+                                            'date'			   =>$date,
+                                            'status'		   =>1,	// intransit
+                                            'to_branch'	       =>$trans['from_branch'],
+                                            'from_branch'	   =>NULL,
+                                            'item_type'	       =>9,//Non Tag Sales return
+                                            "created_by"	   => $this->session->userdata('uid'),
+                                            "created_on"	   => date('Y-m-d H:i:s'),
+                                        );
+                                        $this->$model->insertData($partly_sale_log,'ret_purchase_items_log');
+                                        
+								    }
+								}
+							}
+							
+							//Partly sales items
+							foreach($bt_partly_sale as $items)
+							{
+								if($_POST['approval_type'] == 1)
+								{
+								    $this->$model->updateData(array('trans_to_acc_stock'=>1),'tag_id',$items['tag_id'],'ret_taging');
+								    
+                                    //Insert to Old Metal Log
+                                    $partly_sale_log=array(
+                                        'sold_bill_det_id' =>$items['sold_bill_det_id'],
+                                        'gross_wt'         =>$items['gross_wt'],
+                                        'net_wt'           =>$items['net_wt'],
+                                        'tag_id'           =>$items['tag_id'],
+                                        'date'			   =>$date,
+                                        'status'		   =>2,	// intransit
+                                        'from_branch'	   =>$trans['from_branch'],
+                                        'to_branch'	       =>NULL,
+                                        'item_type'	   =>3,
+                                        "created_by"	   => $this->session->userdata('uid'),
+                                        "created_on"	   => date('Y-m-d H:i:s'),
+                                    );
+                                    $this->$model->insertData($partly_sale_log,'ret_purchase_items_log');
+								}
+								else if($_POST['approval_type'] == 2) // Stock Download        
+								{
+								    	//Insert to Old Metal Log
+                                        $partly_sale_log=array(
+                                            'sold_bill_det_id' =>$items['sold_bill_det_id'],
+                                            'gross_wt'         =>$items['gross_wt'],
+                                            'net_wt'           =>$items['net_wt'],
+                                            'tag_id'           =>$items['tag_id'],
+                                            'date'			   =>$date,
+                                            'status'		   =>1,	// Inward
+                                            'from_branch'      =>NULL,
+                                            'item_type'	       =>3,
+                                            'to_branch'	       =>$trans['to_branch'],
+                                            "created_by"	   => $this->session->userdata('uid'),
+                                            "created_on"	   => date('Y-m-d H:i:s'),
+                                        );
+        								$status=$this->$model->insertData($partly_sale_log,'ret_purchase_items_log');
+        								
+        								if($status)
+        								{
+        								    $this->$model->updateData(array('current_branch'=>$trans['to_branch']),'tag_id',$items['tag_id'],'ret_taging');
+        								}
+								}
+							}
+							
+						}else if($_POST['trans_type'] == 4)
+						{ 
+						    // Packaging Items
+							$pack_items = $this->$model->get_packaging_items($trans['trans_id']);
+							foreach($pack_items as $items){ 
+							    
+							    
+                                                    
+							    if($_POST['approval_type'] == 1)
+							    {
+							        
+							        $total_amount=0;
+    							    $inventoryItem=$this->$model->get_InventoryCategory($items['id_other_inv_item']);
+                                                        
+                                    $itemDetails    = $this->$model->get_other_inventory_purchase_items_details($items['id_other_inv_item'],$trans['from_branch'],$inventoryItem['issue_preference'],$items['no_of_pcs']);
+                
+                                    foreach($itemDetails as $itemDet)
+                                    {
+                                        $total_amount+=$itemDet['amount'];
+                                        $updData=array('status'=>4);
+                                        $this->$model->updateData($updData,'pur_item_detail_id',$itemDet['pur_item_detail_id'],'ret_other_inventory_purchase_items_details');
+                                    }
+                                
+							        $logData=array(
+                                        'item_id'      =>$items['id_other_inv_item'],
+                                        'no_of_pieces' =>$items['no_of_pcs'],
+                                        'date'         =>$date,
+                                        'status'       =>4,
+                                        'amount'       =>$total_amount,
+                                        'from_branch'  =>$trans['from_branch'],
+                                        'to_branch'	   =>NULL,
+                                        'created_on'   =>date("Y-m-d H:i:s"),
+                                        'created_by'   =>$this->session->userdata('uid')
+                                    );
+                                    $this->$model->insertData($logData,'ret_other_inventory_purchase_items_log');
+                                    //print_r($this->db->last_query());exit;
+							    }
+                                else
+                                {
+                                    
+                                    $total_amount=0;
+    							    $inventoryItem=$this->$model->get_InventoryCategory($items['id_other_inv_item']);
+                                                        
+                                    $itemDetails    = $this->$model->get_other_inventory_download_pending_details($items['id_other_inv_item'],$trans['from_branch'],$inventoryItem['issue_preference'],$items['no_of_pcs']);
+                
+                                    foreach($itemDetails as $itemDet)
+                                    {
+                                        $total_amount+=$itemDet['amount'];
+                                        $updData=array('status'=>0,'current_branch'=>$trans['to_branch']);
+                                        $this->$model->updateData($updData,'pur_item_detail_id',$itemDet['pur_item_detail_id'],'ret_other_inventory_purchase_items_details');
+                                    }
+                                    
+                                    $logData=array(
+                                        'item_id'      =>$items['id_other_inv_item'],
+                                        'no_of_pieces' =>$items['no_of_pcs'],
+                                        'date'         =>$date,
+                                        'status'       =>0,
+                                        'amount'       =>$total_amount,
+                                        'to_branch'    =>$trans['to_branch'],
+                                        'from_branch'  =>NULL,
+                                        'created_on'   =>date("Y-m-d H:i:s"),
+                                        'created_by'   =>$this->session->userdata('uid')
+                                    );
+                                    $this->$model->insertData($logData,'ret_other_inventory_purchase_items_log');
+                                }
+							} 
+						}
+						
+						else if($_POST['trans_type'] == 5) //Repair Orders
+						{
+								$order_log = array(
+								"branch_transfer_id"=> $trans['trans_id'],
+								"status"			=> ($_POST['approval_type'] == 1 ? 2 :3),
+								"id_orderdetails"	=> $trans['id_orderdetails'],
+								"from_branch"		=> $trans['from_branch'],
+								"to_branch"			=> $trans['to_branch'],
+								"created_by"		=> $this->session->userdata('uid'),
+								"created_on"		=> date('Y-m-d H:i:s'),
+								"date"				=> $date
+								);
+								if($_POST['approval_type'] == 2)
+								{
+									$order_data = array('current_branch'=>$trans['to_branch']);
+									$this->$model->updateData($order_data,'id_orderdetails',$trans['id_orderdetails'],'customerorderdetails');
+								}
+								$this->$model->insertData($order_log,'ret_bt_order_log');
+						}
+            						
+						if($status){
+							$success = $success+1;
+						}
+					}  
+					
+					if($this->db->trans_status()===TRUE)
+					{
+					    $log_data = array(
+                        	'id_log'        => $this->session->userdata('id_log'),
+                        	'event_date'	=> date("Y-m-d H:i:s"),
+                        	'module'      	=> 'BT Approval',
+                        	'operation'   	=> 'Add',
+                        	'record'        => NULL,  
+                        	'remark'       	=> $_POST['approval_type'] == 1 ? "Status updated as In-Transit" : "Stock downloaded Successfully"
+                        );
+                        $this->log_model->log_detail('insert','',$log_data);
+						$this->db->trans_commit();
+						$this->session->set_flashdata('chit_alert',array('icon'=> "icon fa fa-close",'message'=>'Records updated successfully','class'=>'success','title'=>'Branch Transfer Approval')); 
+						$result = array('message'=> ($success >0?$success.' ':'').'Records updated successfully','class'=>'success','title'=>'Branch Transfer Approval') ; 
+					}
+					else
+					{ 
+						$this->db->trans_rollback();
+						$this->session->set_flashdata('chit_alert',array('icon'=> "icon fa fa-close",'message'=>'Unable to proceed the requested process','class'=>'danger','title'=>'Branch Transfer Approval')); 
+						$result = array('message'=>'Unable to proceed the requested process','class'=>'danger','title'=>'Branch Transfer Approval','q'=>$this->db->last_query(),'err'=>$this->db->_error_message()) ; 
+					}
+					echo json_encode($result);
+				break;
+				
+			
+			case 'update_TagsByFilter_scan':
+                    $bt_completed = false;
+					$dCData = $this->admin_settings_model->getAllBranchDCData();
+	
+					$status = $this->$model->get_scan_tag_status($_POST['branch_trans_code'], $_POST['tag_code']);
+	               
+					if($status['download_date'] == '' && $status['tag_status'] == 4) 
+					{
+						$fb_entry_date = NULL;
+						$tb_entry_date = NULL;
+						foreach ($dCData as $dayClose) {
+	
+							if ($_POST['from_branch'] == $dayClose['id_branch']) { // From Branch
+								$fb_entry_date = $dayClose['entry_date'];
+							}
+							if ($_POST['to_branch'] == $dayClose['id_branch']) { // To Branch
+								$tb_entry_date = $dayClose['entry_date'];
+							}
+						}
+	
+						if (strtotime($tb_entry_date) < strtotime($fb_entry_date) && $_POST['approval_type'] == 2) {
+							$result = array('message' => 'Check day closing in to branch. From branch : ' . $fb_entry_date . ' To Branch : ' . $tb_entry_date, 'class' => 'danger', 'title' => 'Branch Transfer Approval');
+							echo json_encode($result);
+							exit;
+						}
+	
+						if ($_POST['trans_type'] == 1) { // Tagged
+	
+	
+							if ($_POST['approval_type'] == 1) {
+								$date = ($fb_entry_date == date("Y-m-d") ? date("Y-m-d H:i:s") : $fb_entry_date . ' ' . date("H:i:s"));
+								$data['approved_datetime'] = $date;
+							} else {
+								$date = ($tb_entry_date == date("Y-m-d") ? date("Y-m-d H:i:s") : $tb_entry_date . ' ' . date("H:i:s"));
+								$data['dwnload_datetime'] = $date;
+							}
+	
+							if ($_POST['approval_type'] == 2) { // Stock Download 
+								$tag_data = array(
+									'current_branch'	=> $_POST['to_branch'],
+									'updated_time'		=> date('Y-m-d H:i:s'),
+								);
+								if ($_POST['is_other_issue'] == 1) {
+									$tag_data['tag_status']	= 3;
+								} else {
+									$tag_data['tag_status']	= 0;
+								}
+	
+								$dwn_date = array(
+									'download_date'	=> $tb_entry_date,
+									'download_by'	=> $this->session->userdata('uid'),
+									'created_on'	=> date('Y-m-d H:i:s'),
+								);
+	
+								$this->db->trans_begin();
+								
+								$tag_update_status = $this->$model->updateData($tag_data,'tag_id',$status['tag_id'],'ret_taging');
+								
+								if($tag_update_status)
+								{
+								    
+								    $this->$model->updateDatamulti($dwn_date, (array('transfer_id' => $status['trans_id'], 'tag_id' => $status['tag_id'])), 'ret_brch_transfer_tag_items');
+    								$tag_log = array(
+    									"tag_id"		=> $status['tag_id'],
+    									"status"		=> $tag_data['tag_status'],
+    									"from_branch"   => ($tag_data['tag_status'] == 3 ? NULL : $_POST['from_branch']),
+    									"to_branch"		=> $_POST['to_branch'],
+    									"created_by"	=> $this->session->userdata('uid'),
+    									"created_on"	=> date('Y-m-d H:i:s'),
+    									"date"			=> $date
+    								);
+    
+    								$ins_id = $this->$model->insertData($tag_log, 'ret_taging_status_log');
+    								
+    								$btDetail = $this->$model->getBTDetail($status['trans_id']);
+    								//echo"<pre>"; print_r($btDetail);exit;
+    								
+    								if($btDetail['pieces']==($btDetail['downd_pcs']))
+    								{
+    								    	$update_data = array(
+    											'status' => 4,
+    											'dwnload_datetime' =>  $date
+    										);
+    										$done_dnload = $this->$model->updateData($update_data, 'branch_transfer_id', $status['trans_id'], 'ret_branch_transfer');
+    										$bt_completed = true;
+    								}
+    							
+								}
+							}
+						}
+						
+    					if($this->db->trans_status()===TRUE)
+    					{
+    					    $log_data = array(
+                            	'id_log'        => $this->session->userdata('id_log'),
+                            	'event_date'	=> date("Y-m-d H:i:s"),
+                            	'module'      	=> 'BT Download',
+                            	'operation'   	=> 'Add',
+                            	'record'        => NULL,  
+                            	'remark'       	=> "Stock downloaded Successfully"
+                            );
+                            $this->log_model->log_detail('insert','',$log_data);
+    						$this->db->trans_commit();
+    						$result = array('message'=> 'Records updated successfully','status'=>true,'bt_status'=>$bt_completed,"tag_details"=>$status) ; 
+    					}
+    					else
+    					{ 
+    						$this->db->trans_rollback();
+    						$result = array('message'=>'Unable to proceed the requested process','status'=>false) ; 
+    					}
+    					echo json_encode($result);
+					
+					}
+					else
+					{
+					   echo json_encode(array('status'=>false,'message'=>'Tag already Downloaded..'));
+					}
+	
+			break;
+		
+		
+			case 'getLotsByBranch':
+					$data = $this->$model->getLotsByFilter($_POST);	 
+					echo json_encode($data);
+				break;
+			case 'getDesignByFilter':
+					$data = $this->$model->getDesignByFilter($_POST);	 
+					echo json_encode($data);
+				break;
+			case 'getTagsByFilter': 				
+					$data = $this->$model->fetchTagsByFilter($_POST);	 
+					echo json_encode($data);
+				break;
+			case 'getEstiTagsByFilter': 				
+					$data = $this->$model->fetchEstiTagsByFilter($_POST);	 
+					echo json_encode($data);
+				break;
+			case 'getNonTaggedItem': 				
+					$data = $this->$model->fetchNonTaggedItems($_POST);	 
+					echo json_encode($data);
+				break;
+		    case 'getRepairOrderDetails': 				
+					$data = $this->$model->getRepairOrderDetails($_POST);	 
+					echo json_encode($data);
+				break;
+			case 'print': 	 
+					$trans_code = $id;
+					$this->load->model('admin_settings_model'); 
+					$data['type']=$print_type; //1- Summary Print ,2-Detailed Print
+					$data['btrans'] = $this->$model->getBTransData($trans_code,$s_type,$print_type);
+					$data['purchase_item_details'] = $this->$model->get_purchase_items_details($trans_code,$s_type,$print_type);
+					$data['comp_details'] = $this->admin_settings_model->get_company();
+				    //echo "<pre>";print_r($data);exit;
+				    
+					/*if($this->session->userdata('branch_settings') == 1){
+						 $data['comp_details'] = $this->admin_settings_model->get_branchcompany($data['records'][0]['id_branch']);
+					}else{
+						 $data['comp_details'] = $this->admin_settings_model->get_company();
+					} */
+					
+					$data['comp_details'] = $this->admin_settings_model->get_company(); 
+			   	    //create PDF receipt
+					$this->load->helper(array('dompdf', 'file'));
+			        $dompdf = new DOMPDF();
+					$html = $this->load->view('branch_transfer/print', $data,true);
+				    $dompdf->load_html($html); 
+					$dompdf->set_paper("a4", "portriat" );
+					$dompdf->render();
+					$dompdf->stream("btrans.pdf",array('Attachment'=>0));	 
+				break;
+			case 'approval_pending': 	 
+					$list = $this->$model->getApprovalListing($_POST);	 
+				  	$access = $this->admin_settings_model->get_access('admin_ret_brntransfer/branch_transfer/list');
+			        $data = array(
+			        					'list' => $list,
+										'access' => $access
+			        			 );  
+					echo json_encode($data);	 
+				break;
+			default: 
+				  	$from_date=$this->input->post('from_date');
+			        $to_date=$this->input->post('to_date');
+				  	$list=$this->$model->get_ajaxBranchTransferlist($from_date,$to_date);
+				  	$profile=$this->$model->get_profile_details($this->session->userdata('profile'));
+				  	$data = array('list' => $list,'profile' => $profile);
+				  	echo json_encode($data);
+		    break;
+		}
+	}  	
+	
+	function verify_otp()
+	{
+		$model	=	"ret_tag_model"; 
+		$post_otp	 = $this->input->post('otp');
+		$session_otp = $this->session->userdata('bt_approval_otp'); 
+		$this->db->trans_begin();
+		if($session_otp == $post_otp)
+		{
+			if(time() >= $this->session->userdata('bt_approval_otp_exp'))
+			{
+				$this->session->unset_userdata('bt_approval_otp');
+				$this->session->unset_userdata('bt_approval_otp_exp');
+				$status = array('status' => false,'msg' => 'OTP has been expired'); 
+			}
+			else
+			{
+				$status = array('status' => true,'msg' => 'OTP Verified successfully.Proceed Approval.');
+			} 
+		}
+		else
+		{	
+			$status	= array('status' => false,'msg'=>'Please Enter Valid OTP');
+		} 
+	  	echo json_encode($status); 
+	}
+
+	function send_otp()
+	{  
+		//$branch		= ($this->session->userdata('id_branch') == '' || $this->session->userdata('id_branch') == 0 ? 1 : $this->session->userdata('id_branch'));  
+		$branch		= $_POST['id_branch'];
+		$mobile     = $this->ret_brntransfer_model->get_verifMobNo($branch); 
+		$service = $this->admin_settings_model->get_service_by_code('bt_trans');
+		$sent_otp	= '';
+		if($mobile)
+		{
+			$this->db->trans_begin();
+			$this->session->unset_userdata("bt_approval_otp");
+			$this->session->unset_userdata("bt_approval_otp_exp");
+			$OTP = mt_rand(100001,999999);
+			$sent_otp.= $OTP;
+			$this->session->set_userdata('bt_approval_otp',$sent_otp);
+			$this->session->set_userdata('bt_approval_otp_exp',time()+60);
+			$message="Hi, Your OTP For Branch Transfer Approval is :".$OTP.". Will expire within 1 minute.";
+			$otp_gen_time = date("Y-m-d H:i:s");
+			$insData = array(
+						'mobile'		=>	$mobile,
+						'otp_code'		=>	$OTP,
+						'otp_gen_time'	=>	date("Y-m-d H:i:s"),
+						'module'		=>	'Branch Transfer Approval',
+						'send_resend'	=>	1,
+						'id_emp'		=>	$this->session->userdata('uid')
+						);
+			$insId = $this->ret_brntransfer_model->insertData($insData,'otp');
+			if($insId)
+			{
+				$send_sms = $this->send_sms($mobile,$message,$service['dlt_te_id']);
+				
+				//$this->admin_usersms_model->send_whatsApp_message($mobile,$message);
+				
+				//$send_sms = TRUE;
+				if($send_sms){
+					$this->db->trans_commit();
+	  				$status=array('status'=>true,'msg'=>'OTP sent Successfully','OTP'=>'');	
+  				}else{
+					$this->db->trans_rollback();
+  					$status=array('status'=>false,'msg'=>'Unabe To Send Try Again');	
+				}
+			}else{ 
+				$status=array('status'=>false,'msg'=>'Unabe To Send Try Again');	
+			}
+		} 
+	  	else
+	  	{
+  			$status=array('status'=>false,'msg'=>'Mobile number is empty');	
+	  	} 
+		echo json_encode($status);
+	}
+	
+	function send_sms($mobile,$message,$dlt_te_id)
+	{
+		if($this->config->item('sms_gateway') == '1'){
+		    $status = $this->sms_model->sendSMS_MSG91($mobile,$message,"",$dlt_te_id);		
+		}
+		elseif($this->config->item('sms_gateway') == '2'){
+	        $status = $this->sms_model->sendSMS_Nettyfish($mobile,$message,'trans');	
+		}
+		return $status;
+	}
+	
+	function bt_get_branches()
+	{ 
+		$branches = $this->ret_brntransfer_model->getBTBranches();  
+		echo json_encode($branches);
+	}
+  
+	/*function nonTagStock($type="",$id="",$s_type=""){ 
+		$model = "ret_brntransfer_model"; 
+		switch($type)
+		{
+			case 'updateStock':
+					if($this->db->trans_status() === TRUE)
+					{
+						$this->db->trans_commit();
+						$this->session->set_flashdata('chit_alert',array('message'=> ($success >0?$success.' ':'').'Records added successfully','class'=>'success','title'=>'Add to Transfer')); 
+						$result = array( "status" => 1, "trans_code" => $trans_code, "s_type" => $data['transfer_item_type']);
+					}
+					else
+					{  				
+						$this->db->trans_rollback();			 	
+						$this->session->set_flashdata('chit_alert',array('message'=>'Unable to proceed the requested process','class'=>'danger','title'=>'Add to Transfer')); 
+						$result['status'] = 0;
+					} 
+					echo json_encode($result);
+				break; 
+			case 'get':
+					$list = $this->$model->getApprovalListing($_POST);	 
+				  	$access = $this->admin_settings_model->get_access('admin_ret_brntransfer/branch_transfer/list');
+			        $data = array(
+			        					'list' => $list,
+										'access' => $access
+			        			 );  
+					echo json_encode($data); 
+				break;
+			default:
+					$data['main_content'] = "branch_transfer/non_tag/form";
+					$this->load->view('layout/template', $data);
+				break;
+		}
+	}*/ 
+	
+	
+	function update_branch_transfer_cancel()
+	{
+		$model="ret_brntransfer_model";
+		$reqdata   = $this->input->post('req_data');
+		$this->db->trans_begin();
+		foreach($reqdata as $trans)
+		{
+		    $data = array(
+		               'status'  	  => 3,
+					   'updated_time' => date("Y-m-d H:i:s"),
+					   'updated_by'   => $this->session->userdata('uid')
+					);
+			$status = $this->$model->updateData($data,'branch_transfer_id',$trans['branch_transfer_id'],'ret_branch_transfer');
+			if($status)
+			{
+			    $log_data = array(
+                            'id_log'        => $this->session->userdata('id_log'),
+                            'event_date'    =>  date("Y-m-d H:i:s"),
+                            'module'        => 'Branch Trasnfer',
+                            'operation'     => 'Cancel',
+                            'record'        =>  $trans['branch_transfer_id'],  
+                            'remark'        => 'Reject Branch Trasnfer'
+                            );
+                $this->log_model->log_detail('insert','',$log_data);
+			}
+		}
+		
+		if($this->db->trans_status()===TRUE)
+         {
+		 	$this->db->trans_commit();
+			$this->session->set_flashdata('chit_alert',array('message'=>'Branch Transfer Rejected successfully.','class'=>'success','title'=>'Branch Trasnfer'));			
+		}	
+		else
+		{
+			$this->db->trans_rollback();
+			$this->session->set_flashdata('chit_alert',array('message'=>'Unable to proceed the requested operation','class'=>'danger','title'=>'Branch Trasnfer'));
+		}	
+	}
+	
+	
+	
+		//Other issue otp
+	
+	function send_other_issue_otp()
+	{
+		$model="ret_brntransfer_model";
+		$data=$this->$model->getSettigsByName('otp_approval_nos');
+		$mobile_num  = array(explode(',',$data));
+		$sent_otp='';
+		//print_r($mobile_num);exit;
+		foreach($mobile_num[0] as $mobile)
+		{
+			if($mobile)
+			{
+				$this->db->trans_begin();
+				$this->session->unset_userdata("others_issue_otp");
+				$OTP = mt_rand(100001,999999);
+				$sent_otp.=$OTP.',';
+				$this->session->set_userdata('others_issue_otp',$sent_otp);
+				$this->session->set_userdata('others_issue_otp_exp',time()+60);
+				$message="Hi Your OTP  For Other Issue is :  ".$OTP." Will expire within 1 minute.";
+				$otp_gen_time = date("Y-m-d H:i:s");
+				$insData=array(
+				'mobile'=>$mobile,
+				'otp_code'=>$OTP,
+				'otp_gen_time'=>date("Y-m-d H:i:s"),
+				'module'=>'Duplicate Tag Edit',
+				'id_emp'=>$this->session->userdata('uid')
+				);
+				$insId = $this->$model->insertData($insData,'otp');
+					 if($insId)
+					 {
+					 	$this->send_sms($mobile,$message,'');
+					 }
+			}
+		}
+	    if($insId)
+	  	{		
+  			$this->db->trans_commit();
+  			$status=array('status'=>true,'msg'=>'OTP sent Successfully');	
+	  	}
+	  	else
+	  	{
+	  	    $this->db->trans_rollback();
+	  		$status=array('status'=>false,'msg'=>'Unabe To Send Try Again');	
+	  	}
+		echo json_encode($status);
+	}
+	
+	function verify_other_issue_otp()
+	{
+		$model="ret_brntransfer_model";
+		$post_otp=$this->input->post('otp');
+		$session_otp=$this->session->userdata('others_issue_otp');
+		$otp = array(explode(',',$session_otp));
+		$this->db->trans_begin();
+		if($post_otp!='')
+		{
+    		foreach($otp[0] as $OTP)
+    		{
+    			if($OTP==$post_otp)
+    			{
+    				if(time() >= $this->session->userdata('others_issue_otp_exp'))
+    				{
+    					$this->session->unset_userdata('others_issue_otp');
+    					$this->session->unset_userdata('others_issue_otp_exp');
+    					$status=array('status'=>false,'msg'=>'OTP has been expired');
+    				}
+    				else
+    				{
+    					$this->db->trans_commit();
+    					$updData=array('is_verified'=>1,'verified_time'=>date("Y-m-d H:i:s"));
+    					$updStatus=$this->$model->updateData($updData,'otp_code',$post_otp,'otp');
+    					$status=array('status'=>true,'msg'=>'OTP Verified Successfully.');
+    				}
+    				break;
+    			}
+    			else
+    			{	
+    				$status=array('status'=>false,'msg'=>'Please Enter Valid OTP');
+    			}
+    		}
+	    }
+	    else{
+	       $status=array('status'=>false,'msg'=>'Please Enter Valid OTP');
+	   }
+	  	echo json_encode($status);
+	}
+	
+	//Other issue otp
+	
+	//Old Metal Transfer Details
+	function get_purchase_items()
+	{
+		$data = $this->ret_brntransfer_model->get_purchase_items($_POST);  
+		echo json_encode($data);
+	}
+	//Old Metal Transfer Details
+	
+	
+}	
+?>

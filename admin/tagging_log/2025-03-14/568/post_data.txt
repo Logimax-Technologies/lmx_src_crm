@@ -1,0 +1,1 @@
+[{"last_tag_code":"FD-00001","new_tag_code":"00002","tag_id":191368,"date_time":"2025-03-14 11:20:29","ip_address":"49.47.216.68"}][{"last_tag_code":"FD-00002","new_tag_code":"00003","tag_id":191369,"date_time":"2025-03-14 11:22:53","ip_address":"49.47.216.68"}]

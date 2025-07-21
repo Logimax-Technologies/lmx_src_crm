@@ -1,0 +1,12594 @@
+<?php
+if( ! defined('BASEPATH')) exit('No direct script access allowed');
+class Ret_reports_model extends CI_Model
+{
+	
+	function __construct()
+    {
+        parent::__construct();
+    }
+    
+    public function insertData($data,$table)
+    {
+    	$insert_flag = 0;
+		$insert_flag = $this->db->insert($table, $data);
+		return ($insert_flag == 1 ? $this->db->insert_id(): 0);
+	}
+	
+	public function update_tag_scan($table,$data)
+	{
+		$edit_flag = 0;
+		$this->db->where('id_product',$data['id_product']); 
+		$this->db->where('id_branch',$data['id_branch']);
+		$status['status']=$data['status']; 
+		$edit_flag=$this->db->update($table,$status);
+		return ($edit_flag==1?$edit_flag:0);
+
+	}
+	
+	
+
+	public function updateData($data, $id_field, $id_value, $table)
+
+    {    
+
+	    $edit_flag = 0;
+
+	    $this->db->where($id_field, $id_value);
+
+		$edit_flag = $this->db->update($table,$data);
+
+		return ($edit_flag==1?$id_value:0);
+
+	}
+ 	
+ 	
+ 	function get_bill_customer()
+	{
+	    $sql=$this->db->query("select c.mobile,c.firstname as cus_name,c.id_customer
+	    FROM ret_billing b
+	    left join customer c on c.id_customer=b.bill_cus_id
+	    where b.is_credit=1 group by b.bill_cus_id");
+	    return $sql->result_array();
+	}
+	
+	function getOldMetalPurchases($data){
+		$old_matel_detail = array();
+		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        if($data['report_type']==2)
+        {
+            $old_matel_query = $this->db->query("SELECT   
+            concat(c.firstname,' ',if(c.lastname!=NULL,c.lastname,'')) as customer,
+            bill_no,bill_old.gross_wt, 
+            ifnull(bill_old.dust_wt,0.000) as dust_wt,ifnull(bill_old.stone_wt,0.000) as stone_wt,
+            (ifnull(bill_old.gross_wt,0.000) - ifnull(bill_old.stone_wt,0.000) - ifnull(bill_old.dust_wt,0.000)) as pure_wt,
+            ifnull(bill_old.wast_wt,0.000) as wast_wt,
+            ifnull(bill_old.net_wt,0.000) as net_wt,
+            round((ifnull(bill_old.dust_wt,0.000) - ifnull(bill_old.stone_wt,0.000)),3) as less_wt,
+            if(bill_old.item_type = 1, 'Ornament', if(bill_old.item_type = 2, 'Coin', if(bill_old.item_type = 3, 'Bar',''))) as receiveditem,if(bill_old.metal_type =1,'Gold','Silver') as metal_type,
+            bill_old.stone_wt, bill_old.dust_wt,bill_old.wastage_percent,DATE_FORMAT(bill_date,'%d-%m-%Y') as bill_date,
+            rate_per_grm, rate,bill_old.purity, if(bill_old.purpose=1,'Sale','Purchase' ) as purpose,
+            b.name as branch,esti_oms.est_id,IFNULL(r.goldrate_24ct,0) as goldrate_24ct,emp.firstname as emp_name,e.esti_no,bill.bill_id,t.metal_type,cat.old_metal_cat as old_metal_category,
+            bill_old.old_metal_sale_id,IFNULL(pay.pay_amt,0) as refund_amt,if(bill_old.is_pocketed=0,'-',if(bill_old.is_pocketed=2,'Added to Accounts Stock',if(bill_old.is_pocketed=3,'Stock Adj',if(bill_old.is_pocketed=4,'Added to Non Tag',if(bill_old.is_pocketed=5,'ReTagged',if(bill_old.is_pocketed=1,'Added to Pocket','-')))))) as old_metal_status
+            FROM ret_bill_old_metal_sale_details as bill_old 
+            LEFT JOIN ret_estimation_old_metal_sale_details est_old ON est_old.old_metal_sale_id=bill_old.esti_old_metal_sale_id
+            LEFT JOIN ret_old_metal_type t ON t.id_metal_type=est_old.id_old_metal_type
+            LEFT JOIN ret_old_metal_category cat ON cat.id_old_metal_cat=est_old.id_old_metal_category
+            LEFT JOIN ret_billing as bill ON bill.bill_id = bill_old.bill_id 
+            LEFT JOIN (SELECT est_id,old_metal_sale_id FROM ret_estimation_old_metal_sale_details) as esti_oms ON bill_old.esti_old_metal_sale_id = esti_oms.old_metal_sale_id 
+            LEFT JOIN customer c ON c.id_customer = bill.bill_cus_id 
+            LEFT JOIN branch as b ON b.id_branch = bill.id_branch 
+            left join ret_estimation e on e.estimation_id=esti_oms.est_id
+            left join employee emp on emp.id_employee=e.created_by
+            
+             LEFT JOIN (SELECT IFNULL(SUM(p.payment_amount),0) as pay_amt,p.bill_id
+                       FROM ret_billing_payment p
+                      LEFT JOIN ret_billing bill ON bill.bill_id=p.bill_id
+                      WHERE p.type=2 and bill.bill_type!=5
+                      GROUP by p.bill_id) as pay ON pay.bill_id=bill_old.bill_id
+                      
+            LEFT JOIN (SELECT m.id_metalrates,m.goldrate_24ct,date_format(m.add_date,'%Y-%m-%d') as date_add FROM metal_rates m order by m.id_metalrates DESC LIMIT 1 ) as r ON date(r.date_add)=date(bill.bill_date) WHERE bill.bill_id is not null and bill.bill_status=1
+            ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and bill.id_branch='.$data['id_branch']: '')." 
+            ".($data['metal'] != '' ? ' and bill_old.metal_type ='.$data['metal']: '')." 
+            ".($data['dt_range'] != '' ? ' and date(bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')." ORDER BY old_metal_sale_id DESC"); 
+    		//print_r($this->db->last_query());exit;
+    		$result = $old_matel_query->result_array();
+    		foreach($result as $r){
+    			$old_matel_detail['item_details'][$r['old_metal_category']][$r['bill_no']][] = $r; 
+    		}
+    		$old_matel_detail['return_details']=$this->return_bill_details($FromDt,$ToDt,$data['id_branch']);
+    		$old_matel_detail['partly_sale_det']=$this->get_partly_sales($FromDt,$ToDt,$data['id_branch']);
+    	 }
+    	 else if($data['report_type']==1)
+    	 {
+            $old_matel_query = $this->db->query("SELECT IFNULL(SUM(bill_old.gross_wt),0) as total_gross_wt,IFNULL(SUM(bill_old.net_wt),0) as total_net_wt,
+            date_format(bill.bill_date,'%d-%m-%Y') as bill_date,b.name as branch_name,IFNULL(SUM(bill_old.rate),0) as total_amount,cat.old_metal_cat as old_metal_category
+            FROM ret_bill_old_metal_sale_details as bill_old 
+            LEFT JOIN ret_estimation_old_metal_sale_details est_old ON est_old.old_metal_sale_id=bill_old.esti_old_metal_sale_id
+            LEFT JOIN ret_old_metal_type t ON t.id_metal_type=est_old.id_old_metal_type
+            LEFT JOIN ret_old_metal_category cat ON cat.id_old_metal_cat=est_old.id_old_metal_category
+            LEFT JOIN ret_billing as bill ON bill.bill_id = bill_old.bill_id 
+            LEFT JOIN (SELECT est_id,old_metal_sale_id FROM ret_estimation_old_metal_sale_details) as esti_oms ON bill_old.esti_old_metal_sale_id = esti_oms.old_metal_sale_id 
+            LEFT JOIN branch as b ON b.id_branch = bill.id_branch 
+            left join ret_estimation e on e.estimation_id=esti_oms.est_id
+            WHERE bill.bill_id is not null and bill.bill_status=1
+            ".($data['dt_range'] != '' ? ' and date(bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')." 
+             ".($data['metal'] != '' ? ' and bill_old.metal_type ='.$data['metal']: '')." 
+            ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and bill.id_branch='.$data['id_branch']: '')." 
+            GROUP by b.id_branch,est_old.id_old_metal_category,date(bill.bill_date)"); 
+    		//print_r($this->db->last_query());exit;
+    		$old_matel_detail = $old_matel_query->result_array();
+    	 }
+		return $old_matel_detail;
+	}
+	
+	function return_bill_details($FromDt,$ToDt,$id_branch)
+	{
+	    //SALES RETURN
+	        $return_data=array();
+    		$return_details=$this->db->query("SELECT p.product_name,d.net_wt as net_wt,d.gross_wt as gross_wt,d.item_cost as item_cost,d.item_total_tax as item_total_tax,
+    		d.bill_discount as bill_discount,cat.name as category_name,d.piece as piece,d.rate_per_grm as sales_rate,p.sales_mode,b.bill_no,b.bill_id,
+    		date_format(b.bill_date,'%d-%m-%Y') as bill_date,d.calculation_based_on,d.wastage_percent,c.firstname as customer,emp.firstname as emp_name
+            FROM ret_billing b
+            LEFT JOIN ret_bill_return_details r ON r.bill_id=b.bill_id
+            LEFT JOIN ret_bill_details d ON d.bill_det_id=r.ret_bill_det_id
+            LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+            LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+            left join employee emp on emp.id_employee=b.created_by
+            WHERE d.bill_det_id IS NOT null and b.bill_status=1 And (b.bill_type=3 or b.bill_type=7)
+            ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+            ".($FromDt!= '' && $ToDt!='' ? 'and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')."");
+    		$return_details = $return_details->result_array();
+    		foreach($return_details as $r)
+    		{
+    			if($r['category_name']!='')
+    			{
+    				$return_data[$r['category_name']][] = $r; 
+    			}
+    		}
+    		return $return_data;
+            //SALES RETURN
+	}
+	
+	function get_partly_sales($FromDt,$ToDt,$id_branch)
+	{
+	    $return_data=array();
+	    $partly_sale=$this->db->query("SELECT p.product_name,d.net_wt as net_wt,(tag.gross_wt-d.gross_wt) as gross_wt,(d.item_cost) as item_cost,
+	    (d.piece) as pcs,b.bill_no,b.bill_id,c.firstname as customer,emp.firstname as emp_name,date_format(b.bill_date,'%d-%m-%Y') as bill_date,d.calculation_based_on,d.wastage_percent
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_estimation_items e ON e.est_item_id=d.esti_item_id
+        LEFT JOIN ret_estimation est ON est.estimation_id=e.esti_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_taging tag on tag.tag_id=d.tag_id
+        LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+        Left join employee emp on emp.id_employee=b.created_by
+        WHERE d.tag_id IS NOT null AND d.is_partial_sale=1 and b.bill_status=1
+        ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')."  ");
+        //print_r($this->db->last_query());exit;
+        $return_data=$partly_sale->result_array();
+        return $return_data;
+	}
+	
+	function getLotwiseSoldPending($data){
+		
+        $sql = $this->db->query("SELECT l.lot_no,IFNULL(lot.total_gwt,0) as total_gwt,IFNULL(lot.tot_nwt,0) as tot_nwt,IFNULL(lot.no_of_pcs,0) as no_of_pcs,IFNULL(sold.sold_pcs,0) as sold_pcs,IFNULL(sold.sold_gwt,0) as sold_gwt,IFNULL(sold.sold_nwt,0) as sold_nwt,
+        (IFNULL(lot.no_of_pcs,0)-IFNULL(sold.sold_pcs,0)) as pending_pcs,(IFNULL(lot.total_gwt,0)-IFNULL(sold.sold_gwt,0)) as pending_gwt,
+        k.firstname as karigar_name
+        FROM ret_lot_inwards l 
+        LEFT JOIN ret_karigar k ON k.id_karigar=l.gold_smith
+        LEFT JOIN(SELECT IFNULL(SUM(d.gross_wt),0) as total_gwt,IFNULL(SUM(d.net_wt),0) as tot_nwt,IFNULL(SUM(d.no_of_piece),0) as no_of_pcs,d.lot_no
+                 FROM ret_lot_inwards_detail d 
+                 LEFT JOIN ret_lot_inwards lt ON lt.lot_no=d.lot_no
+                 where d.lot_no IS NOT NULL
+                 ".($data['karigar']!='' ? " and lt.gold_smith=".$data['karigar']."" :'')."
+                 ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(lt.lot_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                 GROUP by d.lot_no) as lot ON lot.lot_no=l.lot_no
+        LEFT JOIN(SELECT tag.tag_lot_id,IFNULL(SUM(dt.piece),0) as sold_pcs,IFNULL(SUM(dt.gross_wt),0) as sold_gwt,
+                  IFNULL(SUM(dt.net_wt),0) as sold_nwt
+                 FROM ret_bill_details dt
+                 LEFT JOIN ret_billing b ON b.bill_id=dt.bill_id
+                 LEFT JOIN ret_taging tag ON tag.tag_id=dt.tag_id
+                 LEFT JOIN ret_lot_inwards lt ON lt.lot_no=tag.tag_lot_id
+                 WHERE dt.tag_id IS NOT NULL AND b.bill_status=1
+                 ".($data['karigar']!='' ? " and lt.gold_smith=".$data['karigar']."" :'')."
+                 ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(lt.lot_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                 GROUP by tag.tag_lot_id) as sold ON sold.tag_lot_id=l.lot_no
+        WHERE l.lot_no IS NOT NULL
+        ".($data['karigar']!='' ? " and l.gold_smith=".$data['karigar']."" :'')."
+        ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(l.lot_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ORDER BY l.lot_no DESC");
+        //print_r($this->db->last_query());exit;
+		$result = $sql->result_array();
+		return $result;
+	}
+	
+	function get_partial_sale_details($tag_id, $sold_bill_det_id)
+	{
+		$sql=$this->db->query("SELECT * From ret_partlysold s where s.tag_id=".$tag_id." AND s.sold_bill_det_id = '".$sold_bill_det_id."'");
+		return $sql->result_array();
+	}
+	
+	function getPartlySold($data){
+			if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+		$return_data=array();
+		$res = $this->db->query("
+					SELECT bill_no,bil.bill_id,bil.bill_type,bil.id_branch,DATE_FORMAT(bil.bill_date,'%d-%m-%Y') as report_date,bil.bill_type,bil.id_branch,DATE_FORMAT(bil.bill_date,'%d-%m-%Y') as bill_date,
+						bil_det.tag_id,pro.product_name as product,IFNULL(des.design_name,'') as design,
+					    IFNULL(tag.less_wt,0) as actual_less_wt,IFNULL(tag.net_wt,0) as actual_net_wt,IFNULL(tag.gross_wt,0) as actual_gross_wt,IFNULL(tag.piece,0) as actual_pieces,
+					    IFNULL(bil_det.less_wt,0) as sold_less_wt,IFNULL(bil_det.net_wt,0) as sold_net_wt,IFNULL(bil_det.gross_wt,0) as sold_gross_wt,IFNULL(bil_det.piece,0) as sold_pieces,
+					    tag.tag_code,br.name as branch_name, bil_det.bill_det_id 
+					FROM ret_billing bil
+					    LEFT JOIN branch br on br.id_branch = bil.id_branch
+						LEFT JOIN ret_bill_details bil_det ON bil_det.bill_id=bil.bill_id 
+						LEFT JOIN ret_estimation_items est on est.est_item_id=bil_det.esti_item_id
+					    LEFT JOIN ret_taging tag ON tag.tag_id=bil_det.tag_id
+					    LEFT JOIN ret_product_master as pro ON pro.pro_id = bil_det.product_id  
+						LEFT JOIN ret_design_master as des ON des.design_no = bil_det.design_id
+					WHERE est.is_partial = 1 and bil_det.item_type = 0  ".($data['dt_range'] != '' ? ' and (date(bil.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and bil.id_branch='.$data['id_branch']: '')." ".($data['id_product'] != '' ? ' and bil_det.product_id ='.$data['id_product']: '')."
+					GROUP BY tag.tag_id
+					"); 
+				//print_r($this->db->last_query());exit;
+			$data=$res->result_array();
+    		foreach($data as $items)
+    		{
+    			$return_data[]=array(
+    				'branch_name'=>$items['branch_name'],
+    				'actual_gross_wt'=>$items['actual_gross_wt'],
+    				'actual_less_wt'=>$items['actual_less_wt'],
+    				'actual_net_wt'=>$items['actual_net_wt'],
+    				'actual_pieces'=>$items['actual_pieces'],
+    				'bill_date'=>$items['bill_date'],
+    				'bill_id'=>$items['bill_id'],
+    				'bill_no'=>$items['bill_no'],
+    				'bill_type'=>$items['bill_type'],
+    				'design'=>$items['design'],
+    				'id_branch'=>$items['id_branch'],
+    				'product'=>$items['product'],
+    				'report_date'=>$items['report_date'],
+    				'sold_gross_wt'=>$items['sold_gross_wt'],
+    				'sold_less_wt'=>$items['sold_less_wt'],
+    				'sold_net_wt'=>$items['sold_net_wt'],
+    				'sold_pieces'=>$items['sold_pieces'],
+    				'tag_id'=>$items['tag_id'],
+    				'tag_code'=>$items['tag_code'],
+    				'partial_details'=>$this->get_partial_sale_details($items['tag_id'], $items['bill_det_id'])
+    			);
+    		}
+    		return $return_data;
+		
+		
+		
+		/*if($FromDt == date("Y-m-d")){
+			$res = $this->db->query("
+					SELECT bill_no,bil.bill_id,bil.bill_type,bil.id_branch,DATE_FORMAT(bil.bill_date,'%d-%m-%Y') as report_date,bil.bill_type,bil.id_branch,DATE_FORMAT(bil.bill_date,'%d-%m-%Y') as bill_date,
+						bil_det.tag_id,pro.product_name as product,des.design_name as design,
+					    IFNULL(tag.less_wt,0) as actual_less_wt,IFNULL(tag.net_wt,0) as actual_net_wt,IFNULL(tag.gross_wt,0) as actual_gross_wt,
+					    IFNULL(bil_det.less_wt,0) as sold_less_wt,IFNULL(bil_det.net_wt,0) as sold_net_wt,IFNULL(bil_det.gross_wt,0) as sold_gross_wt
+					FROM `ret_billing` bil
+						LEFT JOIN ret_bill_details bil_det ON bil_det.bill_id=bil.bill_id 
+					    LEFT JOIN ret_taging tag ON tag.tag_id=bil_det.tag_id
+					    LEFT JOIN ret_product_master as pro ON pro.pro_id = bil_det.product_id  
+						LEFT JOIN ret_design_master as des ON des.design_no = bil_det.design_id
+					WHERE bil.bill_type<=3  and bil_det.is_partial_sale = 1 and bil_det.item_type = 0 and tag.tag_status = 1 ".($data['dt_range'] != '' ? ' and (date(bil.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and bil.id_branch='.$data['id_branch']: '')." ".($data['id_product'] != '' ? ' and bil_det.product_id ='.$data['id_product']: '')."
+					GROUP BY tag.tag_id
+					"); 
+			return $res->result_array();
+		}
+		elseif($ToDt == date("Y-m-d")){
+			$r1 = array();
+			$r2 = array();
+			$s1 = $this->db->query("
+					SELECT bill_no,bil.bill_id,bil.bill_type,bil.id_branch,DATE_FORMAT(bil.bill_date,'%d-%m-%Y') as report_date,DATE_FORMAT(bil.bill_date,'%d-%m-%Y') as bill_date,
+						bil_det.tag_id,pro.product_name as product,des.design_name as design,
+					    IFNULL(tag.less_wt,0) as actual_less_wt,IFNULL(tag.net_wt,0) as actual_net_wt,IFNULL(tag.gross_wt,0) as actual_gross_wt,
+					    IFNULL(bil_det.less_wt,0) as sold_less_wt,IFNULL(bil_det.net_wt,0) as sold_net_wt,IFNULL(bil_det.gross_wt,0) as sold_gross_wt
+					FROM `ret_billing` bil
+						LEFT JOIN ret_bill_details bil_det ON bil_det.bill_id=bil.bill_id 
+					    LEFT JOIN ret_taging tag ON tag.tag_id=bil_det.tag_id
+					    LEFT JOIN ret_product_master as pro ON pro.pro_id = bil_det.product_id  
+						LEFT JOIN ret_design_master as des ON des.design_no = bil_det.design_id
+					WHERE bil.bill_type<=3  and bil_det.is_partial_sale = 1 and bil_det.item_type = 0 and tag.tag_status = 1 ".($data['dt_range'] != '' ? ' and (date(bil.bill_date) BETWEEN "'.$ToDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and bil.id_branch='.$data['id_branch']: '')." ".($data['id_product'] != '' ? ' and bil_det.product_id ='.$data['id_product']: '')."
+					GROUP BY tag.tag_id
+					"); 
+			$r1 = $s1->result_array();
+			$s2 = $this->db->query("
+					SELECT 
+						report_date,id_branch,tag_id,product_name as product,design_name as design,IFNULL(actual_gross_wt,0) as actual_gross_wt,IFNULL(actual_less_wt,0)as actual_less_wt,IFNULL(actual_net_wt,0) as actual_net_wt,IFNULL(sold_gross_wt,0) as sold_gross_wt,IFNULL(sold_less_wt,0) as sold_less_wt,IFNULL(sold_net_wt,0) as sold_net_wt
+					FROM `ret_rep_partlysale` ps 
+						LEFT JOIN ret_product_master as pro ON pro.pro_id = ps.product  
+						LEFT JOIN ret_design_master as des ON des.design_no = ps.design
+					WHERE (date(report_date) BETWEEN '".$FromDt."' AND '".$ToDt."') ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and ps.id_branch='.$data['id_branch']: '')." ".($data['id_product'] != '' ? ' and product ='.$data['id_product']: '')."
+					GROUP BY tag_id
+					"); 
+			$r2 = $s2->result_array(); 
+			return array_merge($r1,$r2);
+		}else{
+			$record = $this->db->query("
+					SELECT 
+						report_date,id_branch,tag_id,product_name as product,design_name as design,IFNULL(actual_gross_wt,0) as actual_gross_wt,IFNULL(actual_less_wt,0)as actual_less_wt,IFNULL(actual_net_wt,0) as actual_net_wt,IFNULL(sold_gross_wt,0) as sold_gross_wt,IFNULL(sold_less_wt,0) as sold_less_wt,IFNULL(sold_net_wt,0) as sold_net_wt
+					FROM `ret_rep_partlysale` ps 
+						LEFT JOIN ret_product_master as pro ON pro.pro_id = ps.product  
+						LEFT JOIN ret_design_master as des ON des.design_no = ps.design
+					WHERE (date(report_date) BETWEEN '".$FromDt."' AND '".$ToDt."') ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and ps.id_branch='.$data['id_branch']: '')." ".($data['id_product'] != '' ? ' and product ='.$data['id_product']: '')."
+					GROUP BY tag_id
+					"); 
+			return $record->result_array();
+		} */
+	}
+	
+	function getBillDetails($post){
+	    
+            if($_POST['dt_range'] != ''){
+            $dateRange = explode('-',$_POST['dt_range']);
+            $from = str_replace('/','-',$dateRange[0]);
+            $to = str_replace('/','-',$dateRange[1]);  
+            $d1 = date_create($from);
+            $d2 = date_create($to);
+            $FromDt = date_format($d1,"Y-m-d");
+            $ToDt = date_format($d2,"Y-m-d");
+            }
+			$id_branch      =$this->input->post('id_branch');
+			$counter_id     =$this->input->post('counter_id');
+			$floor_id       =$this->input->post('floor_id');
+			
+			$FromDt     =$this->input->post('from_date');
+			$ToDt     =$this->input->post('to_date');
+			
+		    $return_data = array("item_details" => array(), "voucher_details" => array(), "chit_details" => array(),"return_details"=>array(),'payment_details'=>array(),'advance_detals'=>array(),'branch_transfer_details'=>array(),'due_details'=>array(),'credit_details'=>array(),'metal_rates'=>array(),"old_matel_details"=>array(),"advance_adjusted"=>array(),"wallet_adjusted"=>array(),"general_adv_details"=>array(),"general_pay"=>array(),"order_adj"=>array(),"home_bill"=>array(),"partly_sale"=>array(),"bill_det"=>array(),"adv_refund"=>array(),"general_credit_collection"=>array(),"other_expense"=>array());
+		    
+		    //SALES DETAILS
+			$items_query = $this->db->query("SELECT pro.product_name,sum(d.piece) as piece,
+			c.name as category_name,c.id_ret_category,sum(d.item_cost) as item_cost,sum(ifnull(d.total_sgst, 0) + ifnull(d.total_cgst, 0) + ifnull(d.total_igst, 0)) as item_total_tax,IFNULL(b.tcs_tax_amt,0) as tot_tcs_tax_amt,
+			sum(d.bill_discount) as bill_discount,cat.name as category_name,pro.cat_id,
+			sum(d.rate_per_grm) as sales_rate,pro.sales_mode,sum(d.net_wt) as net_wt,sum(d.gross_wt) as gross_wt,
+			IFNULL(stn.stn_wt,0) as less_wt
+			From ret_billing b
+			Left JOIN ret_bill_details d on d.bill_id=b.bill_id
+			LEFT JOIN ret_estimation_items est_itms on est_itms.est_item_id=d.esti_item_id
+			LEFT JOIN ret_product_master as pro ON pro.pro_id = d.product_id
+			LEFT JOIN ret_category c on c.id_ret_category = pro.cat_id
+			LEFT JOIN metal mt on mt.id_metal=c.id_metal
+			LEFT JOIN ret_design_master as des ON des.design_no = d.design_id
+			LEFT JOIN ret_purity as pur ON pur.id_purity = est_itms.purity
+			LEFT JOIN ret_category cat on cat.id_ret_category=pro.cat_id
+			LEFT JOIN ret_taxgroupmaster as txgrp ON txgrp.tgrp_id = mt.tgrp_id
+			LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+			
+			LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,dt.product_id
+            FROM ret_billing_item_stones st
+            LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+            LEFT JOIN ret_billing b ON b.bill_id=dt.bill_id
+            LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+            LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+            WHERE b.bill_status=1 AND uom.uom_short_code='CT'
+            and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+            	".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+            GROUP by dt.product_id)  as stn ON stn.product_id=d.product_id
+                     
+			WHERE  b.bill_id is not null and b.bill_status=1 
+		    and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+			and  d.bill_det_id !=''
+			".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+			".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+			".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+			group by d.product_id order by c.sort,pro.product_name ASC");
+		    //print_r($this->db->last_query());exit;
+    		$item_details= $items_query->result_array();
+    		foreach($item_details as $r)
+    		{
+    			$return_data['item_details'][$r['category_name']][] = $r; 
+    		}
+    		//SALES DETAILS
+		
+    		//PURCHASE DETAILS
+    		$old_metal_query=$this->db->query("SELECT sum(s.gross_wt) as gross_wt,sum(s.dust_wt)dust_wt,sum(s.stone_wt)as stone_wt,sum(s.rate)as amount,
+    		m.metal,m.id_metal,sum(s.net_wt) as net_wt,sum(s.rate_per_grm) as rate_per_grm,count(s.old_metal_sale_id) as tot_pur,
+    		old_type.metal_type as old_metal_type
+    		FROM ret_bill_old_metal_sale_details s
+    		LEFT JOIN ret_billing b on b.bill_id=s.bill_id
+    		LEFT JOIN metal m on m.id_metal=s.metal_type
+    		LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+    		LEFT JOIN ret_estimation_old_metal_sale_details as old_est on old_est.old_metal_sale_id=s.esti_old_metal_sale_id
+            LEFT JOIN ret_old_metal_type as old_type on old_type.id_metal_type=old_est.id_old_metal_type
+    		where b.bill_id is not null and b.bill_status=1 
+    		 and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+    		".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+    		".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+    		".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+    		group by m.id_metal order by m.id_metal ASC ");
+    			//print_r($this->db->last_query());exit;
+    		$old_metal= $old_metal_query->result_array();
+    		foreach($old_metal as $r)
+    		{
+    			$return_data['old_matel_details'][$r['metal']][] = $r; 
+    		}
+    		//PURCHASE DETAILS
+
+    		//SALES RETURN
+    		$return_details=$this->db->query("SELECT p.product_name,sum(d.gross_wt) as gross_wt,sum(d.net_wt) as net_wt,sum(d.item_cost) as item_cost,sum(d.item_total_tax) as item_total_tax,
+    		sum(d.bill_discount) as bill_discount,cat.name as category_name,sum(d.piece) as piece,sum(d.rate_per_grm) as sales_rate,p.sales_mode,
+    		IFNULL(SUM(d.less_wt),0) as less_wt
+            FROM ret_billing b
+            LEFT JOIN ret_bill_return_details r ON r.bill_id=b.bill_id
+            LEFT JOIN ret_bill_details d ON d.bill_det_id=r.ret_bill_det_id
+            LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+            LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+            WHERE d.bill_det_id IS NOT null and b.bill_status=1
+            ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+            ".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+            ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+             and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+            group by d.product_id");
+    		$return_details = $return_details->result_array();
+    		foreach($return_details as $r)
+    		{
+    			if($r['category_name']!='')
+    			{
+    				$return_data['return_details'][$r['category_name']][] = $r; 
+    			}
+    		}
+            //SALES RETURN
+
+        //PAYMENT DETAILS
+		$payment_details = $this->db->query("SELECT p.id_billing_payment,p.type,p.bill_id,p.payment_for,p.payment_amount,p.card_no,p.cvv,p.payment_mode
+		FROM ret_billing_payment p
+		LEFT JOIN ret_billing b on b.bill_id=p.bill_id
+		LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+		where b.bill_id is not null and b.bill_status=1 
+		and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+		".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+		".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+		and b.bill_type!=6  ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."");
+		$return_data['payment_details']=$payment_details->result_array();
+        //PAYMENT DETAILS
+        
+        //CHIT ADJ
+		$chit_details=$this->db->query("SELECT chit.bill_chit_ut_id,chit.bill_id,chit.scheme_account_id,
+		s.total_installments,IFNULL(utilized_amt,0) as utilized_amt
+			from ret_billing_chit_utilization chit
+			LEFT JOIN scheme_account sa on sa.id_scheme_account=chit.scheme_account_id
+			LEFT JOIN scheme s on s.id_scheme=sa.id_scheme
+			left JOIN ret_billing b on b.bill_id=chit.bill_id
+			LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+			where b.bill_id is not null and b.bill_status=1 
+			and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+			".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+			".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+			".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+			");
+		$return_data['chit_details'] = $chit_details->result_array();
+        //CHIT ADJ
+    
+        //ORDER ADVANCE DETAILS
+		$advance_detals=$this->db->query("SELECT b.bill_id,b.bill_no,a.order_no,a.received_amount,a.received_weight,a.rate_per_gram
+		 FROM ret_billing_advance a
+         LEFT JOIN ret_billing b ON b.bill_id=a.bill_id
+         LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+		  where  b.bill_id is not null and b.bill_status=1
+		  and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+		  ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+		  ".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+		  ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+		  ");
+		$return_data['advance_detals'] = $advance_detals->result_array();
+        //ORDER ADVANCE DETAILS
+    
+        //VOUCHER UTILIZED
+		$voucher_details=$this->db->query("SELECT g.gift_voucher_amt,g.bill_id
+			From ret_billing_gift_voucher_details g
+			LEFT JOIN ret_billing b on b.bill_id=g.bill_id
+			LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+			where  b.bill_id is not null and b.bill_status=1 
+			and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+			".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+			".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+			".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."");
+		$return_data['voucher_details'] = $voucher_details->result_array();
+        //VOUCHER UTILIZED
+
+        //BT DETAILS
+		$branch_transfer_details=$this->db->query("SELECT IFNULL(sum(b.pieces),0) as pieces,IFNULL(sum(b.grs_wt),0)as gross_wt,IFNULL(sum(b.net_wt),0)as net_wt
+			From ret_branch_transfer b
+			where 
+			(date(b.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+		    and  b.status=2 ".($id_branch!='' && $id_branch!=0 ? " and b.transfer_to_branch=".$id_branch."" :'')."");
+		$return_data['branch_transfer_details'] = $branch_transfer_details->row_array();
+        //BT DETAILS
+
+        //CREDIT ISSUED
+		$due_details=$this->db->query("SELECT b.bill_no,b.bill_id,(b.tot_bill_amount-b.tot_amt_received) as due_amt
+			From ret_billing b
+			LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+			WHERE b.bill_id is not null and b.bill_type!=8 and b.bill_status=1 and b.is_credit=1 
+			and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+			".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+			".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+			".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+			");
+		$return_data['due_details']=$due_details->result_array();
+        //CREDIT ISSUED
+
+       //CREDIT RECEIVED
+		$sql=$this->db->query("SELECT b.bill_no,b.bill_type,b.ref_bill_id,b.tot_amt_received,b.bill_id,b.tot_bill_amount
+    	 From ret_billing b
+    	 LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+    	 where  b.bill_id is not null and b.bill_status=1 and b.bill_type=8 
+    	 and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+    	 ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+    	 ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+    	 ".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')." ");
+    	 $credit_details=$sql->result_array();
+    	 foreach($credit_details as $items)
+    	 {
+    	     $old_metal=$this->getOldMetalPurchaseAmount($items['bill_id']);
+    	     
+    	     $return_data['credit_details'][]=array(
+    	                                            'bill_no'           =>$items['bill_no'],
+    	                                            'bill_type'         =>$items['bill_type'],
+    	                                            'ref_bill_id'       =>$items['ref_bill_id'],
+    	                                            'tot_amt_received'  =>($items['tot_amt_received']>0 ?$items['tot_amt_received'] :$items['tot_bill_amount'])+$old_metal['purchase_amount'],
+    	                                           );
+    	 }
+        //CREDIT RECEIVED
+        
+        
+        //GENERAL CREDIT COLLECTION
+        $GenCreditColl=$this->db->query("SELECT d.received_amount as amount,r.bill_no,r.id_issue_receipt as bill_id,date_format(r.bill_date,'%d-%m-%Y') as bill_date,
+        cus.firstname as cus_name,cus.mobile
+        FROM ret_issue_credit_collection_details d
+        LEFT JOIN ret_issue_receipt r on r.id_issue_receipt= d.id_issue_receipt
+        LEFT JOIN customer cus ON cus.id_customer=r.id_customer
+        LEFT JOIN branch br ON br.id_branch=r.id_branch
+        WHERE r.type=2 AND r.receipt_type=1 and r.bill_status = 1
+        and (date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($id_branch!='' && $id_branch!=0 ? " and r.id_branch=".$id_branch."" :'')."
+        ");
+        $return_data['general_credit_collection'] = $GenCreditColl->result_array();
+        //GENERAL CREDIT COLLECTION
+
+        //GENERAL ADV ADJ
+		$sql = $this->db->query("SELECT IFNULL(sum(u.utilized_amt),0) as adj_amt
+        FROM ret_billing b 
+        LEFT JOIN ret_advance_utilized u ON u.bill_id=b.bill_id
+        LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+        WHERE b.bill_status=1
+         and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+        ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+        ".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."");
+        //print_r($this->db->last_query());exit;
+        $advance_adjusted1 = $sql->row_array();
+         
+         
+        $sq2 = $this->db->query("SELECT IFNULL(sum(adj.adjusted_amt),0) as adj_amt
+        FROM ret_issue_receipt_advance_adj adj
+        LEFT JOIN ret_issue_receipt  ir ON ir.id_issue_receipt=adj.id_issue_receipt
+        WHERE ir.bill_status=1
+         and (date(ir.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($id_branch!='' && $id_branch!=0 ? " and ir.id_branch=".$id_branch."" :'')."
+        ");
+        //print_r($this->db->last_query());exit;
+        $advance_adjusted2 = $sq2->row_array();
+        
+        $advance_adjusted = array('adj_amt'=>($advance_adjusted1['adj_amt'] + $advance_adjusted2['adj_amt']));
+         
+		//print_r($this->db->last_query());exit;
+		$return_data['advance_adjusted']=$advance_adjusted;
+		//GENERAL ADV ADJ
+		
+		
+		//ORDER ADV ADJ
+        $order_adj=$this->db->query("SELECT a.received_amount,a.received_weight,a.rate_per_gram,b.bill_id
+        FROM ret_billing b
+        LEFT JOIN ret_billing_advance a ON a.adjusted_bill_id=b.bill_id
+        LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+        WHERE a.is_adavnce_adjusted=1 and b.bill_status=1
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+         ".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+         ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+        ");
+        $return_data['order_adj']=$order_adj->result_array();
+        //ORDER ADV ADJ
+        
+        //GENERAL ADV RECEIVED
+        $general_adv_details=$this->db->query("SELECT r.amount,(r.weight*r.rate_per_gram) as weight_amt
+        FROM ret_issue_receipt r 
+        LEFT JOIN ret_branch_floor_counter f on f.counter_id=r.counter_id
+        WHERE r.type=2 and r.bill_status=1 and r.receipt_type!=3 and r.receipt_type!=6
+        and (date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($id_branch!='' && $id_branch!=0 ? " and r.id_branch=".$id_branch."" :'')."
+        ".($counter_id!='' && $counter_id!=0 ? " and r.counter_id=".$counter_id."" :'')."
+         ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+        ");
+        $return_data['general_adv_details']=$general_adv_details->result_array();
+        
+        $advance_deposit=$this->db->query("SELECT IFNULL(SUM(r.amount),0) as advance_deposit_amt
+		FROM ret_issue_receipt r 
+		LEFT JOIN ret_issue_rcpt_payment p ON p.id_issue_rcpt=r.id_issue_receipt
+		 WHERE r.bill_status=1 and (r.receipt_type = 4 or r.receipt_type = 5 or r.receipt_type = 3)
+       ".($id_branch!='' && $id_branch!=0 ? " and r.id_branch=".$id_branch."" :'')."
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(r.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')."  ");
+		// print_r($this->db->last_query());exit;
+        $return_data['advance_deposit']=$advance_deposit->row_array();
+        
+        //GENERAL ADV RECEIVED 
+         
+         
+       //GENERAL PAY
+        $general_pay=$this->db->query("SELECT p.payment_amount,p.payment_mode,r.type,p.type as transcation_type,r.id_issue_receipt
+        FROM ret_issue_receipt r
+        LEFT JOIN ret_issue_rcpt_payment p ON p.id_issue_rcpt=r.id_issue_receipt
+        LEFT JOIN ret_branch_floor_counter f on f.counter_id=r.counter_id
+        WHERE p.payment_status=1 and r.bill_status=1 and r.receipt_type!=6
+        ".($id_branch!='' && $id_branch!=0 ? " and r.id_branch=".$id_branch."" :'')."
+        and (date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($counter_id!='' && $counter_id!=0 ? " and r.counter_id=".$counter_id."" :'')."
+        ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+        ");
+        $return_data['general_pay']=$general_pay->result_array();
+        
+        
+        
+        //HOME BILL DETAILS
+        $home_bill=$this->db->query("SELECT p.product_name,SUM(d.net_wt) as net_wt,SUM(d.gross_wt) as gross_wt,SUM(d.item_cost) as item_cost,SUM(d.piece) as pcs
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_estimation_items e ON e.est_item_id=d.esti_item_id
+        LEFT JOIN ret_estimation est ON est.estimation_id=e.esti_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+        WHERE d.esti_item_id IS NOT null AND d.tag_id is null AND e.item_type=2 and b.bill_status=1
+        ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+         ".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+         ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+        GROUP by d.product_id");
+        $return_data['home_bill']=$home_bill->result_array();
+        //HOME BILL DETAILS
+        
+        
+        //PARTLY SALE
+        $partly_sale=$this->db->query("SELECT p.product_name,SUM(d.net_wt) as net_wt,SUM(tag.gross_wt-d.gross_wt) as gross_wt,SUM(d.item_cost) as item_cost,SUM(d.piece) as pcs
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_estimation_items e ON e.est_item_id=d.esti_item_id
+        LEFT JOIN ret_estimation est ON est.estimation_id=e.esti_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_taging tag on tag.tag_id=d.tag_id
+        LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+        WHERE d.tag_id IS NOT null AND d.is_partial_sale=1 and b.bill_status=1
+        ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+        ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+        GROUP by d.product_id");
+        $return_data['partly_sale']=$partly_sale->result_array();
+        //PARTLY SALE   
+        
+        //general_bill_details
+        $bill_det=$this->db->query("SELECT IFNULL(SUM(b.round_off_amt),0) as round_off_amt,IFNULL(SUM(b.handling_charges),0) as handling_charges
+        FROM ret_billing b
+        LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+        WHERE b.bill_status=1
+        ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+        ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+        ");
+        $return_data['bill_det']=$bill_det->row_array();
+        //general_bill_details
+        
+        //Advance refund
+        $adv_refund=$this->db->query("SELECT p.payment_amount,p.id_issue_rcpt
+        FROM ret_issue_receipt i
+        LEFT JOIN ret_issue_rcpt_payment p ON p.id_issue_rcpt=i.id_issue_receipt
+        LEFT JOIN ret_branch_floor_counter f on f.counter_id=i.counter_id
+        WHERE i.issue_type=3 AND i.bill_status=1 AND p.id_issue_rcpt is not null
+        ".($id_branch!='' && $id_branch!=0 ? " and i.id_branch=".$id_branch."" :'')."
+        and (date(i.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($counter_id!='' && $counter_id!=0 ? " and i.counter_id=".$counter_id."" :'')."
+        ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+        ");
+        $return_data['adv_refund']=$adv_refund->result_array();
+        //Advance refund
+        
+        // Repair order delivered
+        $repair_order_delivered=$this->db->query("SELECT IFNULL(SUM(c.rate),0) as amount,IFNULL(SUM(c.weight),0) as weight,IFNULL(SUM(c.totalitems),0) as pcs,b.bill_id 
+        FROM ret_billing b
+        LEFT JOIN customerorderdetails c ON c.bill_id=b.bill_id
+        LEFT JOIN ret_branch_floor_counter f on f.counter_id=b.counter_id
+        WHERE b.bill_type=11 and b.bill_status=1 AND c.ortertype=3 and c.orderstatus=5
+        ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+        ".($counter_id!='' && $counter_id!=0 ? " and b.counter_id=".$counter_id."" :'')."
+        ".($floor_id!='' && $floor_id!=0 ? " and f.floor_id=".$floor_id."" :'')."
+         and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') ");
+        //print_r($this->db->last_query());exit;
+        $return_data['repair_order_delivered']=$repair_order_delivered->row_array();
+        
+        
+        $otherExpenses=$this->db->query("SELECT IFNULL(SUM(r.amount),0) as tot_amount
+        FROM ret_issue_receipt r 
+        WHERE r.type=1 AND r.issue_type=1 AND r.bill_status=1
+        and (date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+        ".($id_branch!='' && $id_branch!=0 ? " and r.id_branch=".$id_branch."" :'')."
+        ");
+        
+        $return_data['other_expense']=$otherExpenses->row_array();
+        
+            
+                 
+		$metal_rates=$this->db->query("SELECT * 
+		FROM metal_rates m
+		WHERE date(m.updatetime)=".$FromDt."");
+		$return_data['metal_rates']=$metal_rates->row_array();
+		return $return_data;
+	}
+	
+	function getOldMetalPurchaseAmount($bill_id)
+	{
+	    $sql=$this->db->query("SELECT IFNULL(SUM(s.rate),0) as purchase_amount
+        FROM ret_bill_old_metal_sale_details s 
+        WHERE s.bill_id=".$bill_id);
+        return $sql->row_array();
+	}
+	
+	function getCompanyDetails($id_branch)
+	{
+		if($id_branch=='')
+		{
+			$sql = $this->db->query("Select  c.id_company,c.company_name,c.gst_number,c.short_code,c.pincode,c.mobile,c.whatsapp_no,c.phone,c.email,c.website,c.address1,c.address2,c.id_country,c.id_state,c.id_city,ct.name as city,s.name as state,cy.name as country,cs.currency_symbol,cs.currency_name,cs.mob_code,cs.mob_no_len,c.mail_server,c.mail_password,c.send_through,c.mobile1,c.phone1,c.smtp_user,c.smtp_pass,c.smtp_host,c.server_type,cs.login_branch
+			from company c
+			join chit_settings cs
+			left join country cy on (c.id_country=cy.id_country)
+			left join state s on (c.id_state=s.id_state)
+			left join city ct on (c.id_city=ct.id_city)");
+		}
+		else
+		{
+			$sql=$this->db->query("select b.name,b.address1,b.address2,
+				cy.name as country,ct.name as city,s.name as state,b.pincode
+				from branch b
+				left join country cy on (b.id_country=cy.id_country)
+				left join state s on (b.id_state=s.id_state)
+				left join city ct on (b.id_city=ct.id_city)");
+		}
+		$result = $sql->row_array();
+		return $result;
+	}
+
+	function getallCategory()
+	{
+		$data=$this->db->query("SELECT c.id_ret_category,c.name as category_name,c.id_metal,c.cat_code from ret_category c");
+		return $data->result_array();
+	} 
+	
+/*	function getBranchTransReport($filter){
+	    
+		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+		$sql = $this->db->query("SELECT 
+									sum(IFNULL(grs_wt,0)) as grs_wt,
+									sum(IFNULL(net_wt,0)) as net_wt,
+									sum(IFNULL(pieces,0)) as pieces,
+									name as branch,DATE_FORMAT(created_time,'%d-%m-%Y') as created_time 
+								FROM ret_branch_transfer bt
+									LEFT JOIN branch b on b.id_branch = bt.transfer_to_branch
+								WHERE is_other_issue = 0 AND (date(created_time) BETWEEN '".$FromDt."' AND '".$ToDt."')". ($filter['id_branch'] > 0 && $filter['id_branch'] != '' ? ' AND bt.transfer_to_branch ='.$filter['id_branch'] :'')." 
+								GROUP BY transfer_to_branch"
+								); 
+		return $sql->result_array();
+	}*/
+	
+	function getBranchTransReport($filter)
+	{
+	    $return_data=array();
+	    if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        $sql=$this->db->query("SELECT b.branch_transfer_id,b.branch_trans_code,IFNULL(SUM(tag.piece),0) as pieces,
+        IFNULL(SUM(tag.net_wt),0) as net_wt,IFNULL(SUM(tag.gross_wt),0) as grs_wt,
+        pro.product_name,
+        date_format(b.created_time,'%d-%m-%Y') as date_add,br.name as from_branch,brc.name as to_branch,tag.product_id,
+	    if(b.status=1,'Yet to Approve',if(b.status=2,'In Transit',if(b.status=3,'Rejected','Stock Updated'))) as bt_status,
+	    date_format(b.approved_datetime,'%d-%m-%Y') as approved_datetime,date_format(dwnload_datetime,'%d-%m-%Y') as dwnload_datetime,
+	    concat(e.firstname,'-',e.emp_code) as created_emp,concat(emp.firstname,'-',emp.emp_code) as downloaded_emp
+        FROM ret_branch_transfer b 
+        LEFT JOIN ret_brch_transfer_tag_items t ON t.transfer_id=b.branch_transfer_id
+        LEFT JOIN ret_taging tag ON tag.tag_id=t.tag_id
+        LEFT JOIN ret_product_master pro ON pro.pro_id=tag.product_id
+        LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+        left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+        LEFT JOIN employee e on e.id_employee=b.approved_by
+        LEFT JOIN employee emp on emp.id_employee=b.downloaded_by
+        WHERE b.transfer_item_type=1 
+        AND date(b.created_time) BETWEEN '".$FromDt."' AND '".$ToDt."'
+        GROUP by tag.product_id,b.branch_transfer_id");
+        
+        
+	   /* $sql=$this->db->query("SELECT p.product_name,b.branch_trans_code,date_format(b.created_time,'%d-%m-%Y') as date_add,b.net_wt,b.pieces,b.grs_wt,
+	    br.name as from_branch,brc.name as to_branch,tag.product_id,
+	    if(b.status=1,'Yet to Approve',if(b.status=2,'In Transit',if(b.status=3,'Rejected','Stock Updated'))) as bt_status,
+	    date_format(b.approved_datetime,'%d-%m-%Y') as approved_datetime,date_format(dwnload_datetime,'%d-%m-%Y') as dwnload_datetime,
+	    concat(e.firstname,'-',e.emp_code) as created_emp
+	    FROM ret_taging tag
+        LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+        LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+        left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+        LEFT JOIN employee e on e.id_employee=b.create_by
+        WHERE b.branch_transfer_id IS NOT null and b.is_other_issue=0
+        AND date(b.created_time) BETWEEN '".$FromDt."' AND '".$ToDt."'
+        GROUP by tag.product_id,b.branch_transfer_id
+        order by b.branch_transfer_id DESC");*/
+        
+        //print_r($this->db->last_query());exit;
+        
+        $data=$sql->result_array();
+        foreach($data as $items)
+        {
+                $return_data[]=array(
+                                    'product_name'      =>$items['product_name'],
+                                    'branch_trans_code' =>$items['branch_trans_code'],
+                                    'date_add'          =>$items['date_add'],
+                                    'net_wt'            =>$items['net_wt'],
+                                    'pieces'            =>$items['pieces'],
+                                    'grs_wt'            =>$items['grs_wt'],
+                                    'from_branch'       =>$items['from_branch'],
+                                    'to_branch'         =>$items['to_branch'],
+                                    'product_id'        =>$items['product_id'],
+                                    'bt_status'         =>$items['bt_status'],
+                                    'approved_datetime' =>$items['approved_datetime'],
+                                    'dwnload_datetime'  =>$items['dwnload_datetime'],
+                                    'created_emp'       =>$items['created_emp'],
+                                    'downloaded_emp'    =>$items['downloaded_emp'],
+                                    'branch_transfer_id' => $items['branch_transfer_id']
+                                 );
+        }
+        
+        return $return_data;
+	}
+
+	function getcreditBill($data)
+    {
+		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        
+		$credit_detail = array();
+		if($data['report_type']==1)
+		{
+            /*$sql1=$this->db->query("SELECT b.bill_id,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,
+            IFNULL(DATE_FORMAT(b.credit_due_date,'%d-%m-%Y'),'') as credit_due_date,b.tot_bill_amount,
+            b.bill_cus_id,c.mobile,c.firstname as cus_name,br.name as branch_name,
+            (b.tot_bill_amount-b.tot_amt_received) as due_amt,b.tot_amt_received,'1' as invoice_type
+            from ret_billing b
+            LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+            LEFT JOIN branch br on br.id_branch=b.id_branch
+            where  b.bill_id is not null and b.bill_status=1 and b.is_credit=1  and b.bill_type!=8 and b.bill_type!=12 ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." ORDER BY b.id_branch,b.bill_id");
+            */
+            
+            $sql1=$this->db->query("SELECT b.bill_id,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,
+            IFNULL(DATE_FORMAT(b.credit_due_date,'%d-%m-%Y'),'') as credit_due_date,b.tot_bill_amount,
+            b.bill_cus_id,c.mobile,c.firstname as cus_name,br.name as branch_name,
+            (b.tot_amt_received-IFNULL(ret.credit_ret_amt,0)) as due_amt,b.tot_amt_received,IFNULL(ret.credit_ret_amt,0) as credit_ret_amt
+            from ret_billing b
+            LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+            LEFT JOIN branch br on br.id_branch=b.id_branch
+             LEFT JOIN(SELECT IFNULL(SUM(b.credit_ret_amt),0) as credit_ret_amt,r.ret_bill_id
+                     FROM ret_bill_return_details r 
+                     LEFT JOIN ret_billing b ON b.bill_id = r.bill_id
+                     WHERE b.bill_status = 1
+                     GROUP BY r.ret_bill_id) as ret ON ret.ret_bill_id = b.bill_id
+            where  b.bill_id is not null and b.bill_status=1 and b.is_credit=1  and b.bill_type!=8 and b.bill_type!=12 ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." ORDER BY b.id_branch,b.bill_id");
+           
+           
+            $result1 = $sql1->result_array();
+            
+            $sql2=$this->db->query("SELECT r.id_issue_receipt as bill_id,r.bill_no,date_format(r.bill_date,'%d-%m-%Y') as bill_date,'' as credit_due_date,
+            r.amount as tot_bill_amount,r.amount as due_amt,'0' as tot_amt_received,
+            cus.mobile,cus.firstname as cus_name,br.name as branch_name,'0' as credit_ret_amt
+            FROM ret_issue_receipt r 
+            LEFT JOIN customer cus ON cus.id_customer=r.id_customer
+            LEFT JOIN branch br ON br.id_branch=r.id_branch
+            WHERE r.type=1 AND r.bill_status=1 AND (r.issue_type=2 OR r.issue_type=4)
+            ".($FromDt!= '' && $ToDt!='' ? ' and (date(r.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+            ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and r.id_branch='.$data['id_branch']: '')."
+            ");
+           // print_r($this->db->last_query());exit;
+             $result2 = $sql2->result_array();
+             
+             $result = array_merge($result1,$result2);
+            
+            
+            
+            foreach($result as $r){
+                $credit_detail[$r['branch_name']][] = $r; 
+            }
+		}
+		else
+		{
+            $sql1=$this->db->query("SELECT b.bill_id,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,DATE_FORMAT(b.credit_due_date,'%d-%m-%Y') as credit_due_date,b.tot_bill_amount,
+            b.bill_cus_id,c.mobile,c.firstname as cus_name,if(b.credit_status=1,'Paid','Pending') as credit_status,
+            br.name as branch_name,b.tot_amt_received,'1' as invoice_type
+            from ret_billing b
+            LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+            LEFT JOIN branch br on br.id_branch=b.id_branch
+            where  b.ref_bill_id is not null and b.bill_status=1 and b.bill_type=8  ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." ORDER BY b.id_branch,b.bill_id");
+            $result = $sql1->result_array();
+            
+            foreach($result as $items)
+            {
+                    $old_metal_details=$this->getOld_sales_details($items['bill_id'],8);
+                    $old_metal_amount=0;
+                    foreach($old_metal_details as $old_items)
+                    {
+                        $old_metal_amount+=$old_items['amount'];
+                    }
+                    $items['tot_amt_received'] = $items['tot_amt_received']+$old_metal_amount;
+                    $result1[]=$items;
+            }
+            
+            $sql2=$this->db->query("SELECT r.amount as tot_bill_amount,r.bill_no,r.id_issue_receipt as bill_id,date_format(r.bill_date,'%d-%m-%Y') as bill_date,'' as credit_due_date,
+            cus.firstname as cus_name,cus.mobile,'' as credit_status,r.id_customer as bill_cus_id,br.name as branch_name,r.amount as tot_amt_received,'2' as invoice_type
+            FROM ret_issue_receipt r 
+            LEFT JOIN customer cus ON cus.id_customer=r.id_customer
+            LEFT JOIN branch br ON br.id_branch=r.id_branch
+            WHERE r.type=2 AND r.receipt_type=1 and r.bill_status=1
+            ".($FromDt!= '' && $ToDt!='' ? ' and (date(r.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+            ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and r.id_branch='.$data['id_branch']: '')."
+            ");
+            //print_r($this->db->last_query());exit;
+            $result2 = $sql2->result_array();
+            
+            $credit_detail = array_merge($result1,$result2);
+            
+		}
+		return $credit_detail;
+    }
+
+    function getcreditBill_history($data)
+    {
+			if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        
+		$credit_detail = array();
+		
+        $sql1=$this->db->query("SELECT b.bill_id,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,DATE_FORMAT(b.credit_due_date,'%d-%m-%Y') as credit_due_date,b.tot_bill_amount,b.tot_amt_received,b.bill_cus_id,c.mobile,c.firstname as cus_name,
+        if(b.credit_status=1,'Paid','Pending') as credit_status,br.name as branch_name,(b.tot_amt_received-IFNULL(ret.credit_ret_amt,0)) as bal_amt,b.credit_disc_amt,'0' as type,IFNULL(ret.credit_ret_amt,0) as credit_ret_amt
+        from ret_billing b
+        LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        
+        LEFT JOIN(SELECT IFNULL((b.credit_ret_amt),0) as credit_ret_amt,r.ret_bill_id
+        FROM ret_bill_return_details r 
+        LEFT JOIN ret_billing b ON b.bill_id = r.bill_id
+        WHERE b.bill_status = 1
+        GROUP BY r.ret_bill_id) as ret ON ret.ret_bill_id = b.bill_id
+        
+        where  b.bill_id is not null and b.is_credit=1 and b.bill_status=1  and b.bill_type!=8 and b.bill_type!=12
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+        ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." 
+        ".($data['id_customer'] != '' && $data['id_customer'] >0 ? ' and b.bill_cus_id='.$data['id_customer']: '')." 
+        ORDER BY b.id_branch,b.bill_id");
+        //print_r($this->db->last_query());exit;
+        $result1 = $sql1->result_array();
+        
+        $issue_sql=$this->db->query("SELECT r.id_issue_receipt as bill_id,r.bill_no as bill_no,cus.mobile,r.amount as tot_bill_amount,
+        DATE_FORMAT(r.bill_date,'%d-%m-%Y') as bill_date,'' as credit_due_date,IFNULL(r.amount-IFNULL(coll.paid_amt,0)-IFNULL(coll.credit_disc_amt,0),0) as bal_amt,
+        IFNULL(coll.paid_amt,0) as tot_amt_received,cus.firstname as cus_name,br.name as branch_name,'1' as type,cus.id_customer as bill_cus_id,
+        if(r.is_collect=0,'Pending','Collected') as credit_status,IFNULL(coll.credit_disc_amt,0) as credit_disc_amt,'0' as credit_ret_amt
+        FROM ret_issue_receipt r 
+        LEFT JOIN branch br on br.id_branch=r.id_branch
+        LEFT JOIN (SELECT IFNULL(SUM(r.amount),0) as paid_amt,IFNULL(SUM(c.discount_amt),0) as credit_disc_amt,c.receipt_for
+        FROM ret_issue_receipt r
+        LEFT JOIN ret_issue_credit_collection_details c ON c.id_issue_receipt=r.id_issue_receipt
+        where r.bill_status=1
+        GROUP by c.receipt_for) as coll ON coll.receipt_for=r.id_issue_receipt
+        LEFT JOIN customer cus ON cus.id_customer=r.id_customer
+        WHERE r.type=1 AND r.is_collect=0 and r.bill_status=1  and (r.issue_type=2 or r.issue_type=4)
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(r.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+        ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and r.id_branch='.$data['id_branch']: '')." 
+        ".($data['id_customer'] != '' && $data['id_customer'] >0 ? ' and r.id_customer='.$data['id_customer']: '')." 
+        ORDER BY r.id_branch,r.id_issue_receipt ");
+        //print_r($this->db->last_query());exit;
+        $result2 = $issue_sql->result_array();
+        
+        $result=array_merge($result1,$result2);
+        
+        foreach($result as $r)
+        {
+            $credit_detail[$r['branch_name']][] = array(
+                'type'              =>$r['type'],
+                'bill_no'           =>$r['bill_no'],
+                'bill_date'         =>$r['bill_date'],
+                'credit_due_date'   =>$r['credit_due_date'],
+                'tot_bill_amount'   =>$r['tot_bill_amount'],
+                'tot_amt_received'  =>$r['tot_amt_received'],
+                'bill_cus_id'       =>$r['bill_cus_id'],
+                'cus_name'          =>$r['cus_name'],
+                'mobile'            =>$r['mobile'],
+                'credit_status'     =>$r['credit_status'],
+                'branch_name'       =>$r['branch_name'],
+                'bal_amt'           =>$r['bal_amt'],
+                'bill_id'           =>$r['bill_id'],
+                'credit_disc_amt'   =>$r['credit_disc_amt'],
+                'credit_ret_amt'    =>$r['credit_ret_amt'],
+                'credit_collection' =>$this->getCreditCollection($r['bill_id'])
+            ); 
+        }
+        
+        
+        
+		return $credit_detail;
+    }
+
+    function getCreditCollection($bill_id)
+    {
+        $return_data=array();
+    	$data=$this->db->query("SELECT b.bill_id,b.bill_no,b.bill_type,b.ref_bill_id,b.tot_amt_received,b.credit_disc_amt,
+    	b.tot_bill_amount,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date
+    	 From ret_billing b 
+    	 where b.bill_status=1 and b.ref_bill_id=".$bill_id."");
+        $items=$data->result_array();
+        foreach($items as $item)
+        {
+            $old_metal_details=$this->getOld_sales_details($item['bill_id'],8);
+            $old_metal_amount=0;
+            foreach($old_metal_details as $old_items)
+            {
+                $old_metal_amount+=$old_items['amount'];
+            }
+            $return_data[]=array(
+                                 '0'                =>'type',
+                                 'bill_no'          =>$item['bill_no'],
+                                 'bill_id'          =>$item['bill_id'],
+                                 'bill_type'        =>$item['bill_type'],
+                                 'ref_bill_id'      =>$item['ref_bill_id'],
+                                 'tot_amt_received' =>$item['tot_amt_received'],
+                                 'credit_disc_amt'  =>$item['credit_disc_amt'],
+                                 'tot_bill_amount'  =>($item['tot_bill_amount']+$old_metal_amount),
+                                 'bill_date'        =>$item['bill_date'],
+                                 'old_metal_amount'=>$old_metal_amount,
+                                );
+        }
+        return $return_data;
+    }
+
+    function get_advance_details($data)
+    {
+    	$advance_detail=array();
+    	
+    	if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        
+    	$advance=$this->db->query("SELECT b.bill_id,c.mobile,c.firstname as cus_name,br.name as branch_name,sum(a.advance_amount) as total_adv_amount,ifnull(adv_adj.adjusted_amt,0) as adjusted_amt
+    		from ret_billing b
+    		LEFT JOIN ret_billing_advance a on a.bill_id=b.bill_id
+    		LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+    		LEFT JOIN branch br on br.id_branch=b.id_branch
+    		LEFT JOIN (SELECT adv.bill_id,sum(adv.advance_amount) as adjusted_amt from ret_billing_advance adv where adv.is_adavnce_adjusted=1) as adv_adj on  adv_adj.bill_id=b.bill_id
+    		where  b.bill_id is not null and b.bill_status=1 and b.bill_type=6 ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." GROUP by b.bill_cus_id ORDER BY b.id_branch");
+    	$result = $advance->result_array();
+    	if($result[0]['bill_id']!=null)
+    	{
+    		foreach($result as $r){
+			$advance_detail[$r['branch_name']][] = $r; 
+			}
+    	}
+    	return $advance_detail;
+    }
+
+    function chit_utilize_details($data)
+    {
+    	$chit_detail[]=array();
+    		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        $sql=$this->db->query("SELECT chit.scheme_account_id,b.bill_id,date_format(b.bill_date,'%d-%m-%Y') as bill_date,c.firstname as cus_name,c.mobile as mobile,b.bill_no,
+        IFNULL(IF(sa.is_opening=1,IFNULL(sa.paid_installments,0)+ IFNULL(if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues)),0), if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues))) ,0)
+        as paid_installments,s.total_installments,chit.utilized_amt,s.scheme_name,sa.closing_add_chgs,if(s.discount=1,s.allpay_disc_value,0) as discountAmt,sa.id_scheme_account,
+        s.scheme_type,concat(s.code,'-',sa.scheme_acc_number) as scheme_acc_number
+        FROM ret_billing_chit_utilization chit
+        LEFT JOIN ret_billing b ON b.bill_id=chit.bill_id
+        LEFT JOIN scheme_account sa ON sa.id_scheme_account=chit.scheme_account_id
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN scheme s on s.id_scheme=sa.id_scheme
+        LEFT JOIN payment p ON p.id_scheme_account=sa.id_scheme_account
+        WHERE sa.is_utilized=1 
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')."
+        ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')."
+        group by p.id_scheme_account");
+        $chit_detail=$sql->result_array();
+        
+        
+    /*	$data=$this->db->query("SELECT b.bill_id,c.mobile,c.firstname as cus_name,br.name as branch_name,b.tot_bill_amount,date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_no,
+    		IFNULL(IF(sa.is_opening=1,IFNULL(sa.paid_installments,0)+ IFNULL(if(s.scheme_type = 1 and s.min_weight != s.max_weight, COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues)),0), if(s.scheme_type = 1 and s.min_weight != s.max_weight or s.scheme_type=3, COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues))) ,0) as paid_installments,p.id_payment,s.total_installments,
+    		sum(p.act_amount) as act_amount,sa.additional_benefits,sa.closing_add_chgs,sa.closing_add_chgs,s.free_payment,s.amount,
+    		sa.closing_add_chgs,s.discount,s.allpay_disc_value,if(s.discount=1,s.allpay_disc_value,0) as discountAmt,s.scheme_name as scheme_name,chit_adj.utilized_amt
+			from ret_billing b 
+			LEFT JOIN (select SUM(chit.utilized_amt) as utilized_amt,chit.bill_id From ret_billing_chit_utilization chit group by chit.bill_id) chit_adj on chit_adj.bill_id=b.bill_id
+			LEFT JOIN ret_billing_chit_utilization chit on chit.bill_id=b.bill_id
+			LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+			LEFT JOIN scheme_account sa on sa.id_scheme_account=chit.scheme_account_id 
+			LEFT JOIN branch br on br.id_branch=b.id_branch 
+			LEFT JOIN scheme s on s.id_scheme=sa.id_scheme
+			left join payment p on p.id_scheme_account=sa.id_scheme_account
+    		where  b.bill_id is not null and b.bill_status=1 and sa.is_utilized=1 ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')."
+    		GROUP BY chit.bill_id ORDER BY b.id_branch");
+    	//	print_r($this->db->last_query());exit;
+    	$result = $data->result_array();
+    		foreach($result as $r){
+			$chit_detail[$r['branch_name']][] = $r; 
+			}*/
+    	return $chit_detail;
+    }
+
+   /* function card_payment_details($data)
+    {
+    	$card_detail=array();
+    	if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+	        
+			$pay=$this->db->query("SELECT b.bill_no,c.mobile,c.firstname as cus_name,br.name as branch_name,date_format(b.bill_date,'%d-%m-%Y') as bill_date,ifnull(credit.crdit_payment,0) as crdit_payment,ifnull(debit.debit_payment,0) as debit_payment,
+			ifnull(nb.net_payment,0) as net_payment
+    		FROM ret_billing b
+    		LEFT JOIN ret_billing_payment pay on pay.bill_id=b.bill_id
+    		LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+    		LEFT JOIN branch br on br.id_branch=b.id_branch
+    		LEFT JOIN (select p.bill_id,'Credit Card' as payment_mode,sum(p.payment_amount) as crdit_payment from ret_billing_payment p where p.payment_mode='CC' GROUP by p.bill_id) as credit on credit.bill_id=b.bill_id
+    		LEFT JOIN (select pay.bill_id,'Debit Card' as payment_mode,sum(pay.payment_amount) as debit_payment from ret_billing_payment pay where pay.payment_mode='DC' GROUP by pay.bill_id) as debit on debit.bill_id=b.bill_id
+    		LEFT JOIN (select pay.bill_id,'Net Banking' as payment_mode,sum(pay.payment_amount) as net_payment from ret_billing_payment pay where pay.payment_mode='NB' GROUP by pay.bill_id) as nb on nb.bill_id=b.bill_id
+    		where   b.bill_id is not null and b.bill_status=1 and (pay.payment_mode='CC' or pay.payment_mode='DC' or pay.payment_mode='NB') ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')."
+    		GROUP by b.bill_id ORDER BY b.id_branch,b.bill_id");
+            
+            $result1 = $pay->result_array();
+	        $general_pay=$this->db->query("SELECT r.bill_no,c.mobile,c.firstname as cus_name,br.name as branch_name,date_format(r.bill_date,'%d-%m-%Y') as bill_date,
+	        ifnull(credit.crdit_payment,0) as crdit_payment,ifnull(debit.debit_payment,0) as debit_payment,
+			ifnull(nb.net_payment,0) as net_payment
+            FROM ret_issue_receipt r
+            LEFT JOIN ret_issue_rcpt_payment p ON p.id_issue_rcpt=r.id_issue_receipt
+            LEFT JOIN customer c ON c.id_customer=r.id_customer
+            LEFT JOIN branch br on br.id_branch=r.id_branch
+            LEFT JOIN (select p.id_issue_rcpt,'Credit Card' as payment_mode,sum(p.payment_amount) as crdit_payment from ret_issue_rcpt_payment p where p.payment_mode='CC' GROUP by p.id_issue_rcpt) as credit on credit.id_issue_rcpt=r.id_issue_receipt
+    		LEFT JOIN (select pay.id_issue_rcpt,'Debit Card' as payment_mode,sum(pay.payment_amount) as debit_payment from ret_issue_rcpt_payment pay where pay.payment_mode='DC' GROUP by pay.id_issue_rcpt) as debit on debit.id_issue_rcpt=r.id_issue_receipt
+            LEFT JOIN (select pay.id_issue_rcpt,'Net Banking' as payment_mode,sum(pay.payment_amount) as net_payment from ret_issue_rcpt_payment pay where pay.payment_mode='CC' GROUP by pay.id_issue_rcpt) as nb on nb.id_issue_rcpt=r.id_issue_receipt
+            WHERE r.bill_status=1 AND r.type=2
+            ".($FromDt!= '' && $ToDt!='' ? ' and (date(r.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+            GROUP by r.id_issue_receipt");
+            //print_r($this->db->last_query());exit;
+            $result2 = $general_pay->result_array();
+    	   $result=array_merge($result1, $result2);
+    	    
+    	
+    		foreach($result as $r){
+			$card_detail[$r['branch_name']][] = $r; 
+			}
+    	return $card_detail;
+    }*/
+    
+    
+     function card_payment_details($data)
+    {
+    	$card_detail=array();
+    	if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+	        
+	        $entry_date= date('Y-m-d',(strtotime('-1 day',strtotime($FromDt))));
+	         
+			$before_day_closing=$this->db->query("SELECT b.bill_no,c.mobile,c.firstname as cus_name,br.name as branch_name,date_format(b.bill_date,'%d-%m-%Y') as bill_date,ifnull(credit.crdit_payment,0) as crdit_payment,ifnull(debit.debit_payment,0) as debit_payment,
+			ifnull(nb.net_payment,0) as net_payment
+    		FROM ret_billing b
+    		LEFT JOIN ret_billing_payment pay on pay.bill_id=b.bill_id
+    		LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+    		LEFT JOIN branch br on br.id_branch=b.id_branch
+    		LEFT JOIN (select p.bill_id,'Credit Card' as payment_mode,sum(p.payment_amount) as crdit_payment from ret_billing_payment p where p.payment_mode='CC' GROUP by p.bill_id) as credit on credit.bill_id=b.bill_id
+    		LEFT JOIN (select pay.bill_id,'Debit Card' as payment_mode,sum(pay.payment_amount) as debit_payment from ret_billing_payment pay where pay.payment_mode='DC' GROUP by pay.bill_id) as debit on debit.bill_id=b.bill_id
+    		LEFT JOIN (select pay.bill_id,'Net Banking' as payment_mode,sum(pay.payment_amount) as net_payment from ret_billing_payment pay where pay.payment_mode='NB' GROUP by pay.bill_id) as nb on nb.bill_id=b.bill_id
+    		where   b.bill_id is not null and b.bill_status=1 and (pay.payment_mode='CC' or pay.payment_mode='DC' or pay.payment_mode='NB') ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.created_time) BETWEEN "'.$entry_date.'" AND "'.$entry_date.'") and date(b.bill_date)="'.$FromDt.'"' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')."
+    		GROUP by b.bill_id ORDER BY b.id_branch,b.bill_id");
+            //print_r($this->db->last_query());exit;
+            $result['before_day_closing'] = $before_day_closing->result_array();
+            
+            
+            $after_day_closing=$this->db->query("SELECT b.bill_no,c.mobile,c.firstname as cus_name,br.name as branch_name,date_format(b.bill_date,'%d-%m-%Y') as bill_date,ifnull(credit.crdit_payment,0) as crdit_payment,ifnull(debit.debit_payment,0) as debit_payment,
+			ifnull(nb.net_payment,0) as net_payment
+    		FROM ret_billing b
+    		LEFT JOIN ret_billing_payment pay on pay.bill_id=b.bill_id
+    		LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+    		LEFT JOIN branch br on br.id_branch=b.id_branch
+    		LEFT JOIN (select p.bill_id,'Credit Card' as payment_mode,sum(p.payment_amount) as crdit_payment from ret_billing_payment p where p.payment_mode='CC' GROUP by p.bill_id) as credit on credit.bill_id=b.bill_id
+    		LEFT JOIN (select pay.bill_id,'Debit Card' as payment_mode,sum(pay.payment_amount) as debit_payment from ret_billing_payment pay where pay.payment_mode='DC' GROUP by pay.bill_id) as debit on debit.bill_id=b.bill_id
+    		LEFT JOIN (select pay.bill_id,'Net Banking' as payment_mode,sum(pay.payment_amount) as net_payment from ret_billing_payment pay where pay.payment_mode='NB' GROUP by pay.bill_id) as nb on nb.bill_id=b.bill_id
+    		where   b.bill_id is not null and b.bill_status=1 and (pay.payment_mode='CC' or pay.payment_mode='DC' or pay.payment_mode='NB') ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$FromDt.'") and date(b.created_time)="'.$FromDt.'" ' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')."
+    		GROUP by b.bill_id ORDER BY b.id_branch,b.bill_id");
+            //print_r($this->db->last_query());exit;
+            $result['after_day_closing'] = $after_day_closing->result_array();
+              
+            $gne_pay_before_day_close=$this->db->query("SELECT r.bill_no,c.mobile,c.firstname as cus_name,br.name as branch_name,date_format(r.bill_date,'%d-%m-%Y') as bill_date,
+	        ifnull(credit.crdit_payment,0) as crdit_payment,ifnull(debit.debit_payment,0) as debit_payment,
+			ifnull(nb.net_payment,0) as net_payment
+            FROM ret_issue_receipt r
+            LEFT JOIN ret_issue_rcpt_payment p ON p.id_issue_rcpt=r.id_issue_receipt
+            LEFT JOIN customer c ON c.id_customer=r.id_customer
+            LEFT JOIN branch br on br.id_branch=r.id_branch
+            LEFT JOIN (select p.id_issue_rcpt,'Credit Card' as payment_mode,sum(p.payment_amount) as crdit_payment from ret_issue_rcpt_payment p where p.payment_mode='CC' GROUP by p.id_issue_rcpt) as credit on credit.id_issue_rcpt=r.id_issue_receipt
+    		LEFT JOIN (select pay.id_issue_rcpt,'Debit Card' as payment_mode,sum(pay.payment_amount) as debit_payment from ret_issue_rcpt_payment pay where pay.payment_mode='DC' GROUP by pay.id_issue_rcpt) as debit on debit.id_issue_rcpt=r.id_issue_receipt
+            LEFT JOIN (select pay.id_issue_rcpt,'Net Banking' as payment_mode,sum(pay.payment_amount) as net_payment from ret_issue_rcpt_payment pay where pay.payment_mode='CC' GROUP by pay.id_issue_rcpt) as nb on nb.id_issue_rcpt=r.id_issue_receipt
+            WHERE r.bill_status=1 AND r.type=2
+            ".($FromDt!= '' && $ToDt!='' ? ' and (date(r.created_on) BETWEEN "'.$entry_date.'" AND "'.$entry_date.'") and date(r.bill_date)="'.$FromDt.'"' : '')." 
+            ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and r.id_branch='.$data['id_branch']: '')."
+            GROUP by r.id_issue_receipt");
+            
+             $result['gen_pay_before_day_closing'] = $gne_pay_before_day_close->result_array();
+             
+             
+            $gne_pay_after_day_close=$this->db->query("SELECT r.bill_no,c.mobile,c.firstname as cus_name,br.name as branch_name,date_format(r.bill_date,'%d-%m-%Y') as bill_date,
+	        ifnull(credit.crdit_payment,0) as crdit_payment,ifnull(debit.debit_payment,0) as debit_payment,
+			ifnull(nb.net_payment,0) as net_payment
+            FROM ret_issue_receipt r
+            LEFT JOIN ret_issue_rcpt_payment p ON p.id_issue_rcpt=r.id_issue_receipt
+            LEFT JOIN customer c ON c.id_customer=r.id_customer
+            LEFT JOIN branch br on br.id_branch=r.id_branch
+            LEFT JOIN (select p.id_issue_rcpt,'Credit Card' as payment_mode,sum(p.payment_amount) as crdit_payment from ret_issue_rcpt_payment p where p.payment_mode='CC' GROUP by p.id_issue_rcpt) as credit on credit.id_issue_rcpt=r.id_issue_receipt
+    		LEFT JOIN (select pay.id_issue_rcpt,'Debit Card' as payment_mode,sum(pay.payment_amount) as debit_payment from ret_issue_rcpt_payment pay where pay.payment_mode='DC' GROUP by pay.id_issue_rcpt) as debit on debit.id_issue_rcpt=r.id_issue_receipt
+            LEFT JOIN (select pay.id_issue_rcpt,'Net Banking' as payment_mode,sum(pay.payment_amount) as net_payment from ret_issue_rcpt_payment pay where pay.payment_mode='CC' GROUP by pay.id_issue_rcpt) as nb on nb.id_issue_rcpt=r.id_issue_receipt
+            WHERE r.bill_status=1 AND r.type=2
+            ".($FromDt!= '' && $ToDt!='' ? ' and (date(r.bill_date) BETWEEN "'.$FromDt.'" AND "'.$FromDt.'") and date(r.created_on)="'.$FromDt.'"' : '')." 
+            ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and r.id_branch='.$data['id_branch']: '')."
+            GROUP by r.id_issue_receipt");
+            
+            $result['gen_pay_after_day_closing'] = $gne_pay_after_day_close->result_array();
+            
+            $card_detail['AFTER DAY CLOSING']=array_merge($result['before_day_closing'],$result['gen_pay_before_day_closing']);
+            $card_detail['BEFORE DAY CLOSING']=array_merge($result['after_day_closing'],$result['gen_pay_after_day_closing']);
+          
+    	    return $card_detail;
+    }
+
+    function getDulpicate_bill_details($data)
+    {
+    	$bill_detail=array();
+    		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+    	$data=$this->db->query("SELECT COUNT(d.copy_id) as total_copy,c.mobile,c.firstname as cus_name,e.firstname as emp_name,br.name as branch_name,b.bill_no,b.tot_bill_amount,
+    		date_format(b.bill_date,'%d-%m-%Y') as bill_date,date_format(d.print_date,'%d-%m-%Y') as print_date
+			FROM ret_bill_duplicate_copy d
+			LEFT JOIN ret_billing b on b.bill_id=d.bill_id
+			LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+			LEFT JOIN branch br on br.id_branch=b.id_branch
+			LEFT JOIN employee e on e.id_employee=d.id_employee
+    		where  b.bill_id is not null and b.bill_status=1 ".($FromDt!= '' && $ToDt!='' ? 'and (date(d.print_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." GROUP BY d.bill_id ORDER BY b.id_branch");
+    	//print_r($this->db->last_query());exit;
+    	$result = $data->result_array();
+    		foreach($result as $r){
+			$bill_detail[$r['branch_name']][] = $r; 
+			}
+    	return $bill_detail;
+    }
+    
+    function get_ret_settings($settings)
+	{
+		$data=$this->db->query("SELECT value FROM ret_settings where name='".$settings."'");
+		return $data->row()->value;
+	}
+	
+    function pan_bill_details($data)
+    {
+    	$bill_detail=array();
+    		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+		
+		$min_pan_amt = $this->get_ret_settings('min_pan_amt');
+		
+    	$data=$this->db->query("SELECT b.bill_id,c.mobile,c.firstname as cus_name,br.name as branch_name,b.bill_no,b.tot_bill_amount,IFNULL(c.pan,'') as pan_no,date_format(b.bill_date,'%d-%m-%Y') as bill_date
+    		From ret_billing b
+    		LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+			LEFT JOIN branch br on br.id_branch=b.id_branch
+    		where   b.bill_id is not null and b.bill_status=1 
+    		".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+    		".($min_pan_amt>0 ? " and b.tot_bill_amount>=".$min_pan_amt."" :'')."
+    		".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." ORDER BY b.id_branch");
+    	//print_r($this->db->last_query());exit;
+    	$result = $data->result_array();
+    		foreach($result as $r){
+			$bill_detail[$r['branch_name']][] = $r; 
+			}
+    	return $bill_detail;
+    }
+        
+/*    function getStockAgeDetails($data){
+		if($data['dt_range'] != ''){
+			$dateRange = explode('-',$data['dt_range']); 
+			$d1 = date_create($dateRange[0]);
+			$d2 = date_create($dateRange[1]);
+			$FromDt = date_format($d1,"Y-d-m"); 
+			$ToDt = date_format($d2,"Y-d-m"); 
+		}
+		$sql = "SELECT 
+					DATEDIFF(date(now()),date(tag_datetime)) AS age,
+					b.name as branch_name,
+					if(product_short_code = '' or product_short_code is null ,product_name ,CONCAT(product_short_code,' - ',product_name) ) as product_name,
+					CONCAT(if(lastname is null,firstname,CONCAT(firstname,' ',lastname)),' ',code_karigar) as karigar, 
+					sum(ifnull(tag.piece,0)) as pieces,sum(ifnull(tag.gross_wt,0)) as gross_wt, sum(ifnull(tag.net_wt,0)) as net_wt 
+				FROM `ret_taging` tag
+					LEFT JOIN ret_lot_inwards lt on lt.lot_no = tag.tag_lot_id
+					LEFT JOIN ret_product_master p on p.pro_id = tag.product_id
+					LEFT JOIN ret_karigar k on k.id_karigar = lt.gold_smith
+					LEFT JOIN ret_category cat on cat.id_ret_category = lt.id_category
+					LEFT JOIN branch b on b.id_branch = tag.current_branch
+				WHERE tag.tag_status = 0 ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and tag.current_branch='.$data['id_branch']: '')." ".($data['id_category'] != '' && $data['id_category'] > 0 ? ' and lt.id_category ='.$data['id_category']: '')." ".($data['karigar'] != '' && $data['karigar'] > 0 ? ' and lt.gold_smith ='.$data['karigar']: '')." ".($data['id_metal'] != '' && $data['id_metal'] > 0 ? ' and cat.id_metal ='.$data['id_metal']: '')." ".($data['id_product'] != '' ? ' and product_id ='.$data['id_product']: '')." ".($data['dt_range'] != '' ? ' and (date(tag_datetime) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+				GROUP BY product_id";   
+		if($data['age_from'] != '' && $data['age_to'] != ''){
+			$sql = $sql." HAVING (age >=".$data['age_from']." and age <=".$data['age_to'].")";
+		}
+		elseif($data['age_from'] != ''){
+			$sql = $sql." HAVING age >=".$data['age_from'];
+		} 
+		
+		$result = $this->db->query($sql)->result_array();
+		return $result;
+	}*/
+	
+	
+	function getStockAgeDetails($data)
+	{
+		$sql=$this->db->query("SELECT p.pro_id,p.product_name,p.cat_id 
+        FROM ret_product_master p
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+        LEFT JOIN ret_taging tag ON tag.product_id=p.pro_id
+        WHERE product_status=1 and tag.tag_id is NOT null
+		".($data['id_ret_category']!='' && $data['id_ret_category']!=0 ? " and p.cat_id=".$data['id_ret_category']."" :'')."
+		".($data['id_product']!='' && $data['id_product']!=0 ? " and p.pro_id=".$data['id_product']."" :'')."
+		".($data['id_metal']!='' && $data['id_metal']>0 ? " and cat.id_metal=".$data['id_metal']."" :'')."
+		 GROUP by tag.product_id
+		order by pro_id ASC");
+		//print_r($this->db->last_query());exit;
+		$result=$sql->result_array();
+		foreach($result as $items)
+		{
+	    	$return_data[]=array(
+	                      'pro_id'      =>$items['pro_id'],
+	                      'cat_id'      =>$items['cat_id'],
+	                      'product_name'=>$items['product_name'],
+	                      'below_120_days'=>$this->get_design_age_analysis_report($items['pro_id'],0,120,$data['id_branch'],$items['cat_id']),
+	                      'above_120_days'=>$this->get_design_age_analysis_report($items['pro_id'],120,180,$data['id_branch'],$items['cat_id']),
+	                      'above_180_days'=>$this->get_design_age_analysis_report($items['pro_id'],180,240,$data['id_branch'],$items['cat_id']),
+	                      'above_240_days'=>$this->get_design_age_analysis_report($items['pro_id'],240,360,$data['id_branch'],$items['cat_id']),
+	                      'above_360_days'=>$this->get_design_age_analysis_report($items['pro_id'],360,'',$data['id_branch'],$items['cat_id']),
+	                    );
+		}
+		return $return_data;
+	}
+	
+	function get_stock_age_tag($data)
+	{
+	    $return_data=array();
+	    $sql =$this->db->query("SELECT if(tag.old_tag_date!='',DATEDIFF(date(now()),date(old_tag_date)),DATEDIFF(date(now()),date(tag_datetime))) AS age,ifnull(tag.gross_wt,0) as total_wt,(ifnull(tag.piece,0)) as tot_pcs,tag.tag_code,k.firstname as karigar_name,
+                tag.tag_mc_value,tag.retail_max_wastage_percent,if(tag.tag_mc_type=1,'Per Gram','Per Piece') as mc_type,if(p.sales_mode=1,tag.sales_value,0) as fixed_rate,tag.tag_id,date_format(tag.tag_datetime,'%d-%m-%Y') as tag_datetime,
+                IF(tag.tag_mark=1,'Green Tag','Normal Tag') as tag_status,tag.tag_lot_id,tag.tag_mark,p.product_name,tag.is_green_tag_printed,
+                IFNULL(date_format(tag.old_tag_date,'%d-%m-%Y'),'') as old_tag_date,IFNULL(tag.old_tag_id,'') as old_tag_id
+				FROM ret_taging tag
+                LEFT JOIN ret_lot_inwards l ON l.lot_no=tag.tag_lot_id
+                LEFT JOIN ret_karigar k ON k.id_karigar=l.gold_smith
+                LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                LEFT join ret_design_master des ON des.design_no=tag.design_id
+				WHERE tag.tag_status = 0
+				".($data['id_product']!='' && $data['id_product']!=0 ? " and tag.product_id=".$data['id_product']."" :'')."
+				".($data['id_branch']!='' && $data['id_branch']!=0 ? " and tag.current_branch=".$data['id_branch']."" :'').""); 
+	    //print_r($this->db->last_query());exit;
+		$result=$sql->result_array();
+	
+	    foreach($result as $items)
+	    {
+	        if($data['to_days']!='')
+	        {
+	            if($items['age']>= $data['from_days'] && $items['age']<= $data['to_days'])
+        	    {
+        	       $return_data[]=$items;
+        	    }
+	        }
+	        else if($items['age']>= $data['from_days'] && $items['to_days']=='')
+	        {
+	            $return_data[]=$items;
+	        }
+	        
+	    }
+	    return $return_data;
+	    	
+	}
+	
+	function get_design_age_analysis_report($id_product,$from_age,$to_age,$id_branch,$cat_id)
+	{
+	    $total_pcs=0;$total_wt=0;
+	    $stock_det=0;
+        $sql =$this->db->query("SELECT 
+        if(tag.old_tag_date!='',DATEDIFF(date(now()),date(old_tag_date)),DATEDIFF(date(now()),date(tag_datetime))) AS age,ifnull(tag.gross_wt,0) as total_wt,(ifnull(tag.piece,0)) as tot_pcs,tag.old_tag_date,date_format(tag.tag_datetime,'%d-%m-%Y') as tag_date,date_format(tag.old_tag_date,'%d-%m-%Y') as old_tag_date,
+        tag.is_tag_imported
+        FROM ret_taging tag
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT join ret_design_master des ON des.design_no=tag.design_id
+        WHERE tag.tag_status = 0 
+        ".($id_product!='' ? " and tag.product_id=".$id_product."" :'')."
+        ".($cat_id!='' && $cat_id!=0 ? " and p.cat_id=".$cat_id."" :'')."
+        ".($id_branch!='' && $id_branch!=0 ? " and tag.current_branch=".$id_branch."" :'')."
+        HAVING tot_pcs >0 ");  
+		//print_r($this->db->last_query());exit;
+	    $result=$sql->result_array();
+	    foreach($result as $items)
+	    {
+	        if(($from_age=='' && $to_age=='') && $items['tot_pcs']>0)
+	        {
+	            $total_pcs+=$items['tot_pcs'];
+    	        $total_wt+=$items['total_wt'];
+	        }
+	        else if($items['age']>= $from_age && $items['age']<= $to_age && $items['tot_pcs']>0)
+    	    {
+    	       $total_pcs+=$items['tot_pcs'];
+    	       $total_wt+=$items['total_wt'];
+    	    }
+    	    else if(($items['age']>= $from_age) && $to_age=='')
+    	    {
+    	        $total_pcs+=$items['tot_pcs'];
+    	        $total_wt+=$items['total_wt'];
+    	    }
+	    }
+	    $stock_det=$total_wt.'/'.$total_pcs;
+	    
+	    return $stock_det;
+	}
+	
+	function getCancelledBills($data)
+    {
+    	$bill_detail=array();
+    	
+    	if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+    	$data=$this->db->query("SELECT b.bill_id,c.mobile,c.firstname as cus_name,br.name as branch_name,b.bill_no,b.tot_bill_amount,date_format(b.bill_date,'%d-%m-%Y') as bill_date,date_format(b.cancelled_date,'%d-%m-%Y') as cancelled_date,if(bill_type = 1,'Sales',if(bill_type = 2,'Sales&Purchase',if(bill_type = 3,'Sales&Return',if(bill_type = 4,'Purchase',if(bill_type = 5,'Order Advance',if(bill_type = 6,'Advance',if(bill_type = 7,'Sales Return',''))))))) as bill_type,
+    	    IFNULL(b.cancel_reason,'') as cancel_reason
+    		From ret_billing b
+    		LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+			LEFT JOIN branch br on br.id_branch=b.id_branch
+    		where  b.bill_id is not null and b.bill_status = 2 ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.cancelled_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." ORDER BY b.id_branch"); 
+    	$result = $data->result_array();
+    		foreach($result as $r){
+				$bill_detail[$r['branch_name']][] = $r; 
+			}
+    	return $bill_detail;
+    }
+	
+	function getDiscountBills($data)
+    {
+    	$bill_detail = array();
+    		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+		/*if($_POST['disc_rep_type'] == 1){ // Without Bill Detail
+			$data = $this->db->query(" 
+							SELECT 
+								c.mobile,c.firstname as cus_name,br.name as branch_name,b.bill_no,b.tot_bill_amount,date_format(b.bill_date,'%d-%m-%Y') as bill_date,if(b.bill_type = 1,'Sales',if(b.bill_type = 2,'Sales&Purchase',if(b.bill_type = 3,'Sales&Return',if(b.bill_type = 4,'Purchase',if(b.bill_type = 5,'Order Advance',if(b.bill_type = 6,'Advance',if(b.bill_type = 7,'Sales Return',''))))))) as bill_type,IFNULL(tot_discount,0) as discount
+							From ret_billing b
+								LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+								LEFT JOIN branch br on br.id_branch=b.id_branch
+				    		WHERE tot_bill_amount > 0 AND b.bill_type <= 3 AND b.bill_status = 1 AND b.tot_discount > 0 AND tot_discount IS NOT NULL ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." ORDER BY b.id_branch"); 
+			$result = $data->result_array();
+			foreach($result as $r){
+				$bill_detail[$r['branch_name']][] = $r; 
+			}
+		}else{*/ // With Bill Detail
+			$data = $this->db->query(" 
+							SELECT 
+								c.mobile,c.firstname as cus_name,br.name as branch_name,b.bill_no,b.tot_bill_amount,date_format(b.bill_date,'%d-%m-%Y') as bill_date,if(b.bill_type = 1,'Sales',if(b.bill_type = 2,'Sales&Purchase',if(b.bill_type = 3,'Sales&Return',if(b.bill_type = 4,'Purchase',if(b.bill_type = 5,'Order Advance',if(b.bill_type = 6,'Advance',if(b.bill_type = 7,'Sales Return',''))))))) as bill_type,
+								IFNULL(tot_discount,0) as discount,det.item_cost,det.bill_discount,det.product_name,det.design_name,det.net_wt,
+								det.status,det.mc_value,det.rate_per_grm,b.bill_id
+							From ret_billing b
+								LEFT JOIN
+								(
+									SELECT 
+										bill_det_id,bill_id,item_type,is_non_tag,tag_id,order_no,
+										ifnull(design_name, '') as design_name,ifnull(product_name, '') as product_name,
+										ifnull(d.gross_wt,0.000) as gross_wt,ifnull(d.net_wt,0.000) as net_wt,ifnull(d.less_wt,0.000) as less_wt,
+										if(d.status = 1,'Sold',if(d.status = 2,'Returned','')) as status,bill_discount,item_cost,d.mc_value,d.rate_per_grm
+									FROM `ret_bill_details` d
+										LEFT JOIN ret_product_master as pro ON pro.pro_id = d.product_id
+										LEFT JOIN ret_design_master as des ON des.design_no = d.design_id
+									WHERE d.bill_discount > 0 AND d.bill_discount IS NOT NULL
+								) det on det.bill_id=b.bill_id 
+								LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+								LEFT JOIN branch br on br.id_branch=b.id_branch
+				    		WHERE tot_bill_amount > 0 AND b.bill_type <= 3 AND b.bill_status = 1 AND b.tot_discount > 0 AND tot_discount IS NOT NULL ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." ORDER BY b.id_branch");  
+			$result = $data->result_array();
+			foreach($result as $r){
+				$bill_detail[$r['branch_name']][$r['bill_no']][] = $r; 
+			}
+		//} 
+    	return $bill_detail;
+    }
+    
+    
+    function discount_bill($data)
+    {
+        $bill_detail = array();
+        if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        $sql=$this->db->query("SELECT date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_id,b.bill_no,d.gross_wt,d.net_wt,d.calculation_based_on,if(d.mc_type=1,'Per Gram','Per Piece') as mc_type,d.mc_value,p.product_name,d.item_cost,d.bill_discount,
+        d.wastage_percent,c.firstname as cus_name,d.mc_type as mcType,d.piece,d.rate_per_grm,d.bill_discount,
+        d.esti_item_id,d.design_id,des.design_name,ifnull(sub.sub_design_name,'-') as sub_design_name,b.tot_bill_amount,IFNULL(d.item_total_tax,0) as item_total_tax
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_design_master des ON des.design_no=d.design_id
+        LEFT JOIN ret_estimation_items est ON est.est_item_id=d.esti_item_id
+        LEFT JOIN ret_sub_design_master sub ON sub.id_sub_design=est.id_sub_design
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        WHERE d.bill_discount>0 AND b.bill_status=1
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+        ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')."
+        order by b.bill_id");
+        //print_r($this->db->last_query());exit;
+        $bill_detail=$sql->result_array();
+        return $bill_detail;
+    }
+    
+/*    function getGSTBills($data)
+    {
+    	$bill_detail = array();
+    		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+    	$data = $this->db->query("SELECT c.mobile,c.firstname as cus_name,br.name as branch_name,b.bill_no,b.tot_bill_amount,date_format(b.bill_date,'%d-%m-%Y') as bill_date,
+    	if(b.bill_type = 1,'Sales',if(b.bill_type = 2,'Sales&Purchase',if(b.bill_type = 3,'Sales&Purchase&Return',if(b.bill_type = 4,'Purchase',if(b.bill_type = 5,'Order Advance',if(b.bill_type = 6,'Advance',if(b.bill_type = 7,'Sales Return',''))))))) as bill_type,
+    	IFNULL(tot_tax_value,0) as tot_tax_value,sum(d.item_total_tax) as tot_tax_value,sum(d.total_sgst) as sgst,sum(d.total_igst) as igst,
+    	sum(d.total_cgst) as cgst,b.bill_id
+    		From ret_billing b
+    		LEFT JOIN ret_bill_details d on d.bill_id=b.bill_id
+    		LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+			LEFT JOIN branch br on br.id_branch=b.id_branch
+    		where b.bill_status = 1  AND item_total_tax IS NOT NULL ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+    		".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." 
+    		GROUP  by d.bill_id ORDER BY b.id_branch"); 
+    	$result = $data->result_array();
+    		foreach($result as $r){
+				$bill_detail[$r['branch_name']][] = $r; 
+			}
+    	return $bill_detail;
+    }*/
+    
+    function getGSTBills($data)
+    {
+    	$bill_detail = array();
+    		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+    	$data = $this->db->query("SELECT b.bill_no,b.bill_id,c.firstname as cus_name,IFNULL(c.gst_number,'') as gst_number,c.mobile,a.company_name,a.address1,a.address2,t.name,s.name,y.name,IFNULL(c.pan,'') as pan,
+    	br.name as branch_name,b.id_branch,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,b.tot_bill_amount
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id 
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN address a ON a.id_customer=c.id_customer
+        LEFT JOIN country t ON t.id_country=a.id_country
+        LEFT JOIN state s ON s.id_state=a.id_state
+        LEFT JOIN city y ON y.id_city=a.id_city
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        WHERE c.cus_type=2 and b.bill_status = 1  
+        AND b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' 
+        AND d.bill_id is not null and d.item_cost>0 
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+    		".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." 
+    		".($data['id_category'] != '' && $data['id_category'] >0 ? ' and p.cat_id ='.$data['id_category']: '')." 
+    	group by b.bill_id,p.cat_id  
+    	ORDER BY b.id_branch"); 
+        //print_r($this->db->last_query());exit;
+    	$result = $data->result_array();
+    		foreach($result as $r){
+				$bill_detail[$r['branch_name']][] = $r; 
+			}
+    	return $bill_detail;
+    }
+
+/*	function getReorderitems($data)
+    {
+    	$result=array();
+    	 $data=$this->db->query("SELECT IFNULL(SUM(s.min_pcs),0) as min_pcs,IFNULL(SUM(s.max_pcs),0) as max_pcs,concat(IFNULL(sz.value,''),'',sz.name) as size,p.product_name,d.design_name,s.id_product as product_id,s.id_design as design_id,
+	    b.name as branch_name,s.id_branch,concat(wt.value,m.uom_name) as weight_name,wt.from_weight,wt.to_weight,subDes.sub_design_name,s.id_sub_design,s.id_wt_range,
+	    sz.id_size
+        FROM ret_reorder_settings s
+        LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+        LEFT  JOIN ret_design_master d ON d.design_no=s.id_design
+        LEFT JOIN ret_sub_design_master subDes on subDes.id_sub_design=s.id_sub_design
+        LEFT JOIN ret_size sz on sz.id_size=s.size
+        LEFT JOIN branch b on b.id_branch=s.id_branch
+        LEFT JOIN ret_weight wt on wt.id_weight=s.id_wt_range
+        LEFT JOIN ret_uom m on m.uom_id=wt.id_uom
+        where s.id_product IS NOT NULL and s.id_design IS NOT NULL and s.id_sub_design IS NOT NULL
+        ".($data['id_branch']!='' && $data['id_branch']>0 ? " and s.id_branch=".$data['id_branch']."":'')."
+        ".($data['id_product']!='' ? " and s.id_product=".$data['id_product']."" :'')."
+        ".($data['id_design']!='' ? " and s.id_design=".$data['id_design']."" :'')."
+        ".($data['id_sub_design']!='' ? " and s.id_sub_design=".$data['id_sub_design']."" :'')."
+        ".($data['id_weight']!='' ? " and wt.id_weight=".$data['id_weight']."" :'')."
+        ".($data['id_size']!='' ? " and s.size=".$data['id_size']."" :'')."
+        GROUP by s.id_product,s.id_design,s.id_sub_design,s.size,s.id_wt_range");
+        
+        
+		//print_r($this->db->last_query());exit;
+    	$items = $data->result_array();
+    	foreach($items as $row)
+    	{
+    		$result[]=array(
+    		    'product_name'      =>$row['product_name'],
+    		    'design_name'       =>$row['design_name'],
+    		    'sub_design_name'   =>$row['sub_design_name'],
+    		    'product_id'        =>$row['product_id'],
+    		    'design_id'         =>$row['design_id'],
+    		    'id_sub_design'     =>$row['id_sub_design'],
+    		    'branch_name'       =>$row['branch_name'],
+    		    'id_branch'         =>$row['id_branch'],
+    		    'weight_name'       =>$row['weight_name'],
+    		    'min_pcs'           =>$row['min_pcs'],
+    		    'max_pcs'           =>$row['max_pcs'],
+    		    'from_weight'       =>$row['from_weight'],
+    		    'to_weight'         =>$row['to_weight'],
+    		    'size'              =>$row['size'],
+    		    'id_wt_range'       =>$row['id_wt_range'],
+    		    'is_cart'		    =>$this->get_cart_items($row['product_id'],$row['design_id'],$row['id_sub_design'],$row['id_wt_range']),
+    		    'is_order'		    =>$this->get_order_items($row['product_id'],$row['design_id'],$row['id_sub_design'],$row['id_wt_range']),
+    		    'tag_details'       =>$this->get_tagged_details($row['product_id'],$row['design_id'],$row['id_sub_design'],$row['id_branch'],$row['from_weight'],$row['to_weight'],$row['id_size'])
+    		);
+    	}
+    	return $result;
+    }
+    
+    function get_cart_items($id_product,$design_no,$id_sub_design,$id_wt_range)
+    {
+    	$sql=$this->db->query("SELECT * FROM order_cart o WHERE o.orderstatus=0 AND o.id_product=".$id_product." AND o.design_no=".$design_no." and o.id_sub_design=".$id_sub_design." AND o.id_wt_range=".$id_wt_range."");
+    	//print_r($this->db->last_query());exit;
+    	return $sql->num_rows();
+    }
+    
+    function get_order_items($id_product,$design_no,$id_sub_design,$id_wt_range)
+    {
+        $sql=$this->db->query("SELECT d.id_orderdetails
+        FROM customerorderdetails d
+        LEFT JOIN customerorder c ON c.id_customerorder=d.id_customerorder
+        WHERE id_product=".$id_product." AND design_no=".$design_no." 
+        AND id_sub_design=".$id_sub_design." AND id_weight_range=".$id_wt_range." AND c.order_status=3 AND c.order_type=1");
+        
+        //print_r($this->db->last_query());exit;
+    	return $sql->num_rows();
+    }
+    
+    function get_tagged_details($id_product,$design_id,$id_sub_design,$id_branch,$from_weight,$to_weight,$id_size)
+    {
+            $sql=$this->db->query("SELECT IFNULL(SUM(t.piece),0) as tot_pcs,sum(t.net_wt) as net_wt,SUM(t.gross_wt) as gross_wt
+            FROM ret_taging t
+            WHERE t.tag_status=0 and  t.current_branch=".$id_branch." AND t.product_id=".$id_product." AND t.design_id=".$design_id." 
+            AND t.id_sub_design=".$id_sub_design." and net_wt BETWEEN ".$from_weight." AND ".$to_weight."
+            ".($id_size!='' ? " and t.size=".$id_size."" :'')."");
+            //print_r($this->db->last_query());exit;
+            return $sql->row_array();
+    }*/
+    
+    
+    function getReorderitems($data)
+    {
+    	$result=array();
+    	/*$data=$this->db->query("SELECT sum(t.piece) as tagged_pieces,d.design_name,p.product_name,t.product_id,t.design_id,b.name as branch_name,sum(t.gross_wt) as gross_wt,sum(t.net_wt) as net_wt,t.current_branch
+			FROM ret_taging t
+			left JOIN ret_product_master p on p.pro_id=t.product_id
+			LEFT JOIN ret_design_master d on d.design_no=t.design_id
+			LEFT JOIN branch b on b.id_branch=t.current_branch
+			left join ret_weight wt on wt.id_product=t.product_id
+			LEFT JOIN ret_reorder_settings s ON s.id_wt_range=wt.id_weight
+			where t.tag_status = 0 ".($data['id_branch']!='' && $data['id_branch']>0 ? " and s.id_branch=".$data['id_branch']."":'')."
+				".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')."
+				".($data['id_design']!='' ? " and t.design_id=".$data['id_design']."" :'')."
+				".($data['id_weight']!='' ? " and wt.id_weight=".$data['id_weight']."" :'')."
+			GROUP by t.product_id,t.design_id,t.current_branch ORDER by t.current_branch");*/
+		
+		$multiple_weight_range = implode(' , ', $data['id_weight']);
+		if($multiple_weight_range != '')
+		{
+			$id_weight = $multiple_weight_range;
+		}else{
+			$id_weight = $data['id_weight'];
+		}	
+	
+	    $sql=$this->db->query("SELECT IFNULL(SUM(s.min_pcs),0) as min_pcs,IFNULL(SUM(s.max_pcs),0) as max_pcs,concat(IFNULL(sz.value,''),'',sz.name) as size,p.product_name,d.design_name,s.id_product as product_id,s.id_design as design_id,
+	    b.name as branch_name,s.id_branch,concat(wt.value,m.uom_name) as weight_name,wt.from_weight,wt.to_weight,subDes.sub_design_name,s.id_sub_design,s.id_wt_range,
+	    sz.id_size,IFNULL(cart.id_cart_order,0) as id_cart_order,IFNULL(ord.id_orderdetails,'') as id_orderdetails
+	    
+        FROM ret_reorder_settings s
+        LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+        LEFT  JOIN ret_design_master d ON d.design_no=s.id_design
+        LEFT JOIN ret_sub_design_master subDes on subDes.id_sub_design=s.id_sub_design
+        LEFT JOIN ret_size sz on sz.id_size=s.size
+        LEFT JOIN branch b on b.id_branch=s.id_branch
+        LEFT JOIN ret_weight wt on wt.id_weight=s.id_wt_range
+        LEFT JOIN ret_uom m on m.uom_id=wt.id_uom
+        
+        LEFT JOIN (SELECT ct.id_product,ct.design_no,ct.id_sub_design,ct.id_wt_range,ct.size,ct.id_cart_order
+        FROM order_cart ct
+        WHERE ct.orderstatus=0
+        GROUP by ct.id_product,ct.design_no,ct.id_sub_design,ct.id_wt_range,ct.size) as cart ON cart.id_product=s.id_product AND cart.design_no=s.id_design AND cart.id_sub_design=s.id_sub_design AND cart.id_wt_range=s.id_wt_range AND cart.size=s.size
+        
+        LEFT JOIN(SELECT dt.id_product,dt.design_no,dt.id_sub_design,dt.id_weight_range,dt.size,dt.id_orderdetails
+         FROM customerorderdetails dt 
+         LEFT JOIN customerorder c ON c.id_customerorder=dt.id_customerorder
+         WHERE dt.orderstatus=3 AND c.order_type=1
+         GROUP by dt.id_product,dt.design_no,dt.id_sub_design,dt.id_weight_range,dt.size) as ord ON ord.id_product=s.id_product AND ord.design_no=s.id_design AND ord.id_sub_design=s.id_sub_design AND ord.id_weight_range=s.id_wt_range AND ord.size=s.size
+         
+        where s.id_product IS NOT NULL and s.id_design IS NOT NULL and s.id_sub_design IS NOT NULL
+        ".($data['id_branch']!='' && $data['id_branch']>0 ? " and s.id_branch=".$data['id_branch']."":'')."
+        ".($data['id_product']!='' ? " and s.id_product=".$data['id_product']."" :'')."
+        ".($data['id_design']!='' ? " and s.id_design=".$data['id_design']."" :'')."
+        ".($data['id_sub_design']!='' ? " and s.id_sub_design=".$data['id_sub_design']."" :'')."
+        ".($id_weight!='' && $id_weight !='0' ? " and wt.id_weight in (".$id_weight.") " :'' )."	
+        
+        ".($data['id_size']!='' ? " and s.size=".$data['id_size']."" :'')."
+        GROUP by s.id_product,s.id_design,s.id_sub_design,s.size,s.id_wt_range
+        having wt.from_weight IS NOT NULL and wt.to_weight IS NOT NULL ");
+        
+        
+		//print_r($this->db->last_query());exit;
+    	$items = $sql->result_array();
+    	foreach($items as $row)
+    	{
+    		$result[]=array(
+    		    'product_name'      =>$row['product_name'],
+    		    'design_name'       =>$row['design_name'],
+    		    'sub_design_name'   =>$row['sub_design_name'],
+    		    'product_id'        =>$row['product_id'],
+    		    'design_id'         =>$row['design_id'],
+    		    'id_sub_design'     =>$row['id_sub_design'],
+    		    'branch_name'       =>$row['branch_name'],
+    		    'id_branch'         =>$row['id_branch'],
+    		    'weight_name'       =>$row['weight_name'],
+    		    'min_pcs'           =>$row['min_pcs'],
+    		    'max_pcs'           =>$row['max_pcs'],
+    		    'from_weight'       =>$row['from_weight'],
+    		    'to_weight'         =>$row['to_weight'],
+    		    'size'              =>$row['size'],
+    		    'id_size'           =>$row['id_size'],
+    		    'id_wt_range'       =>$row['id_wt_range'],
+    		    'is_cart'		    =>$row['id_cart_order'],
+    		    'is_order'		    =>$row['id_orderdetails'],
+    		    'tag_details'       =>$this->get_tagged_details($row['product_id'],$row['design_id'],$row['id_sub_design'],$data['id_branch'],$row['from_weight'],$row['to_weight'],$row['id_size'])
+    		);
+    	}
+    	return $result;
+    }
+    
+    function getBranchReorderitems($data)
+    {
+    	$result=array();
+    	$multiple_weight_range = implode(' , ', $data['id_weight']);
+		if($multiple_weight_range != '')
+		{
+			$id_weight = $multiple_weight_range;
+		}else{
+			$id_weight = $data['id_weight'];
+		}	
+		
+	    $sql = $this->db->query("SELECT view_reorder_details.*, 
+	                            coalesce(sum(case when id_branch = '2' then totgrosswt end), 0) as Btotgrswt,
+                            	coalesce(sum(case when id_branch = '2' then totnet_wt end), 0) as Btotnetwt,
+                            	coalesce(sum(case when id_branch = '2' then totpcs end), 0) as Btotpcs,
+                                concat(coalesce(sum(case when id_branch = '2' then min_pcs end), 0), '\/', coalesce(sum(case when id_branch = '2' then max_pcs end), 0)) as Bminmax,
+                            	
+                            	coalesce(sum(case when id_branch = '5' then totgrosswt end), 0) as Ctotgrswt,
+                            	coalesce(sum(case when id_branch = '5' then totnet_wt end), 0) as Ctotnetwt,
+                            	coalesce(sum(case when id_branch = '5' then totpcs end), 0) as Ctotpcs,
+                            	 concat(coalesce(sum(case when id_branch = '5' then min_pcs end), 0), '\/', coalesce(sum(case when id_branch = '5' then max_pcs end), 0)) as Cminmax,
+                            	
+                            	coalesce(sum(case when id_branch = '6' then totgrosswt end), 0) as Dtotgrswt,
+                            	coalesce(sum(case when id_branch = '6' then totnet_wt end), 0) as Dtotnetwt,
+                            	coalesce(sum(case when id_branch = '6' then totpcs end), 0) as Dtotpcs,
+                            	 concat(coalesce(sum(case when id_branch = '6' then min_pcs end), 0), '\/', coalesce(sum(case when id_branch = '6' then max_pcs end), 0)) as Dminmax,
+                            	
+                            	coalesce(sum(case when id_branch = '7' then totgrosswt end), 0) as Etotgrswt,
+                            	coalesce(sum(case when id_branch = '7' then totnet_wt end), 0) as Etotnetwt,
+                            	coalesce(sum(case when id_branch = '7' then totpcs end), 0) as Etotpcs,
+                            	 concat(coalesce(sum(case when id_branch = '7' then min_pcs end), 0), '\/', coalesce(sum(case when id_branch = '7' then max_pcs end), 0)) as Eminmax,
+                            	
+	                            coalesce(sum(case when id_branch = '2' then if(min_pcs > totpcs,  min_pcs - totpcs , 0)end), 0) as Bshortage,
+                            	coalesce(sum(case when id_branch = '5' then if(min_pcs > totpcs,  min_pcs - totpcs , 0)end), 0) as Cshortage,
+                            	coalesce(sum(case when id_branch = '6' then if(min_pcs > totpcs,  min_pcs - totpcs , 0)end), 0) as Dshortage,
+                            	coalesce(sum(case when id_branch = '7' then if(min_pcs > totpcs,  min_pcs - totpcs , 0)end), 0) as Eshortage, 
+                            	
+                            	coalesce(sum(case when id_branch = '2' then if(max_pcs < totpcs,  totpcs - max_pcs , 0)end), 0) as Bexcess,
+                            	coalesce(sum(case when id_branch = '5' then if(max_pcs < totpcs,  totpcs - max_pcs , 0)end), 0) as Cexcess,
+                            	coalesce(sum(case when id_branch = '6' then if(max_pcs < totpcs,  totpcs - max_pcs , 0)end), 0) as Dexcess,
+                            	coalesce(sum(case when id_branch = '7' then if(max_pcs < totpcs,  totpcs - max_pcs , 0)end), 0) as Eexcess 
+                            FROM view_reorder_details 
+                            WHERE id_branch != 1 
+        ".($data['id_product']!='' ? " and product_id=".$data['id_product']."" :'')."
+        ".($data['id_design']!='' ? " and design_id=".$data['id_design']."" :'')."
+        ".($data['id_sub_design']!='' ? " and id_sub_design=".$data['id_sub_design']."" :'')."
+        ".($id_weight!='' && $id_weight !='0' ? " and id_wt_range in (".$id_weight.") " :'' )."	
+        ".($data['id_size']!='' ? " and id_size =".$data['id_size']."" :'')."
+        GROUP by product_id,design_id,id_sub_design,id_size,id_wt_range 
+        having (Bshortage > 0 OR Cshortage > 0 OR Dshortage > 0 OR Eshortage > 0 OR Bexcess > 0 OR Cexcess > 0 OR Dexcess > 0 OR Eexcess > 0)");
+		//print_r($this->db->last_query());exit;
+    	return $sql->result_array();
+    }
+    
+    function get_cart_items($id_product,$design_no,$id_sub_design,$id_wt_range)
+    {
+    	$sql=$this->db->query("SELECT * FROM order_cart o WHERE o.orderstatus=0 AND o.id_product=".$id_product." AND o.design_no=".$design_no." and o.id_sub_design=".$id_sub_design." AND o.id_wt_range=".$id_wt_range."");
+    	//print_r($this->db->last_query());exit;
+    	return $sql->num_rows();
+    }
+    
+    function get_order_items($id_product,$design_no,$id_sub_design,$id_wt_range)
+    {
+        $sql=$this->db->query("SELECT d.id_orderdetails
+        FROM customerorderdetails d
+        LEFT JOIN customerorder c ON c.id_customerorder=d.id_customerorder
+        WHERE id_product=".$id_product." AND design_no=".$design_no." 
+        AND id_sub_design=".$id_sub_design." AND id_weight_range=".$id_wt_range." AND c.order_status=3 AND c.order_type=1");
+        
+        //print_r($this->db->last_query());exit;
+    	return $sql->num_rows();
+    }
+    
+    function get_tagged_details($id_product,$design_id,$id_sub_design,$id_branch,$from_weight,$to_weight,$id_size)
+    {
+            $sql=$this->db->query("SELECT IFNULL(SUM(t.piece),0) as tot_pcs,sum(t.net_wt) as net_wt,SUM(t.gross_wt) as gross_wt
+            FROM ret_taging t
+            WHERE t.tag_status=0  AND t.product_id=".$id_product." AND t.design_id=".$design_id." 
+            AND t.id_sub_design=".$id_sub_design." and net_wt BETWEEN ".$from_weight." AND ".$to_weight."
+            ".($id_branch!=0 ? " and t.current_branch=".$id_branch."" :'')."
+            ".($id_size!='' ? " and t.size=".$id_size."" :'')."");
+            //print_r($this->db->last_query());exit;
+            return $sql->row_array();
+    }
+    
+
+    function get_reorder_settings($id_branch,$id_product,$id_design,$field)
+    {
+    	$data=$this->db->query("SELECT ".$field."
+    			FROM ret_reorder_settings s
+    			left join ret_weight wt on wt.id_weight=s.id_wt_range
+    			where s.id_product=".$id_product." and s.id_design=".$id_design."
+    			".($id_branch!='' ? " and s.id_branch=".$id_branch."":'')."");
+    	//print_r($this->db->last_query());exit;
+    	if($data->num_rows()>0)
+    	{
+    		return $data->row($field);    		
+    	}else{
+    		return '-';
+    	}
+		
+    }
+
+    function get_Activedesign($id_product)
+    {
+        if($id_product != ""){
+    	    $data=$this->db->query("SELECT d.design_no, d.design_name, d.mc_cal_type, d.wastage_type, ifnull(d.wastag_value, 0) as wastag_value, 
+    	                            ifnull(d.mc_cal_value, 0) as mc_cal_value, pr.sales_mode as sales_mode  
+    	                            FROM ret_design_master d 
+    	                            LEFT JOIN ret_product_mapping dm ON dm.id_design = d.design_no 
+    	                            LEFT JOIN ret_product_master as pr ON pr.pro_id = dm.pro_id 
+    	                            where d.design_status=1 ".($id_product!='' ? " and dm.pro_id=".$id_product."" :'')." ");
+    	   //echo $this->db->last_query();exit;
+        }else{
+            $data=$this->db->query("SELECT d.design_no,d.design_name,d.mc_cal_type,d.wastage_type,ifnull(d.wastag_value, 0)  as wastag_value, ifnull(d.mc_cal_value, 0) as mc_cal_value
+    		FROM ret_design_master d 
+    		LEFT JOIN ret_product_mapping dm ON dm.id_design = d.design_no 
+    		where d.design_status=1 ".($id_product!='' ? " and dm.pro_id = ".$id_product."" :'')." ");
+        }
+    	return $data->result_array();
+    }
+    
+    
+    function get_ActiveSubDesign($data)
+    {
+        $sql=$this->db->query("SELECT subDes.id_sub_design,subDes.sub_design_name
+        FROM ret_sub_design_mapping s 
+        LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=s.id_sub_design
+        WHERE s.id_product=".$data['id_product']." AND s.id_design=".$data['id_design']."");
+        return $sql->result_array();
+    }
+    
+    function get_ActiveProduct($postdata)
+    {
+        if(!empty($postdata['id_category'])){
+            $data=$this->db->query("SELECT p.pro_id,p.product_name FROM ret_product_master p 
+            where p.product_status = 1 AND cat_id = '".$postdata['id_category']."'");
+        }else{
+    	    $data=$this->db->query("SELECT p.pro_id,p.product_name,p.cat_id
+    		FROM ret_product_master p
+    		where p.product_status=1");
+        }
+    	return $data->result_array();
+    }
+    
+    function get_ActiveNontagProduct($postdata)
+    {
+	    $data=$this->db->query("SELECT p.pro_id,p.product_name,p.cat_id
+		FROM ret_product_master p
+		where p.product_status=1 and p.stock_type=2");
+    	return $data->result_array();
+    }
+
+    function get_weight_range()
+    {
+    	$data=$this->db->query("SELECT wt.name,wt.id_weight,wt.weight_description
+    		FROM ret_weight wt
+    		".($_POST['id_product']!='' ? " where wt.id_product=".$_POST['id_product']."" :'')."");
+    	return $data->result_array();
+    }
+
+    function getTaggeditems($data)
+    {
+    	$result=array();
+    	
+    	$collection = implode(' , ', $data['id_collection']);
+		if($collection != '')
+		{
+			$id_collection = $collection;
+		}else{
+			$id_collection = $data['id_collection'];
+		}
+		
+    	$data=$this->db->query("SELECT t.piece,d.design_name, sd.sub_design_name, p.product_name,t.product_id,t.design_id,b.name as branch_name,IFNULL(t.gross_wt,0) as gross_wt,IFNULL(t.net_wt,0) as net_wt,t.id_branch,DATE_FORMAT(t.tag_datetime,'%d-%m-%Y') as tag_date,
+    		if(t.tag_mc_type=1,'Per Piece', 'Per Gram') as mc_type,t.tag_mc_value,t.retail_max_wastage_percent,t.item_rate,t.tag_id,t.tag_mc_type,
+    		IFNULL(st.st_pieces,'-') as st_pieces,IFNULL(st.st_wt,'-') as st_wt, IFNULL(st.st_amount,'-') as st_amount, t.sales_value,t.tag_code,concat(s.value,'-',s.name) as size_name,
+    		IFNULL(t.tag_lot_id,'') as tag_lot_id,IFNULL(est.tot_est,0) as tot_est, kar.firstname as karigarname, 
+    		tagatt.attrvalues as attrvalues, t.remarks , cat.name as catname ,ifnull(t.old_tag_id,'-') as old_tag_id,IFNULL(m.collection_name,'') as collection_name,
+    		IFNULL(t.cert_no,'-') as cert_no,IFNULL(t.style_code,'-') as style_code
+			FROM ret_taging t
+			left JOIN ret_product_master p on p.pro_id=t.product_id 
+			left JOIN ret_category cat on cat.id_ret_category=p.cat_id 
+			LEFT JOIN ret_design_master d on d.design_no=t.design_id 
+			LEFT JOIN ret_sub_design_master sd on sd.id_sub_design=t.id_sub_design 
+			LEFT JOIN branch b on b.id_branch=t.current_branch
+			LEFT JOIN ret_size s on s.id_size=t.size
+			LEFT JOIN (SELECT s.tag_id,sum(s.pieces) as st_pieces,sum(s.wt) as st_wt, sum(s.amount) as st_amount  
+			FROM ret_taging_stone s GROUP BY s.tag_id) st on st.tag_id = t.tag_id
+			LEFT JOIN (SELECT est_items.tag_id,COUNT(est_items.esti_id) as tot_est FROM ret_estimation_items est_items GROUP by est_items.tag_id) est on est.tag_id=t.tag_id 
+			
+			Left join ret_lot_inwards_detail lot_det on lot_det.id_lot_inward_detail = if(t.ref_tag_id !='', (SELECT id_lot_inward_detail FROM ret_taging as rett where rett.tag_id = t.ref_tag_id),t.id_lot_inward_detail) 
+            LEFT JOIN ret_lot_inwards as linw ON linw.lot_no = lot_det.lot_no
+			
+            LEFT JOIN ret_karigar as kar ON kar.id_karigar = linw.gold_smith 
+            LEFT JOIN (SELECT id_tagging, GROUP_CONCAT(attr_val) as attrvalues FROM `ret_tagging_attributes` tagattr 
+            LEFT JOIN ret_attribute as attr ON attr.attr_id = tagattr.attr_id 
+            LEFT JOIN ret_attribute_values as atrval ON atrval.attr_val_id =  tagattr.attr_val_id 
+            GROUP BY tagattr.id_tagging) as tagatt ON tagatt.id_tagging = t.tag_id 
+            LEFT JOIN ret_tag_collection_mapping_details coll on coll.tag_id=t.tag_id
+            LEFT JOIN ret_tag_collection_mapping mt on mt.id_tag_mapping=coll.id_tag_mapping
+            LEFT JOIN ret_collection_master m on m.id_collection=mt.id_collection_master
+			where t.tag_status = 0 
+			".($data['id_branch']!='' && $data['id_branch']>0 ? " and t.current_branch=".$data['id_branch']."":'')." 
+			".($data['id_category'] != '' && $data['id_category'] != 0 ? " and p.cat_id =".$data['id_category']."" :'')." 
+			".($data['id_design']!='' ? " and t.design_id=".$data['id_design']."" :'')."
+			".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')."
+			".($data['id_size']!='' ? " and t.size=".$data['id_size']."" :'')."
+			".($data['from_weight']!='' ?" and t.gross_wt>=".$data['from_weight']."" :'')."
+			".($data['to_weight']!='' ?" and t.gross_wt<=".$data['to_weight']."" :'')."
+			 ".($data['id_karigar']!=''  && $data['id_karigar'] != 0 ? " and linw.gold_smith=".$data['id_karigar']."" :'')."
+			".($data['id_metal'] !='' && $data['id_metal'] !=0 ? " and cat.id_metal=".$data['id_metal']."":'')."
+			".($id_collection!='' && $id_collection !='0' ? " and m.id_collection in (".$id_collection.") " :'' )."	
+			ORDER by t.id_branch");
+	    //print_r($this->db->last_query());exit;
+    	$items = $data->result_array();
+    	foreach($items as $ikey => $ival){
+    	    $items[$ikey]["stone_details"] = $this->getTagStoneDetails($ival['tag_id']);
+    	}
+    	return $items;
+    }
+    
+    
+    function getTagStoneDetails($tag_id)
+    {
+        $st_sql = $this->db->query("SELECT tag_stone_id,tag_id, st.stone_name, uom.uom_name, pieces, wt, rate_per_gram,  
+                                    amount,s.stone_id, amount as price, IFNULL(certification_cost,0) as certification_cost, is_apply_in_lwt 	
+                                    FROM ret_taging_stone as s 
+                                    LEFT JOIN ret_stone as st ON st.stone_id = s.stone_id 
+                                    LEFT JOIN ret_uom as uom ON uom.uom_id = s.uom_id 
+                                    WHERE s.tag_id = '".$tag_id."'");
+        return $st_sql->result_array();
+        
+    }
+    
+    function getTaggeditems_branchwise($data)
+    {
+    	$result=array();
+    	$data=$this->db->query("SELECT b.name as branch_name, IFNULL(sum(t.gross_wt),0) as gross_wt, IFNULL(sum(t.net_wt),0) as net_wt, sum(t.piece) as piece
+			FROM ret_taging t
+			left JOIN ret_product_master p on p.pro_id=t.product_id
+			LEFT JOIN ret_design_master d on d.design_no=t.design_id
+			LEFT JOIN branch b on b.id_branch=t.current_branch
+			LEFT JOIN ret_size s on s.id_size=t.size
+			LEFT JOIN (SELECT s.tag_id,sum(s.pieces) as st_pieces,sum(s.wt) as st_wt 
+			FROM ret_taging_stone s) st on st.tag_id=t.tag_id
+			LEFT JOIN (SELECT est_items.tag_id,COUNT(est_items.esti_id) as tot_est FROM ret_estimation_items est_items GROUP by est_items.tag_id) est on est.tag_id=t.tag_id
+			where t.tag_status = 0 
+			".($data['id_design']!='' ? " and t.design_id=".$data['id_design']."" :'')."
+			".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')."
+			".($data['id_category'] != '' && $data['id_category'] != 0 ? " and p.cat_id =".$data['id_category']."" :'')." 
+			".($data['id_size']!='' ? " and t.size=".$data['id_size']."" :'')."
+			".($data['from_weight']!='' ?" and t.gross_wt>=".$data['from_weight']."" :'')."
+			".($data['to_weight']!='' ?" and t.gross_wt<=".$data['to_weight']."" :'')."
+			group by t.current_branch ORDER by t.id_branch ASC");
+	    //print_r($this->db->last_query());exit;
+    	$items = $data->result_array();
+    	return $items;
+    }
+    
+    function getApprovalTaggeditems($data)
+    {
+    	$result=array();
+    	$data=$this->db->query("SELECT t.piece,d.design_name, sd.sub_design_name, p.product_name,t.product_id,t.design_id,b.name as branch_name,IFNULL(t.gross_wt,0) as gross_wt,IFNULL(t.net_wt,0) as net_wt,t.id_branch,DATE_FORMAT(t.tag_datetime,'%d-%m-%Y') as tag_date,
+    		if(t.tag_mc_type=1,'Per Piece', 'Per Gram') as mc_type,t.tag_mc_value,t.retail_max_wastage_percent,t.item_rate,t.tag_id,t.tag_mc_type,
+    		IFNULL(st.st_pieces,'-') as st_pieces,IFNULL(st.st_wt,'-') as st_wt,t.sales_value,t.tag_code,concat(s.value,'-',s.name) as size_name,
+    		t.tag_lot_id,IFNULL(est.tot_est,0) as tot_est, ifnull(sup.firstname,'-') as karigar, pur.po_ref_no as po_ref_no 
+			FROM ret_taging t
+			left JOIN ret_product_master p on p.pro_id=t.product_id
+			LEFT JOIN ret_design_master d on d.design_no=t.design_id 
+			LEFT JOIN ret_sub_design_master sd on sd.id_sub_design=t.id_sub_design 
+			LEFT JOIN branch b on b.id_branch=t.current_branch
+			LEFT JOIN ret_size s on s.id_size=t.size
+			LEFT JOIN (SELECT s.tag_id,sum(s.pieces) as st_pieces,sum(s.wt) as st_wt 
+			FROM ret_taging_stone s) st on st.tag_id=t.tag_id
+			LEFT JOIN (SELECT est_items.tag_id,COUNT(est_items.esti_id) as tot_est FROM ret_estimation_items est_items GROUP by est_items.tag_id) est on est.tag_id=t.tag_id 
+			LEFT JOIN ret_purchase_order_items as puritm ON puritm.lot_no = t.tag_lot_id AND puritm.po_item_sub_des_id = t.id_sub_design 
+            LEFT JOIN ret_purchase_order as pur ON pur.po_id = puritm.po_item_po_id 
+            LEFT JOIN ret_karigar as sup ON sup.id_karigar = pur.po_karigar_id
+        
+			where t.tag_status = 0 AND  t.tag_type = 1 
+			".($data['id_branch']!='' && $data['id_branch']>0 ? " and t.current_branch=".$data['id_branch']."":'')."
+			".($data['id_design']!='' ? " and t.design_id=".$data['id_design']."" :'')."
+			".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')."
+			".($data['id_size']!='' ? " and t.size=".$data['id_size']."" :'')."
+			".($data['from_weight']!='' ?" and t.gross_wt>=".$data['from_weight']."" :'')."
+			".($data['to_weight']!='' ?" and t.gross_wt<=".$data['to_weight']."" :'')."
+			ORDER by t.id_branch");
+	    //print_r($this->db->last_query());exit;
+    	$items = $data->result_array();
+    	return $items;
+    }
+    
+    
+    function getapprovalTaggeditems_branchwise($data)
+    {
+    	$result=array();
+    	$data=$this->db->query("SELECT b.name as branch_name,IFNULL(sum(t.gross_wt),0) as gross_wt,IFNULL(sum(t.net_wt),0) as net_wt,sum(t.piece) as piece
+			FROM ret_taging t
+			left JOIN ret_product_master p on p.pro_id=t.product_id
+			LEFT JOIN ret_design_master d on d.design_no=t.design_id
+			LEFT JOIN branch b on b.id_branch=t.current_branch
+			LEFT JOIN ret_size s on s.id_size=t.size
+			LEFT JOIN (SELECT s.tag_id,sum(s.pieces) as st_pieces,sum(s.wt) as st_wt 
+			FROM ret_taging_stone s) st on st.tag_id=t.tag_id
+			LEFT JOIN (SELECT est_items.tag_id,COUNT(est_items.esti_id) as tot_est FROM ret_estimation_items est_items GROUP by est_items.tag_id) est on est.tag_id=t.tag_id
+			where t.tag_status = 0 AND  t.tag_type = 1 
+			".($data['id_design']!='' ? " and t.design_id=".$data['id_design']."" :'')."
+			".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')."
+			".($data['id_size']!='' ? " and t.size=".$data['id_size']."" :'')."
+			".($data['from_weight']!='' ?" and t.gross_wt>=".$data['from_weight']."" :'')."
+			".($data['to_weight']!='' ?" and t.gross_wt<=".$data['to_weight']."" :'')."
+			group by t.current_branch ORDER by t.id_branch ASC");
+	    //print_r($this->db->last_query());exit;
+    	$items = $data->result_array();
+    	return $items;
+    }
+    
+    function getBranchDayClosingData($id_branch)
+    {
+    $sql = $this->db->query("SELECT id_branch,is_day_closed,entry_date from ret_day_closing where id_branch=".$id_branch);  
+    return $sql->row_array();
+    }
+    
+    function stock_balance_nontag($data)
+    {
+        $stock_detail = array(); 
+    	
+        if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+           }
+        $op_date= date('Y-m-d',(strtotime('-1 day',strtotime($FromDt))));
+        //$op_date = date($FromDt,(strtotime('-1 day')));
+       
+		$op_bal = $this->db->query("
+        				SELECT 
+        					p.pro_id as product_id,p.product_name, b.name as branch_name,b.id_branch,c.name as category_name,m.metal as metal_name,
+        					IFNULL(stk.closing_gwt,0) as op_blc_gwt,IFNULL(stk.closing_nwt,0) as op_blc_nwt,IFNULL(stk.closing_pcs,0) as op_blc_pcs
+        				FROM ret_product_master p
+        				LEFT JOIN branch b on b.id_branch=".$data['id_branch']."
+        				LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+				        LEFT JOIN metal m on m.id_metal=c.id_metal
+        				LEFT JOIN ret_stock_balance stk  on p.pro_id=stk.id_product  ".($data['id_product'] !='' ? 'and p.pro_id='.$data['id_product'] :'')." and date(stk.date)='".$op_date."' ".($data['id_branch']!='' && $data['id_branch']>0 ? " and stk.id_branch=".$data['id_branch']."" :'')."
+        				WHERE stock_type = 2
+        				
+        				GROUP by p.pro_id
+    			    ");		    
+		$inward = $this->db->query(" 
+    					SELECT
+    						INW.product,
+    						IFNULL(sum(INW.gross_wt),0) as inw_gwt,IFNULL(sum(INW.net_wt),0) as inw_nwt,IFNULL(sum(INW.no_of_piece),0) as inw_pcs
+    					FROM ret_nontag_item_log INW
+    					WHERE  INW.status=0 ".($data['id_product'] !='' ? 'and INW.product='.$data['id_product'] :'')." and  to_branch=".$data['id_branch']." AND (date(INW.date) BETWEEN '".$FromDt."' AND '".$ToDt."')
+    					GROUP by INW.product
+				    ");
+	//	echo $this->db->last_query();exit;
+		$outward = $this->db->query("
+        				SELECT 
+        					ot.product,
+        					IFNULL(sum(ot.gross_wt),0) as out_gwt,IFNULL(sum(ot.net_wt),0) as out_nwt,IFNULL(sum(ot.no_of_piece),0) as out_pcs 
+        				FROM ret_nontag_item_log ot
+    					LEFT JOIN ret_billing bill on bill.bill_id=ot.bill_id and bill.bill_status=1 
+				        WHERE  ot.from_branch=".$data['id_branch']." ".($data['id_product'] !='' ? 'and ot.product='.$data['id_product'] :'')." and (ot.status=0 or ot.status=1 or ot.status=3 or ot.status=7) AND (date(ot.date) BETWEEN '".$FromDt."' AND '".$ToDt."')  
+				        GROUP by ot.product
+        			");   
+        			
+        foreach($op_bal->result_array() as $op_bal){
+            $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']] = $op_bal;
+            $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['inw_gwt'] = 0;
+            $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['inw_nwt'] = 0;
+            $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['inw_pcs'] = 0;
+            $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['out_gwt'] = 0;
+            $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['out_nwt'] = 0;
+            $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['out_pcs'] = 0;
+            foreach($inward->result_array() as $inw){
+                if($op_bal['product_id'] == $inw['product']){
+                    $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['inw_gwt'] = $inw['inw_gwt'];
+                    $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['inw_nwt'] = $inw['inw_nwt'];
+                    $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['inw_pcs'] = $inw['inw_pcs'];
+                }
+            } 
+            foreach($outward->result_array() as $out){
+                if($op_bal['product_id'] == $out['product']){ 
+                    $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['out_gwt'] = $out['out_gwt'];
+                    $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['out_nwt'] = $out['out_nwt'];
+                    $stock_detail[$op_bal['metal_name']][$op_bal['category_name']][$op_bal['product_id']]['out_pcs'] = $out['out_pcs'];
+                }
+            }
+        }
+        //print_r($stock_detail);exit;
+    	return $stock_detail;
+    }
+    
+    function stock_details($data)
+    {
+        $day_closing=$this->getBranchDayClosingData($data['id_branch']);
+    	$stock_detail = array();
+    	$sql='';
+    	if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+           }
+           
+		$date=($day_closing['is_day_closed']==1 ? $day_closing['entry_date']:date("Y-m-d"));
+		if(($FromDt!=$date) && ($ToDt!=$date))
+		{
+			$data = $this->db->query("SELECT b.name as branch_name,p.product_name,
+				s.op_blc_pcs,s.op_blc_gwt,s.op_blc_nwt,s.inw_pcs,s.inw_gwt,s.inw_nwt,
+				s.sold_pcs,s.sold_gwt,s.sold_nwt,s.closing_pcs,s.closing_gwt,s.closing_nwt,
+				Date_Format(s.date,'%d-%m-%Y') as date_add,'0' as br_out_gwt,'0' as br_out_nwt,'0' as br_out_pcs,
+				'0' as in_trans_gwt,'0' as in_trans_nwt,'0' as in_trans_pcs,c.name as category_name,m.metal as metal_name
+				From ret_stock_balance s 
+				LEFT JOIN ret_product_master p on p.pro_id=s.id_product
+				left join ret_category c on c.id_ret_category=p.cat_id
+				left join metal m on m.id_metal=c.id_metal
+				lEFT JOIN branch b on b.id_branch=s.id_branch
+				where date(s.date) BETWEEN '$FromDt' AND '$ToDt'
+				".($data['id_branch']!='' ? " and s.id_branch=".$data['id_branch']."" :'')."
+				".($data['id_product']!='' ? " and s.id_product=".$data['id_product']."" :'')."
+				".($data['id_metal']!='' && $data['id_metal']!='0' ? " and m.id_metal=".$data['id_metal']."" :'')."
+				".($data['id_category']!='' && $data['id_category']!='0' ? " and s.id_ret_category=".$data['id_category']."" :'')."
+				order by c.sort,p.pro_id ASC");
+					
+		}
+		else{
+		$op_date= date('Y-m-d',(strtotime('-1 day',strtotime($FromDt))));
+		//print_r($op_date);exit;
+		$data = $this->db->query("SELECT t.product_id,p.product_name,b.name as branch_name,c.name as category_name,
+		IFNULL(blc.gross_wt,0) as op_blc_gwt,IFNULL(blc.net_wt,0) as op_blc_nwt,IFNULL(blc.piece,0) as op_blc_pcs,
+		IFNULL(INW.gross_wt,0) as inw_gwt,IFNULL(INW.net_wt,0) as inw_nwt,IFNULL(INW.piece,0) as inw_pcs,
+		IFNULL(s.gross_wt,0) as sold_gwt,IFNULL(s.net_wt,0) as sold_nwt,IFNULL(s.piece,0) as sold_pcs,
+		IFNULL(br_out.gross_wt,0) as br_out_gwt,IFNULL(br_out.net_wt,0) as br_out_nwt,IFNULL(br_out.piece,0) as br_out_pcs,
+		IFNULL(in_trans.gross_wt,0) as in_trans_gwt,IFNULL(in_trans.net_wt,0) as in_trans_nwt,IFNULL(in_trans.piece,0) as in_trans_pcs,
+		
+		Date_Format(current_date(),'%d-%m-%Y') as date_add,m.metal as metal_name
+		FROM ret_taging t
+		LEFT JOIN ret_product_master p on p.pro_id=t.product_id
+		LEFT JOIN branch b on b.id_branch=t.current_branch
+		left join ret_category c on c.id_ret_category=p.cat_id
+		left join metal m on m.id_metal=c.id_metal
+		LEFT JOIN (SELECT s.id_product as product_id,s.closing_gwt as gross_wt,s.closing_nwt as net_wt,s.closing_pcs as piece,s.date
+        FROM ret_stock_balance s
+        LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+        left join ret_category c on c.id_ret_category=p.cat_id 
+		left join metal m on m.id_metal=c.id_metal 
+        WHERE s.id_product is NOT null AND date(s.date)='$op_date'
+        ".($data['id_branch']!='' ? " and s.id_branch=".$data['id_branch']."" :'')."
+        ".($data['id_metal']!='' && $data['id_metal']!='0' ? " and m.id_metal=".$data['id_metal']."" :'')."
+        ".($data['id_category']!='' && $data['id_category']!='0' ? " and c.id_ret_category=".$data['id_category']."" :'')."
+        GROUP by s.id_product) blc on blc.product_id=t.product_id
+		
+		LEFT JOIN (SELECT tag.tag_id,tag.product_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece
+        FROM ret_taging tag
+        LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id and l.to_branch=".$data['id_branch']." and l.status=0
+        LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+        WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt') And l.status=0
+        ".($data['id_branch']!='' ? " and l.to_branch=".$data['id_branch']."" :'')."
+        GROUP by tag.product_id) INW on INW.product_id=t.product_id
+		
+		LEFT JOIN (SELECT b.tag_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece,b.product_id
+		FROM ret_taging tag
+		LEFT JOIN ret_bill_details b on b.tag_id=tag.tag_id
+		lEFT JOIN ret_billing bill on bill.bill_id=b.bill_id
+		LEFT JOIN ret_product_master prod on prod.pro_id=b.product_id
+		WHERE  bill.bill_status=1 and date(bill.bill_date) BETWEEN '$FromDt' AND '$ToDt'  AND b.product_id=prod.pro_id
+		".($data['id_branch']!='' ? " and bill.id_branch=".$data['id_branch']." and tag.current_branch=".$data['id_branch']."" :'')." 
+		GROUP by b.product_id) s ON s.product_id=t.product_id
+		
+		LEFT JOIN (
+		SELECT tag.tag_id,tag.product_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece
+        FROM ret_taging tag
+        LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id and l.from_branch=".$data['id_branch']." and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=7 or l.status=8 or l.status=9 or l.status=10)
+        LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+        WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt')  and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=7 or l.status=8 or l.status=9 or l.status=10)
+        ".($data['id_branch']!='' ? " and l.from_branch=".$data['id_branch']."" :'')."
+        GROUP by tag.product_id
+		) br_out on br_out.product_id=t.product_id
+		
+        LEFT JOIN (
+        SELECT t.tag_id,t.product_id,sum(t.piece) as piece,SUM(t.gross_wt) as gross_wt,sum(t.net_wt) as net_wt,p.product_name
+        FROM ret_taging_status_log l
+        LEFT JOIN ret_taging t ON t.tag_id=l.tag_id
+        LEFT JOIN ret_product_master p ON p.pro_id=t.product_id
+        WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt') and t.tag_status=4
+        ".($data['id_branch']!='' ? " and l.to_branch=".$data['id_branch']."" :'')."
+        GROUP by t.product_id
+        ) in_trans on in_trans.product_id=t.product_id
+		
+		
+		where t.tag_id is not null  
+		".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')." 
+		".($data['id_metal']!='' && $data['id_metal']!='0' ? " and m.id_metal=".$data['id_metal']."" :'')."
+		".($data['id_category']!='' && $data['id_category']!='0' ? " and c.id_ret_category=".$data['id_category']."" :'')." 
+	
+		GROUP by t.product_id order by c.sort,p.pro_id ASC");
+		}
+	    //print_r($this->db->last_query());exit;
+    	$result = $data->result_array();
+    		foreach($result as $r){
+				$stock_detail[$r['metal_name']][$r['category_name']][] = $r; 
+			}
+    	return $stock_detail;
+    }
+    
+    
+    //Tag Scan
+    
+     function stock_checking($data)
+    {
+    	$stock_detail = array();
+    	$sql='';
+    	if($data['dt_range'] != ''){
+			$dateRange = explode('-',$data['dt_range']); 
+			$d1 = date_create($dateRange[0]);
+			$d2 = date_create($dateRange[1]);
+			$FromDt = date_format($d1,"Y-m-d"); 
+			$ToDt = date_format($d2,"Y-m-d"); 
+		}
+		$date=date("Y-m-d");
+		if(($FromDt!=$date) && ($ToDt!=$date))
+		{
+			$data = $this->db->query("SELECT b.name as branch_name,p.product_name,
+				s.op_blc_pcs,s.op_blc_gwt,s.op_blc_nwt,s.inw_pcs,s.inw_gwt,s.inw_nwt,
+				s.sold_pcs,s.sold_gwt,s.sold_nwt,s.closing_pcs,s.closing_gwt,s.closing_nwt,
+				Date_Format(s.date,'%d-%m-%Y') as date_add
+				From ret_stock_balance s 
+				LEFT JOIN ret_product_master p on p.pro_id=s.id_product
+				lEFT JOIN branch b on b.id_branch=s.id_branch
+				where date(s.date) BETWEEN '$FromDt' AND '$ToDt'
+				".($data['id_branch']!='' ? " and s.id_branch=".$data['id_branch']."" :'')."
+				".($data['id_product']!='' ? " and s.id_product=".$data['id_product']."" :'')."
+				");
+		}
+		else{
+		$op_date= date('Y-m-d',(strtotime('-1 day',strtotime($FromDt))));
+		$data = $this->db->query("SELECT t.product_id,p.product_name,b.name as branch_name,IFNULL(blc.gross_wt,0) as op_blc_gwt,IFNULL(blc.net_wt,0) as op_blc_nwt,IFNULL(blc.piece,0) as op_blc_pcs,
+		IFNULL(INW.gross_wt,0) as inw_gwt,IFNULL(INW.net_wt,0) as inw_nwt,IFNULL(INW.piece,0) as inw_pcs,
+		IFNULL(s.gross_wt,0) as sold_gwt,IFNULL(s.net_wt,0) as sold_nwt,IFNULL(s.piece,0) as sold_pcs,
+		IFNULL(br_out.gross_wt,0) as br_out_gwt,IFNULL(br_out.net_wt,0) as br_out_nwt,IFNULL(br_out.piece,0) as br_out_pcs,
+		Date_Format(current_date(),'%d-%m-%Y') as date_add
+		FROM ret_taging t
+		LEFT JOIN ret_product_master p on p.pro_id=t.product_id
+		LEFT JOIN branch b on b.id_branch=t.current_branch
+		
+		LEFT JOIN (SELECT s.id_product as product_id,s.closing_gwt as gross_wt,s.closing_nwt as net_wt,s.closing_pcs as piece,s.date
+        FROM ret_stock_balance_new s
+        LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+        WHERE s.id_product is NOT null AND date(s.date)='$op_date'
+        ".($data['id_branch']!='' ? " and s.id_branch=".$data['id_branch']."" :'')."
+        GROUP by s.id_product) blc on blc.product_id=t.product_id
+		
+		LEFT JOIN (SELECT tag.tag_id,tag.product_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece
+        FROM ret_taging tag
+        LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id and l.to_branch=".$data['id_branch']." and l.status=0
+        LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+        WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt')
+        GROUP by tag.product_id) INW on INW.product_id=t.product_id
+		
+		LEFT JOIN (SELECT b.tag_id,sum(b.gross_wt) as gross_wt,SUM(b.net_wt) as net_wt,SUM(b.piece) as piece,b.product_id
+		FROM ret_taging tag
+		LEFT JOIN ret_bill_details b on b.tag_id=tag.tag_id
+		lEFT JOIN ret_billing bill on bill.bill_id=b.bill_id
+		LEFT JOIN ret_product_master prod on prod.pro_id=b.product_id
+		WHERE  bill.bill_status=1 and date(bill.bill_date) BETWEEN '$FromDt' AND '$ToDt'  AND b.product_id=prod.pro_id
+		".($data['id_branch']!='' ? " and bill.id_branch=".$data['id_branch']."" :'')."
+		GROUP by b.product_id) s ON s.product_id=t.product_id
+		
+		LEFT JOIN (
+		SELECT tag.tag_id,tag.product_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece
+        FROM ret_taging tag
+        LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id and l.from_branch=".$data['id_branch']."
+        LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+        WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt')  
+        GROUP by tag.product_id
+		) br_out on br_out.product_id=t.product_id
+		
+		
+		where t.tag_id is not null  ".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')." 
+		GROUP by t.product_id");
+		}
+		//print_r($this->db->last_query());exit;
+    	$result = $data->result_array();
+    		foreach($result as $r){
+				$stock_detail[$r['branch_name']][] = $r; 
+			}
+    	return $stock_detail;
+    }
+    
+    
+    function get_tag_scan_missing($product_id,$id_branch)
+    {
+        $sql=$this->db->query("SELECT tag.tag_id,tag.piece,tag.gross_wt,tag.net_wt
+        FROM ret_taging tag
+        WHERE tag_id not in(SELECT t.tag_id 
+        FROM ret_tag_scan s 
+        LEFT JOIN ret_tag_scanned t ON t.id_scanned=s.id_scanned
+        WHERE s.status=1 AND s.id_product=".$product_id." AND s.id_branch=".$id_branch.")
+        AND tag.tag_status=0 AND tag.product_id=".$product_id." AND tag.current_branch=".$id_branch."");
+        $items = $sql->result_array();
+        
+    	return $items;
+    }
+    
+    
+    function get_TagScannedDetails($post)
+    {
+        
+         if($_POST['dt_range'] != ''){
+            $dateRange = explode('-',$_POST['dt_range']);
+            $from = str_replace('/','-',$dateRange[0]);
+            $to = str_replace('/','-',$dateRange[1]);  
+            $d1 = date_create($from);
+            $d2 = date_create($to);
+            $FromDt = date_format($d1,"Y-m-d");
+            $ToDt = date_format($d2,"Y-m-d");
+            }
+        $id_branch=$this->input->post('id_branch');   
+        $id_product=$this->input->post('id_product');   
+        $report_type=$this->input->post('report_type');
+        if($report_type==1)
+        {
+            $scanned_items=$this->db->query("SELECT s.id_scanned,IFNULL(tag.piece,0) as piece,IFNULL(tag.gross_wt,0) as gross_wt,IFNULL(tag.net_wt,0) as net_wt,tag.product_id,
+            date_format(s.from_time,'%d-%m-%Y') as scanned_date,tag.tag_status,tag.tag_code,date_format(tag.tag_datetime,'%d-%m-%Y') as tag_date,p.product_name,
+            IFNULL(tag.old_tag_id,'') as old_tag_id
+            FROM ret_tag_scan s 
+            LEFT JOIN ret_tag_scanned t ON t.id_scanned=s.id_scanned
+            LEFT JOIN ret_taging tag ON tag.tag_id=t.tag_id
+            left JOIN ret_product_master p on p.pro_id=tag.product_id
+            WHERE t.tag_id is not null and s.status=1
+            ".($FromDt!= '' && $ToDt!='' ? ' and (date(s.from_time) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+            ".($id_branch!='' && $id_branch!=0 ? " and s.id_branch=".$id_branch."" :'')."
+            ".($id_product!='' && $id_product!=0 ? " and s.id_product=".$id_product."" :'')."");
+            $return_data=$scanned_items->result_array();
+        }
+        else
+        {
+            $sql=$this->db->query("SELECT IFNULL(tag.piece,0) as piece,IFNULL(tag.gross_wt,0) as gross_wt,IFNULL(tag.net_wt,0) as net_wt,tag.product_id,
+            tag.tag_code,date_format(tag.tag_datetime,'%d-%m-%Y') as tag_date,p.product_name,'-' as scanned_date,'-' as id_scanned,
+            IFNULL(tag.old_tag_id,'') as old_tag_id
+            FROM ret_taging tag
+            left JOIN ret_product_master p on p.pro_id=tag.product_id
+            WHERE tag_id not in(SELECT t.tag_id 
+            FROM ret_tag_scan s 
+            LEFT JOIN ret_tag_scanned t ON t.id_scanned=s.id_scanned
+            WHERE s.status=1 AND s.id_product=".$id_product." AND s.id_branch=".$id_branch.")
+            AND tag.tag_status=0 AND tag.product_id=".$id_product." AND tag.current_branch=".$id_branch."");
+            $return_data=$sql->result_array();
+        }
+        return $return_data;
+    }
+    
+    //Tag scan
+    
+   /* function get_tag_scan_missing($product_id,$id_branch)
+    {
+    	$result=array();
+    	$data=$this->db->query("SELECT t.piece,d.design_name,p.product_name,t.product_id,t.design_id,b.name as branch_name,t.gross_wt as gross_wt,t.net_wt as net_wt,t.id_branch,DATE_FORMAT(t.tag_datetime,'%d-%m-%Y') as tag_date,
+    		if(t.tag_mc_type=1,'Per Gram','Per Piece') as mc_type,t.tag_mc_value,t.retail_max_wastage_percent,t.item_rate,t.tag_id,t.tag_mc_type,
+    		IFNULL(st.st_pieces,'-') as st_pieces,IFNULL(st.st_wt,'-') as st_wt,t.sales_value,t.calculation_based_on
+			FROM ret_taging t
+			LEFT JOIN ret_tag_scanned s on s.tag_id=t.tag_id
+			left JOIN ret_product_master p on p.pro_id=t.product_id
+			LEFT JOIN ret_design_master d on d.design_no=t.design_id
+			LEFT JOIN branch b on b.id_branch=t.current_branch
+			LEFT JOIN (SELECT s.tag_id,sum(s.pieces) as st_pieces,sum(s.wt) as st_wt 
+			FROM ret_taging_stone s) st on st.tag_id=t.tag_id
+			where t.tag_status = 0   and s.tag_id IS null
+			".($id_branch!='' && $id_branch>0 ? " and t.current_branch=".$id_branch."":'')."
+			".($product_id!='' ? " and t.product_id=".$product_id."" :'')."
+			ORDER by t.tag_id DESC");
+    	//print_r($this->db->last_query());exit;
+    	$items = $data->result_array();
+    	return $items;
+    }*/
+    
+    
+    function get_product_scan_details($id_product,$id_branch)
+	{
+	    $sql=$this->db->query("SELECT s.id_branch,s.id_product,s.from_time,s.to_time,s.id_scanned	
+	    From ret_tag_scan s 
+	    where s.id_product=".$id_product." and s.status=1
+	    ".($id_branch!='' ? " and s.id_branch=".$id_branch."" :'')."");
+		if($sql->num_rows()==0)
+		{
+		    return array('status'=>1,'prod_det'=>$sql->row_array());
+		}else{
+			 return array('status'=>0,'prod_det'=>$sql->row_array());
+		}
+	}
+    
+   function get_tag_scanned_items($id_product,$id_branch)
+    {
+        $scanned_items=$this->db->query("SELECT IFNULL(SUM(tag.piece),0) as piece,IFNULL(SUM(tag.gross_wt),0) as gross_wt,IFNULL(SUM(tag.net_wt),0) as net_wt,tag.product_id
+    FROM ret_tag_scan s 
+    LEFT JOIN ret_tag_scanned t ON t.id_scanned=s.id_scanned
+    LEFT JOIN ret_taging tag ON tag.tag_id=t.tag_id
+            WHERE s.status=1  and tag.tag_status!=1
+            ".($id_branch!='' && $id_branch!=0 ? " and s.id_branch=".$id_branch."" :'')."
+            ".($id_product!='' && $id_product!=0 ? " and s.id_product=".$id_product."" :'')."
+            GROUP by tag.product_id ");
+          //print_r($this->db->last_query());exit;
+            return $scanned_items->row_array();
+    }
+    
+   function get_unscanned_details($id_product,$id_branch)
+    {
+        
+        $sql=$this->db->query("SELECT IFNULL(SUM(tag.piece),0) as tot_pcs,IFNULL(SUM(tag.gross_wt),0) as tot_gwt,IFNULL(SUM(tag.net_wt),0) as tot_nwt
+        FROM ret_taging tag
+        left JOIN ret_product_master p on p.pro_id=tag.product_id
+        WHERE tag_id not in(SELECT t.tag_id 
+        FROM ret_tag_scan s 
+        LEFT JOIN ret_tag_scanned t ON t.id_scanned=s.id_scanned
+        WHERE s.status=1 AND s.id_product=".$id_product." AND s.id_branch=".$id_branch.")
+        AND tag.tag_status=0 AND tag.product_id=".$id_product." AND tag.current_branch=".$id_branch."");
+        $return_data=$sql->result_array();
+            
+        //print_r($this->db->last_query());exit;
+        return $sql->row_array();
+    }
+    
+    function get_tag_sold_details($id_product,$id_branch)
+    {
+        $sql=$this->db->query("SELECT IFNULL(SUM(t.piece),0) as tot_pcs,IFNULL(SUM(t.gross_wt),0) as tot_gwt,IFNULL(SUM(t.net_wt),0) as tot_nwt,t.tag_id
+        FROM ret_taging t 
+        LEFT JOIN ret_tag_scanned s ON s.tag_id=t.tag_id
+        LEFT JOIN ret_tag_scan sc ON sc.id_scanned=s.id_scanned
+        WHERE sc.status=1 AND sc.id_branch=5 AND sc.id_product=135 AND t.tag_status!=0
+        ".($id_branch!='' && $id_branch!=0 ? " and sc.id_branch=".$id_branch."" :'')."
+        ".($id_product!='' && $id_product!=0 ? " and sc.id_product=".$id_product."" :'')."");
+        return $sql->row_array();
+    }
+    
+    function get_tag_scan_start($id_product,$id_branch)
+    {
+        $sql=$this->db->query("SELECT date_format(s.from_time,'%Y-%m-%d') as from_time  from ret_tag_scan s where s.status=1 and s.id_product=".$id_product." ".($id_branch!='' && $id_branch!=0 ? " and s.id_branch=".$id_branch."" :'')."");
+        //print_r($this->db->last_query());exit;
+        return $sql->row()->from_time;
+    }
+
+    function tag_scan_details($data)
+    {
+        $id_branch=$this->session->userdata('id_branch');
+    	$return_data=array();
+    	
+    	if($data['id_branch']!='' && $data['id_branch']!=0)
+    	{
+    	    $id_branch=$data['id_branch'];
+    	}
+    	
+    	$tot_items=$this->db->query("SELECT p.product_name,tag.product_id,tag.current_branch,b.name as branch_name
+        FROM ret_taging tag
+        left JOIN ret_product_master p on p.pro_id=tag.product_id
+        left join branch b on b.id_branch=tag.current_branch
+        WHERE tag.product_id is not null and tag.tag_status=0 
+        ".($id_branch!='' && $id_branch!=0 ? " and tag.current_branch=".$id_branch."" : '')."
+        ".($data['id_product']!=''  ? " and tag.product_id=".$data['id_product']."" : '')."
+        GROUP by tag.product_id order by tag.product_id");
+        
+        //print_r($this->db->last_query());exit;
+        
+        
+        $items = $tot_items->result_array();
+        foreach($items as $tag)
+        {
+            $start_date=$this->get_tag_scan_start($tag['product_id'],$id_branch);
+            
+            $op_blc_details=$this->get_opening_balance($tag['product_id'],$tag['current_branch'],$start_date);
+            
+            $inward_details=$this->get_inward_details($tag['product_id'],$tag['current_branch']);
+
+            $scanned_details=$this->get_tag_scanned_items($tag['product_id'],$id_branch);
+            
+            $unscanned_details=$this->get_unscanned_details($tag['product_id'],$id_branch);
+            
+            $sold_details=$this->get_tag_sold_details($tag['product_id'],$id_branch);
+            
+            $return_data['total_items'][]=array(
+            'product_name'          =>$tag['product_name'],
+            'branch_name'           =>$tag['branch_name'],
+            'op_pcs'                =>$op_blc_details['opening_pcs'],
+            'op_gwt'                =>$op_blc_details['gross_wt'],
+            'op_nwt'                =>$op_blc_details['nwt'],
+            'inw_pcs'               =>$inward_details['piece'],
+            'inw_gwt'               =>$inward_details['gross_wt'],
+            'inw_nwt'               =>$inward_details['net_wt'],
+            
+            'sold_pcs'	            =>$sold_details['tot_pcs'],
+            'sold_gwt'	            =>$sold_details['tot_gwt'],
+            'sold_nwt'	            =>$sold_details['tot_nwt'],
+            
+            'scanned_pcs'	        =>$scanned_details['piece'],
+            'scanned_gwt'	        =>$scanned_details['gross_wt'],
+            'scanned_nwt'	        =>$scanned_details['net_wt'],
+            
+            'unscanned_pcs'	        =>$unscanned_details['tot_pcs'],
+            'unscanned_gwt'	        =>$unscanned_details['tot_gwt'],
+            'unscanned_nwt'	        =>$unscanned_details['tot_nwt'],
+            
+            'tot_pcs'               =>($scanned_details['piece']+$sold_details['tot_pcs']+$unscanned_details['tot_pcs']),
+            'tot_gwt'               =>number_format(($scanned_details['gross_wt']+$unscanned_details['tot_gwt']+$sold_details['tot_gwt']),3,'.',''),
+            'tot_nwt'               =>number_format(($sold_details['tot_gwt']+$unscanned_details['tot_nwt']+$sold_details['tot_nwt']),3,'.',''),
+            );
+        }
+    
+    	return $return_data;
+    }
+    
+    function get_opening_balance($product_id,$id_branch,$start_date)
+    {
+        $sql=$this->db->query("SELECT s.closing_pcs as opening_pcs,s.closing_gwt as gross_wt,s.closing_nwt as nwt,s.id_product
+        FROM ret_stock_balance s 
+        where s.id_product is not null and date(s.date)='".$start_date."'
+        ".($product_id!=''  ? " and s.id_product=".$product_id."" : '')."
+        ".($id_branch!=''  ? "  and s.id_branch=".$id_branch."" : '')."
+        ORDER by s.id_ret_collection DESC LIMIT 1");
+        //print_r($this->db->last_query());exit;
+        return $sql->row_array();
+    }
+    
+    function get_inward_details($product_id,$id_branch)
+    {
+        
+        $dCData = $this->getBranchDayClosingData($id_branch);
+        
+        $sql=$this->db->query("SELECT tag.tag_id,tag.product_id,IFNULL(sum(tag.gross_wt),0) as gross_wt,IFNULL(SUM(tag.net_wt),0) as net_wt,IFNULL(SUM(tag.piece),0) as piece
+        FROM ret_taging tag
+        LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id and l.to_branch=".$id_branch." and l.status=0
+        LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+        WHERE (date(l.date) BETWEEN '".date('Y-m-d',strtotime($dCData['entry_date']))."' AND '".date('Y-m-d',strtotime($dCData['entry_date']))."') And l.status=0
+        ".($id_branch!='' ? " and l.to_branch=".$id_branch."" :'')."
+        ".($product_id!='' ? " and tag.product_id=".$product_id."" :'')."
+        GROUP by tag.product_id");
+        return $sql->row_array();
+    }
+    
+    function get_entry_records($tag_id,$old_tag_id)
+	{
+	    $code=explode("-",$tag_id);
+	    $tag_code=str_pad($code[1], 5, '0', STR_PAD_LEFT);
+	    $code=$code[0].'-'.$tag_code;
+	    
+		$sql = $this->db->query("SELECT tag.tag_id,tag.tag_code,tag.counter,
+				date_format(tag.tag_datetime,'%d-%m-%Y') as tag_datetime,tag.sell_rate,tag.item_rate,
+				tag.tag_type,tag.tag_lot_id,tag.id_lot_inward_detail,tag.design_id,
+				tag.cost_center,tag.purity,tag.size,tag.uom,tag.piece,tag.less_wt,tag.net_wt,tag.gross_wt, 
+				tag.calculation_based_on,tag.retail_max_wastage_percent,
+				tag.tag_mc_type, tag.tag_mc_value,
+				tag.retail_max_mc,halmarking,tag.sales_value,tag.image,
+				tag.current_branch, current_counter,
+				ifnull(design_code,'') as design_code ,created_by,des.design_name,b.name as branch_name,tag.tot_print_taken,p.product_name,
+				tag.product_id,tag.tag_status
+				FROM ret_taging as tag 
+				LEFT JOIN ret_design_master as des ON des.design_no = tag.design_id 
+				LEFT JOIN ret_product_master p on p.pro_id=tag.product_id
+				left join branch b on b.id_branch=tag.current_branch
+				WHERE
+				".($old_tag_id!='' ? " old_tag_id='".$old_tag_id."'" : ($tag_id!='' ? "tag_code='".$tag_id."'" :'') )."
+				and tag.tag_status=0");
+		//print_r($this->db->last_query());exit;
+		return $sql->row_array();
+	}
+	
+	function get_tagging($id_branch,$id_product)
+	{
+	    $sql=$this->db->query("SELECT tag.tag_id,tag.tag_code,tag.counter,
+				date_format(tag.tag_datetime,'%d-%m-%Y') as tag_datetime,tag.sell_rate,tag.item_rate,
+				tag.tag_type,tag.tag_lot_id,tag.id_lot_inward_detail,tag.design_id,
+				tag.cost_center,tag.purity,tag.size,tag.uom,tag.piece,tag.less_wt,tag.net_wt,tag.gross_wt, 
+				tag.calculation_based_on,tag.retail_max_wastage_percent,
+				tag.tag_mc_type, tag.tag_mc_value,
+				tag.retail_max_mc,halmarking,tag.sales_value,tag.image,
+				tag.current_branch, current_counter,
+				ifnull(design_code,'') as design_code ,des.design_name,b.name as branch_name,tag.tot_print_taken,p.product_name,
+				tag.product_id,tag.tag_status
+	    From ret_taging tag
+	    left join ret_tag_scanned s on s.tag_id=tag.tag_id
+	    left join ret_tag_scan t on t.id_scanned=s.id_scanned
+	    LEFT JOIN ret_design_master as des ON des.design_no = tag.design_id 
+		LEFT JOIN ret_product_master p on p.pro_id=tag.product_id
+		left join branch b on b.id_branch=tag.current_branch
+	    where t.status=1 
+	    ".($id_branch!='' ? " and t.id_branch=".$id_branch."":'')."
+	    ".($id_product!='' ? " and t.id_product=".$id_product."":'')."
+	    order by s.id_tag_scanned DESC");
+	    //	print_r($this->db->last_query());exit;
+		return $sql->result_array();
+	}
+
+    function get_scanned_details($tag_id,$id_branch)
+	{
+		$sql=$this->db->query("SELECT s.tag_id,s.id_branch
+			From ret_tag_scanned s
+			left join ret_tag_scan t on t.id_scanned=s.id_scanned
+			where s.tag_id=".$tag_id." and t.status=1
+			".($id_branch!='' ? " and t.id_branch=".$id_branch."" :'')."");
+			//print_r($this->db->last_query());exit;
+		if($sql->num_rows()==0)
+		{
+			return TRUE;
+		}else{
+			return FALSE;
+		}
+		
+	}
+	
+	function itemwise_sales_details($data)
+    {
+    	$result = array();
+    	
+    	
+    	if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+           }
+           
+    
+		$return_data=array();
+		$sql=$this->db->query("SELECT COUNT(b.bill_id) as tot_bills,d.product_id,p.product_name,sum(d.piece) as tot_pcs,sum(d.item_cost) as total_cost,
+		sum(d.bill_discount) as tot_bill_discount,sum(d.gross_wt) as gross_wt,sum(d.net_wt) as net_wt
+        FROM ret_bill_details d
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_design_master des on des.design_no=d.design_id
+        LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=c.id_metal
+        WHERE b.bill_status=1  
+        ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')."
+        ".($data['id_product'] != '' && $data['id_product'] >0 ? ' and d.product_id='.$data['id_product']: '')."
+        ".($data['id_category'] != '' && $data['id_category'] >0 ? ' and p.cat_id='.$data['id_category']: '')."
+        ".($data['id_metal'] != '' && $data['id_metal'] >0 ? ' and m.id_metal='.$data['id_metal']: '')."
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+        GROUP by d.product_id 
+        ORDER BY p.pro_id ASC");
+        	//print_r($this->db->last_query());exit;
+        $prod_det=$sql->result_array();
+        foreach($prod_det as $items)
+        {
+            $return_data[]=array(
+            'tot_pcs'           =>$items['tot_pcs'],
+            'total_cost'        =>$items['total_cost'],
+            'tot_bill_discount' =>$items['tot_bill_discount'],
+            'tot_bills'         =>$items['tot_bills'],
+            'product_id'        =>$items['product_id'],
+            'product_name'      =>$items['product_name'],
+            'gross_wt'          =>$items['gross_wt'],
+            'net_wt'            =>$items['net_wt'],
+            'design_details'    =>$this->design_wise_sales($items['product_id'],$FromDt,$ToDt,$data['id_branch'],$data['id_metal']),
+            );
+        }
+        
+        return $return_data;
+    }
+    
+    function design_wise_sales($product_id,$FromDt,$ToDt,$id_branch,$id_metal)
+    {
+        $data=[];
+        $sql=$this->db->query("SELECT d.product_id,p.product_name,IFNULL(d.piece,1) as tot_pcs,d.item_cost as total_cost,d.esti_item_id,est.id_sub_design,ifnull(sub.sub_design_name,'-') as sub_design_name, 
+		des.design_name,IFNULL(d.design_id,'') as design_id,IFNULL(d.gross_wt,0) as gross_wt,IFNULL(d.net_wt,0) as net_wt,tag.tag_code,bill.bill_no,bill.bill_id,
+		IFNULL(tag.style_code,'') as style_code,IFNULL(tag.cert_no,'') as cert_no,IFNULL(tag.old_tag_id,'-') as old_tag_id,br.name as branch,date_format(bill.bill_date,'%d-%m-%Y') as bill_date,
+        ifnull(stn.stn_wt,'') as less_wt,IFNULL(k.firstname,'') as karigar,bill.sales_ref_no,m.metal_code,
+        DATEDIFF(date(bill_date),date(tag_datetime)) AS age
+        FROM ret_bill_details d
+        LEFT JOIN ret_taging tag on tag.tag_id=d.tag_id
+        LEFT JOIN ret_lot_inwards lt on lt.lot_no=tag.tag_lot_id
+        LEFT JOIN ret_karigar k ON k.id_karigar=lt.gold_smith 
+        LEFT JOIN ret_billing bill ON bill.bill_id=d.bill_id
+        LEFT JOIN ret_estimation_items est ON est.est_item_id=d.esti_item_id
+        LEFT JOIN ret_sub_design_master sub ON sub.id_sub_design=tag.id_sub_design
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT JOIN ret_design_master des ON des.design_no=tag.design_id
+        LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=c.id_metal
+        LEFT JOIN branch br on br.id_branch=bill.id_branch
+        LEFT JOIN (SELECT IFNULL(SUM(bill_stn.wt),0) as stn_wt,dt.bill_det_id
+                    FROM ret_billing_item_stones bill_stn
+                    LEFT JOIN ret_bill_details dt on dt.bill_det_id = bill_stn.bill_det_id
+                    LEFT JOIN ret_billing b on b.bill_id=dt.bill_id
+                    LEFT JOIN ret_stone s ON s.stone_id=bill_stn.stone_id
+                    LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+                    WHERE b.bill_status=1 AND uom.uom_short_code='CT'
+                    ".($id_branch != '' && $id_branch >0 ? ' and b.id_branch='.$id_branch: '')."
+                    ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+                    group by b.bill_id) as stn on stn.bill_det_id=d.bill_det_id
+        
+         WHERE bill.bill_status=1 
+        ".($id_metal != '' && $id_metal >0 ? ' and m.id_metal='.$id_metal: '')."
+        ".($id_branch != '' && $id_branch >0 ? ' and bill.id_branch='.$id_branch: '')."
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(bill.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+        AND d.product_id=".$product_id."
+        ORDER BY tag.design_id,est.id_sub_design");
+       //print_r($this->db->last_query());exit;
+       $des_items=$sql->result_array();
+       foreach($des_items as $items)
+       {
+            $data[]=$items;
+       }
+       return $data;
+    }
+    
+    
+    function design_wise_bill_det($design_id,$FromDt,$ToDt,$id_branch,$product_id)
+    {
+        $sql=$this->db->query("SELECT b.bill_no,date_format(b.bill_date,'%d-%m-%Y') as bill_date,d.item_cost,d.item_total_tax,d.gross_wt,d.net_wt,d.piece,c.firstname as cus_name,c.mobile,
+        d.bill_discount,t.tag_code,b.bill_id
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_taging t on t.tag_id=d.tag_id
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        WHERE b.bill_status=1 
+        ".($design_id!='' || $design_id!=null ? " and d.design_id=".$design_id."" :'')."
+        ".($id_branch != '' && $id_branch >0 ? ' and b.id_branch='.$id_branch: '')."
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." ");
+      // print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+	
+	function itemwise_sales($data)
+    {
+    	$result = array();
+    	
+    	if($data['dt_range'] != ''){
+			$dateRange = explode('-',$data['dt_range']); 
+			$d1 = date_create($dateRange[0]);
+			$d2 = date_create($dateRange[1]);
+			$FromDt = date_format($d1,"Y-d-m"); 
+			$ToDt = date_format($d2,"Y-d-m"); 
+		}
+		
+		$data = $this->db->query(" 
+						SELECT 
+							c.mobile,c.firstname as cus_name,br.name as branch_name,b.bill_no,date_format(b.bill_date,'%d-%m-%Y') as bill_date,if(b.bill_type = 1,'Sales',if(b.bill_type = 2,'Sales&Purchase',if(b.bill_type = 3,'Sales&Return',if(b.bill_type = 4,'Purchase',if(b.bill_type = 5,'Order Advance',if(b.bill_type = 6,'Advance',if(b.bill_type = 7,'Sales Return',''))))))) as bill_type,det.item_cost,det.bill_discount,det.product_name,det.design_name,det.net_wt,det.product_id,det.design_id,b.id_branch,det.piece,det.gross_wt,'' as tax,
+							det.status
+						From ret_billing b
+							LEFT JOIN
+							(
+								SELECT 
+									piece,bill_det_id,bill_id,item_type,is_non_tag,tag_id,order_no,d.product_id,d.design_id,
+									ifnull(design_name, '') as design_name,ifnull(product_name, '') as product_name,
+									ifnull(d.gross_wt,0.000) as gross_wt,ifnull(d.net_wt,0.000) as net_wt,ifnull(d.less_wt,0.000) as less_wt,
+									if(d.status = 1,'Sold',if(d.status = 2,'Returned','')) as status,bill_discount,item_cost
+								FROM `ret_bill_details` d
+									LEFT JOIN ret_product_master as pro ON pro.pro_id = d.product_id
+									LEFT JOIN ret_design_master as des ON des.design_no = d.design_id
+								WHERE d.product_id IS NOT NULL AND d.product_id!='' AND d.status = 1 
+							) det on det.bill_id=b.bill_id 
+							LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+							LEFT JOIN branch br on br.id_branch=b.id_branch
+			    		WHERE det.product_id IS NOT NULL AND det.product_id!='' AND b.bill_type <= 3 AND b.bill_status = 1 AND b.tot_discount > 0 AND tot_discount IS NOT NULL".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')."   ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." ".($data['id_product'] != '' && $data['id_product'] >0 ? ' and det.product_id='.$data['id_product']: '')." ORDER BY b.id_branch");   
+		$bill_data = $data->result_array();
+		$branchwiseProd = array();
+		// Group by branch a product
+		foreach($bill_data as $r){ 
+			if(isset($branchwiseProd[$r['id_branch']][$r['product_id']])){
+				$prodData = $branchwiseProd[$r['id_branch']][$r['product_id']];
+				// Already having design array
+				if(isset($prodData['designs'][$r['design_id']])){ 
+					// Update Design Array
+					$branchwiseProd[$r['id_branch']][$r['product_id']]['designs'][$r['design_id']]['piece'] = $prodData['designs'][$r['design_id']]['piece'] + $r['piece']; 
+					$branchwiseProd[$r['id_branch']][$r['product_id']]['designs'][$r['design_id']]['no_of_bills'] = $prodData['designs'][$r['design_id']]['no_of_bills'] + 1;  
+					$branchwiseProd[$r['id_branch']][$r['product_id']]['designs'][$r['design_id']]['item_discount'] = $prodData['designs'][$r['design_id']]['item_discount'] + $r['bill_discount'];  
+					$branchwiseProd[$r['id_branch']][$r['product_id']]['designs'][$r['design_id']]['item_cost'] = $prodData['designs'][$r['design_id']]['item_cost'] + $r['item_cost'];
+				}
+				else{
+					$item = array(
+						  	"design_name"	=> $r['design_name'],
+						  	"id_design"		=> $r['design_id'],
+						  	"piece"			=> $r['piece'],
+						  	"no_of_bills"	=> 1,
+						  	"item_discount"	=> $r['bill_discount'],
+						  	"item_cost"		=> $r['item_cost'],
+						  );
+					$branchwiseProd[$r['id_branch']][$r['product_id']]['designs'][$r['design_id']] = $item;
+					$branchwiseProd[$r['id_branch']][$r['product_id']]['sold_items'] = $prodData['sold_items']+1;
+					$branchwiseProd[$r['id_branch']][$r['product_id']]['no_of_bills'] = $prodData['no_of_bills']+1; 
+				} 
+				$bill = array(
+					  	"cus_name"		=> $r['cus_name'],
+					  	"mobile"		=> $r['mobile'],
+					  	"bill_no"		=> $r['bill_no'],
+					  	"bill_date"		=> $r['bill_date'],
+					  	"bill_discount"	=> $r['bill_discount'],
+					  	"item_cost"		=> $r['item_cost'],
+					  	"net_wt"		=> $r['net_wt'],
+					  	"gross_wt"		=> $r['gross_wt'],
+					  	"tax"			=> $r['tax'],
+					  ); 
+				// Update Bills Array  
+				$branchwiseProd[$r['id_branch']][$r['product_id']]['bills'][$r['design_id']][] = $bill; 
+				// Update Parent Array  
+				$branchwiseProd[$r['id_branch']][$r['product_id']]['no_of_bills'] = $prodData['no_of_bills']+1;
+				$branchwiseProd[$r['id_branch']][$r['product_id']]['discount'] = $prodData['discount']+$r['bill_discount'];
+				$branchwiseProd[$r['id_branch']][$r['product_id']]['amount'] = $prodData['amount']+$r['item_cost'];
+			}else{
+				$item = array(
+						  	"design_name"	=> $r['design_name'],
+						  	"id_design"		=> $r['design_id'],
+						  	"piece"			=> $r['piece'],
+						  	"no_of_bills"	=> 1,
+						  	"item_discount"	=> $r['bill_discount'],
+						  	"item_cost"		=> $r['item_cost'],
+						  );
+				$bill = array(
+						  	"cus_name"		=> $r['cus_name'],
+						  	"mobile"		=> $r['mobile'],
+						  	"bill_no"		=> $r['bill_no'],
+						  	"bill_date"		=> $r['bill_date'],
+						  	"bill_discount"	=> $r['bill_discount'],
+						  	"item_cost"		=> $r['item_cost'],
+						  	"net_wt"		=> $r['net_wt'],
+						  	"gross_wt"		=> $r['gross_wt'],
+						  	"tax"			=> $r['tax'],
+						  );
+				$branchwiseProd[$r['id_branch']][$r['product_id']] = array(
+																	"branch_name"	=> $r['branch_name'], 
+																	"product_name"	=> $r['product_name'],
+																	"id_product"	=> $r['product_id'],
+																	"sold_items"	=> 1,
+																	"no_of_bills"	=> 1,
+																	"discount"		=> $r['bill_discount'],
+																	"amount"		=> $r['item_cost'],
+																	"designs"		=> array($r['design_id'] => $item),
+																	"bills"			=> array($r['design_id'] =>  array($bill)),
+																);
+			} 
+		}  
+		// create return array with child row data 
+		/*echo $this->db->last_query();
+		 echo "<pre>";print_r($branchwiseProd);  exit;*/
+		foreach($branchwiseProd as $branchProd){
+			foreach($branchProd as $prod){
+				$result[] = $prod;
+			} 
+		} 
+    	return $result;
+    }
+    
+    //bill wise transcation
+	 function getBillingDetails($post)
+	{
+
+		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+					
+		$data=array();
+		$items_query = $this->db->query("SELECT b.bill_type,b.bill_cus_id,b.pan_no,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,
+		b.bill_id,if(b.bill_type=12,k.firstname,concat(c.mobile,'-',c.firstname)) as cus_name,b.id_branch,b.tot_bill_amount,
+		date_format(b.credit_due_date,'%d-%m-%y') as credit_due_date,b.is_credit,b.ref_bill_id as ref_bill_id,b.print_taken,b.remark,IFNULL(b.tot_discount,0) as tot_discount,a.id_state as cus_state,c.firstname as customer_name,c.mobile,
+		br.name as branch_name,b.tot_amt_received,round_off_amt,IFNULL(v.village_name,'') as village_name,IFNULL(b.handling_charges,0) as handling_charges,
+		IFNULL(ret.ret_item_cost,0) as tot_ret_amt,IFNULL(g.gift_voucher_amt,0) as gift_voucher_amt,IFNULL(chit.utilized_amt,0) as utilized_amt,
+		IFNULL((ord_adj.received_amount+ord_adj.weight_amt),0) as order_adj_amt,IFNULL(adv_adj.adj_amt,0) as adv_adj_amt,IFNULL(b.advance_deposit,0) as advance_deposit
+		FROM ret_billing b
+		LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+		LEFT JOIN ret_karigar k on k.id_karigar=b.bill_cus_id
+		LEFT JOIN address a on a.id_customer=c.id_customer
+		LEFT JOIN state s on s.id_state=a.id_state
+		LEFT JOIN branch br on br.id_branch=b.id_branch
+		LEFT JOIN village v on v.id_village=c.id_village
+        LEFT JOIN (SELECT SUM(bill_items.item_cost) as ret_item_cost,bill.bill_id
+        FROM ret_billing bill
+        LEFT JOIN ret_bill_return_details d on d.bill_id=bill.bill_id
+        LEFT JOIN ret_bill_details as bill_items ON bill_items.bill_det_id = d.ret_bill_det_id
+        group by bill.bill_id
+        ) as ret ON ret.bill_id=b.bill_id
+        
+        LEFT JOIN (SELECT SUM(d.gift_voucher_amt) as gift_voucher_amt,d.bill_id,b.bill_no
+            FROM ret_billing_gift_voucher_details d
+            LEFT JOIN ret_billing b on b.bill_id=d.bill_id
+            group by b.bill_id
+        ) as g ON g.bill_id=b.bill_id
+        
+         LEFT JOIN(SELECT chit.bill_chit_ut_id,chit.bill_id,chit.scheme_account_id,SUM(utilized_amt) as utilized_amt
+            FROM ret_billing_chit_utilization chit
+            LEFT JOIN ret_billing b on b.bill_id=chit.bill_id
+            group by b.bill_id
+        ) as chit ON chit.bill_id=b.bill_id
+        
+        LEFT JOIN(SELECT sum(a.received_amount) as received_amount,sum(a.received_weight*a.rate_per_gram) as weight_amt,b.bill_id
+        FROM ret_billing b
+        LEFT JOIN ret_billing_advance a ON a.adjusted_bill_id=b.bill_id
+        WHERE a.is_adavnce_adjusted=1
+        group by b.bill_id) as ord_adj on ord_adj.bill_id=b.bill_id
+        
+        LEFT JOIN(SELECT IFNULL(sum(r.amount),0) as adj_amt,bill.bill_id
+			FROM ret_billing bill
+			LEFT JOIN ret_wallet_transcation r on r.bill_no=bill.bill_id
+			where r.bill_no is not null
+			and bill.bill_status=1  and r.transaction_type=1 group by bill.bill_id) as adv_adj ON adv_adj.bill_id=b.bill_id
+        
+		where b.bill_status=1 ".($post['dt_range'] != '' ? 'and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+		".($post['id_branch']!='' && $post['id_branch']>0 ? " and b.id_branch=".$post['id_branch']."" :'')."
+		".($post['id_counter']!='' && $post['id_counter']>0 ? " and b.counter_id=".$post['id_counter']."" :'')."
+		".($post['id_village']!='' && $post['id_village']!=null ? " and v.id_village=".$post['id_village']."" :'')."
+		order by b.bill_id DESC");
+		$bill_details=$items_query->result_array();
+		//print_r($this->db->last_query());exit;
+		foreach($bill_details as $bill)
+		{
+			$data[$bill['bill_no']]= array(
+			'bill_date'	        =>$bill['bill_date'],
+			'bill_no'	        =>$bill['bill_no'],
+			'is_credit'	        =>$bill['is_credit'],
+			'customer_name'	    =>$bill['cus_name'],
+			'mobile'	        =>$bill['mobile'],
+			'handling_charges'	=>$bill['handling_charges'],
+			'village_name'	    =>$bill['village_name'],
+			'tot_ret_amt'	    =>$bill['tot_ret_amt'],
+			'gift_voucher_amt'	=>$bill['gift_voucher_amt'],
+			'order_adj_amt'	    =>$bill['order_adj_amt'],
+			'adv_adj_amt'	    =>$bill['adv_adj_amt'],
+			'utilized_amt'	    =>$bill['utilized_amt'],
+			'advance_deposit'	=>$bill['advance_deposit'],
+			'due_amt'	        =>$bill['tot_bill_amount']-$bill['tot_amt_received'],
+			'sale_details'      =>$this->get_salesDetails($bill['bill_id'],$bill['bill_type']),
+			'old_sales_details' =>$this->getOld_sales_details($bill['bill_id'],$bill['bill_type']),
+			'pay_details'       =>$this->get_payment_details($bill['bill_id']),
+			//'bill_wise_details'  =>$this->bill_wise_details($bill['bill_id']),
+			);
+		}
+		return $data;
+	}
+	function get_salesDetails($bill_id,$bill_type)
+	{
+		if($bill_type!=5)
+		{
+			$items_query = $this->db->query("SELECT b.bill_no,d.bill_det_id,IFNULL(d.esti_item_id,'') as  esti_item_id,
+			ifnull(d.product_id, '') as product_id, ifnull(tag.tag_code, '') as tag_id,
+			ifnull(d.design_id, '') as design_id, ifnull(pro.hsn_code,'') as hsn_code,
+			d.purity as purid,d.size, ifnull(d.uom,'') as uom,d.piece,
+			ifnull(d.less_wt,'') as less_wt, d.net_wt, d.gross_wt,
+			d.calculation_based_on, d.wastage_percent, d.mc_value, d.mc_type,
+			d.item_cost, ifnull(pro.product_short_code, '-') as product_short_code,
+			ifnull(pro.product_name, '-') as product_name,ifnull(des.design_code, '-') as design_code,ifnull(des.design_name, '') as design_name,ifnull(des.fixed_rate,0) as fixed_rate,
+			d.is_non_tag,d.id_lot_inward_detail,
+			d.order_no,d.bill_discount,d.item_total_tax,b.bill_id,IFNULL(d.total_cgst,0) as total_cgst,IFNULL(d.total_sgst,0) as total_sgst,IFNULL(d.total_igst,0) as total_igst
+			From ret_billing b
+			Left JOIN ret_bill_details d on d.bill_id=b.bill_id
+			LEft JOIN ret_taging tag on tag.tag_id=d.tag_id
+			LEFT JOIN ret_product_master as pro ON pro.pro_id = d.product_id
+			LEFT JOIN ret_design_master as des ON des.design_no = d.design_id
+			WHERE b.bill_status=1 and d.bill_id=".$bill_id."");
+		//echo $this->db->last_query();exit;
+		}
+		else if($bill_type==5)
+		{
+			$items_query = $this->db->query("SELECT 
+			ifnull(pro.product_name, '-') as product_name,b.bill_no,b.bill_type,b.tot_amt_received as advance_amt,cus.order_no,b.tot_bill_amount
+			From ret_billing b
+			Left JOIN ret_billing_advance d on d.bill_id=b.bill_id
+			LEFT JOIN customerorder cus on cus.order_no=d.order_no
+			LEFT JOIN customerorderdetails cus_order on cus_order.id_customerorder=cus.id_customerorder
+			LEFT JOIN ret_product_master as pro ON pro.pro_id = cus_order.id_product
+			LEFT JOIN ret_category c on c.id_ret_category = pro.cat_id
+			LEFT JOIN metal mt on mt.id_metal=c.id_metal
+			LEFT JOIN ret_design_master as des ON des.design_no = cus_order.design_no
+			LEFT JOIN ret_purity as pur ON pur.id_purity = cus_order.id_purity
+			LEFT JOIN ret_taxgroupmaster as txgrp ON txgrp.tgrp_id = mt.tgrp_id
+			WHERE b.bill_status=1 and b.bill_id=".$bill_id." GROUP by d.order_no");
+			//echo $this->db->last_query();exit;
+		}
+		
+		$item_details= $items_query->result_array();
+		return $item_details;
+	}
+	function getOld_sales_details($bill_id,$bill_type)
+	{
+		$old_metal_query=$this->db->query("SELECT s.old_metal_sale_id,s.bill_id,s.purpose,s.metal_type,s.item_type,s.gross_wt,s.stone_wt,s.dust_wt,s.stone_wt,s.wastage_percent,s.wast_wt,
+		s.net_wt,s.rate_per_grm as rate_per_gram,s.rate as amount,s.bill_id,s.bill_discount,est_id,b.bill_no,b.pur_ref_no
+		FROM ret_billing b 
+		LEFT join  ret_bill_old_metal_sale_details s on s.bill_id=b.bill_id
+		where b.bill_status=1 and s.bill_id=".$bill_id."");
+		//print_r($this->db->last_query());exit;
+		$old_matel_details = $old_metal_query->result_array();
+		return $old_matel_details;
+	}
+
+	function get_payment_details($bill_id)
+	{
+		$pay_details = $this->db->query("SELECT p.id_billing_payment,p.type,p.bill_id,p.payment_for,p.payment_amount,p.card_no,p.cvv,p.payment_mode
+		FROM ret_billing_payment p
+		where p.bill_id=".$bill_id."");
+		$return_data = $pay_details->result_array();
+		return $return_data;
+	} 
+
+	
+	function bill_wise_details($bill_id)
+	{
+        $bill_wise_details=$this->db->query("SELECT b.bill_id,IFNULL(ret.ret_item_cost,0) as tot_ret_amt,IFNULL(g.gift_voucher_amt,0) as gift_voucher_amt,
+        IFNULL(chit.utilized_amt,0) as utilized_amt,b.handling_charges,b.round_off_amt,IFNULL((received_amount+weight_amt),0) as order_adj_amt,IFNULL(adv_adj.adj_amt,0) as adv_adj_amt
+        FROM ret_billing b
+        LEFT JOIN (SELECT SUM(bill_items.item_cost) as ret_item_cost,bill.bill_id
+            FROM ret_billing bill
+            LEFT JOIN ret_bill_return_details d on d.bill_id=bill.bill_id
+            LEFT JOIN ret_bill_details as bill_items ON bill_items.bill_det_id = d.ret_bill_det_id
+            group by bill.bill_id
+        ) as ret ON ret.bill_id=b.bill_id
+        LEFT JOIN (SELECT SUM(d.gift_voucher_amt) as gift_voucher_amt,d.bill_id,b.bill_no
+            FROM ret_billing_gift_voucher_details d
+            LEFT JOIN ret_billing b on b.bill_id=d.bill_id
+            group by b.bill_id
+        ) as g ON g.bill_id=b.bill_id
+        LEFT JOIN(SELECT chit.bill_chit_ut_id,chit.bill_id,chit.scheme_account_id,SUM(utilized_amt) as utilized_amt
+            FROM ret_billing_chit_utilization chit
+            LEFT JOIN ret_billing b on b.bill_id=chit.bill_id
+            group by b.bill_id
+        ) as chit ON chit.bill_id=b.bill_id
+        LEFT JOIN(SELECT sum(a.received_amount) as received_amount,sum(a.received_weight*a.rate_per_gram) as weight_amt,b.bill_id
+        FROM ret_billing b
+        LEFT JOIN ret_billing_advance a ON a.adjusted_bill_id=b.bill_id
+        WHERE a.is_adavnce_adjusted=1
+        group by b.bill_id) as ord_adj on ord_adj.bill_id=b.bill_id
+        
+        LEFT JOIN(SELECT IFNULL(sum(r.amount),0) as adj_amt,bill.bill_id
+			FROM ret_billing bill
+			LEFT JOIN ret_wallet_transcation r on r.bill_no=bill.bill_id
+			where r.bill_no is not null
+			and bill.bill_status=1  and r.transaction_type=1 group by bill.bill_id) as adv_adj ON adv_adj.bill_id=b.bill_id
+        WHERE b.bill_status=1 AND b.bill_id=".$bill_id."");
+        //print_r($this->db->last_query());exit;
+        return $bill_wise_details->row_array();
+	}
+	
+	//bill wise transcation
+	
+	function getOtherIssueList($filter){
+		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+		$tag = array();
+		$sql_tg = $this->db->query("SELECT t.tag_code as tag_id,
+									fb.name as from_branch,tb.name as to_branch,
+									IFNULL(t.gross_wt,0) as gross_wt,
+									IFNULL(t.net_wt,0) as net_wt,
+									IFNULL(t.piece,0) as piece,
+									if( product_short_code = '' or product_short_code is null ,product_name ,CONCAT(product_short_code ,' - ',product_name) ) as product
+								FROM `ret_branch_transfer` bt
+									Left join ret_brch_transfer_tag_items bti on bti.transfer_id = bt.branch_transfer_id
+									Left join ret_taging t on t.tag_id = bti.tag_id
+									Left join ret_lot_inwards_detail ld on ld.lot_no=t.tag_lot_id
+									Left join ret_lot_inwards l on ld.lot_no = l.lot_no
+									Left join ret_product_master p on p.pro_id = t.product_id			
+									Left join ret_design_master d on d.design_no = t.design_id			
+									Left join branch fb on fb.id_branch = bt.transfer_from_branch			
+									Left join branch tb on tb.id_branch = bt.transfer_to_branch	
+								WHERE is_other_issue=1 AND t.tag_status = 3  and transfer_item_type =1 AND (date(bt.created_time) BETWEEN '".$FromDt."' AND '".$ToDt."')". 
+								($filter['id_branch'] > 0 && $filter['id_branch'] != '' ? ' AND bt.transfer_from_branch ='.$filter['id_branch'] :'')." 
+								".($filter['id_product']!='' ? " and t.product_id=".$filter['id_product']."" :'')."
+								GROUP BY bti.tag_id"
+								);
+		    //print_r($this->db->last_query());exit;
+		$tag = $sql_tg->result_array();	
+		// Non Tag
+		$non_tag = array();				
+		$result_1 = array(); 
+		$sql_lt = $this->db->query("SELECT 
+				fb.name as from_branch,tb.name as to_branch,l.`lot_no`,
+				IFNULL(bt.grs_wt,0) as gross_wt,
+				IFNULL(bt.net_wt,0) as net_wt,
+				IFNULL(bt.pieces,0) as piece,
+				if( product_short_code = '' or product_short_code is null ,product_name ,CONCAT(product_short_code ,' - ',product_name) ) as product,
+				is_other_issue
+			FROM `ret_branch_transfer` bt
+				Left join ret_lot_inwards_detail ld on ld.id_lot_inward_detail=bt.id_lot_inward_detail
+				Left join ret_lot_inwards l on l.lot_no = ld.lot_no
+				Left join ret_product_master p on p.pro_id = ld.lot_product 			
+				Left join branch fb on fb.id_branch = bt.transfer_from_branch			
+				Left join branch tb on tb.id_branch = bt.transfer_to_branch			
+		 	WHERE bt.id_lot_inward_detail is not null AND bt.id_lot_inward_detail > 0 AND status = 2 and  transfer_item_type =2 ".($filter['id_branch'] != '' ? ' and transfer_from_branch='.$filter['id_branch']: '')." ".($filter['id_product'] != '' ? ' and lot_product='.$filter['id_product']: '')." ".($filter['dt_range'] != '' ? ' and date(bt.created_time) BETWEEN '.$FromDt.' AND '.$ToDt: '')." group by bt.branch_transfer_id" ); 
+		 $result_1 = $sql_lt->result_array();
+		 
+		$result_2 = array(); 
+		$sql_nt = $this->db->query("SELECT 
+			fb.name as from_branch,tb.name as to_branch,
+			IFNULL(bt.grs_wt,0) as gross_wt,
+			IFNULL(bt.net_wt,0) as net_wt,
+			IFNULL(bt.pieces,0) as piece,
+			if( product_short_code = '' or product_short_code is null ,product_name ,CONCAT(product_short_code ,' - ',product_name) ) as product,
+			is_other_issue
+		FROM `ret_branch_transfer` bt
+			Left join ret_nontag_item nt on nt.id_nontag_item = bt.id_nontag_item
+			Left join ret_product_master p on p.pro_id = nt.product		
+			Left join branch fb on fb.id_branch = bt.transfer_from_branch			
+			Left join branch tb on tb.id_branch = bt.transfer_to_branch			
+		WHERE bt.id_nontag_item is not null AND bt.id_nontag_item > 0 AND status = 2 and  transfer_item_type =2 ".($filter['id_branch'] != '' ? ' and transfer_from_branch='.$filter['id_branch']: '')." ".($filter['id_product'] != '' ? ' and product='.$filter['id_product']: '')." ".($filter['dt_range'] != '' ? ' and date(bt.created_time) BETWEEN '.$FromDt.' AND '.$ToDt: '')." group by bt.branch_transfer_id"); 
+		$result_2 = $sql_nt->result_array();
+		$non_tag = array_merge($result_1, $result_2);
+		
+		return array_merge($tag, $non_tag);
+	}
+	
+	//Home Bill
+	function get_home_bill_details($post)
+	{
+		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+		$sql=$this->db->query("SELECT ifnull(pro.product_name, '-') as product_name,
+			des.design_name,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,
+			d.piece as piece,d.gross_wt as gross_wt,d.net_wt as net_wt,
+			d.item_total_tax as item_total_tax,d.item_cost as item_cost,br.name as branch_name,IFNULL(st.st_price,0) as st_price,IFNULL(d.tag_id,'') as tag_id
+			FROM ret_billing b
+			LEFT JOIN ret_bill_details d on d.bill_id=b.bill_id
+			LEFT JOIN ret_estimation_items e on e.est_item_id=d.esti_item_id
+			LEFT JOIN ret_product_master as pro ON pro.pro_id = d.product_id
+			LEFT JOIN ret_design_master as des ON des.design_no = d.design_id
+			LEFT JOIN branch br on br.id_branch=b.id_branch
+			LEFT JOIN (select bill.bill_id,sum(s.price) as st_price
+			From ret_billing bill
+			LEFT JOIN ret_billing_item_stones s on s.bill_id=bill.bill_id) as st on st.bill_id=b.bill_id
+			WHERE b.bill_status=1 and e.item_type=2 ".($post['dt_range'] != '' ? 'and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+			".($post['id_branch']!='' && $post['id_branch']>0 ? " and b.id_branch=".$post['id_branch']."" :'')."");
+		//print_r($this->db->last_query());exit;
+		$item_details= $sql->result_array();
+
+		return $item_details;
+	}
+	//Home Bill
+	
+	function get_order_advance($post)
+	{
+	    	if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+			
+		$sql=$this->db->query("SELECT SUM(a.advance_amount) as advance_amount,SUM(a.advance_weight) as advance_weight,a.rate_per_gram,
+        a.order_no,a.bill_id,c.firstname as cus_name,br.name as branch_name,c.mobile,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date
+        FROM ret_billing b 
+        LEFT JOIN ret_billing_advance a on a.bill_id=b.bill_id
+        LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        WHERE b.bill_status=1 AND a.bill_id IS NOT null
+        ".($post['dt_range'] != '' ? 'and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+		".($post['id_branch']!='' && $post['id_branch']>0 ? " and b.id_branch=".$post['id_branch']."" :'')."
+        GROUP BY a.bill_id");
+        $item_details= $sql->result_array();
+		return $item_details;
+	}
+	
+	function get_est_details($post)
+	{
+     
+	    $return_data=array();
+	    	if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        $multiple_id_product = implode(' , ', $post['id_product']);
+		if($multiple_id_product != '')
+		{
+			$id_product = $multiple_id_product;
+		}else{
+			$id_product = $post['id_product'];
+		}
+			
+	    $sql=$this->db->query("SELECT COUNT(est.est_item_id) as tot_est,emp.firstname as emp_name,e.created_by,br.name as branch_name,
+	    SUM(d.item_cost) as tot_bill_amount,count(d.piece) as piece,sum(d.gross_wt) as gross_wt,sum(d.net_wt) as net_wt,IFNULL(SUM(d.less_wt),0) as less_wt,emp.emp_code,
+	    IFNULL(stn.stn_wt,0) as dia_wt
+        FROM ret_estimation e
+        LEFT JOIN ret_estimation_items  est on est.esti_id=e.estimation_id
+        LEFT JOIN ret_bill_details d on d.bill_det_id=est.bil_detail_id
+        LEFT JOIN ret_product_master p on p.pro_id=d.product_id
+        LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=c.id_metal
+        LEFT JOIN employee emp ON emp.id_employee=e.created_by
+        LEFT JOIN branch br on br.id_branch=e.id_branch
+        LEFT JOIN ret_taging tag on tag.tag_id=d.tag_id
+        
+            
+        LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,e.created_by
+        FROM ret_billing_item_stones st
+        LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+        LEFT JOIN ret_billing b ON b.bill_id=dt.bill_id
+        LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+        LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+        LEFT JOIN ret_estimation_items  est on est.est_item_id=dt.esti_item_id
+        LEFT JOIN ret_estimation e ON e.estimation_id=est.esti_id
+        WHERE b.bill_status=1 AND uom.uom_short_code='CT'
+       ".($post['dt_range'] != '' ? 'and date(e.estimation_datetime) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($post['id_branch']!='' && $post['id_branch']>0 ? " and e.id_branch=".$post['id_branch']."" :'')."
+        GROUP by e.created_by)  as stn ON stn.created_by=e.created_by
+                     
+        WHERE purchase_status=1
+        ".($post['dt_range'] != '' ? 'and date(e.estimation_datetime) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+		".($post['id_branch']!='' && $post['id_branch']>0 ? " and e.id_branch=".$post['id_branch']."" :'')."
+		".($post['id_ret_category']!='' && $post['id_ret_category']>0 ? " and p.cat_id=".$post['id_ret_category']."" :'')."
+		".($post['id_metal']!='' && $post['id_metal']>0 ? " and c.id_metal=".$post['id_metal']."" :'')."
+		".($id_product!='' && $id_product !='0' ? " and p.pro_id in (".$id_product.") " :'' )."	
+        GROUP BY e.created_by");
+        //print_r($this->db->last_query());exit;
+        $item_details= $sql->result_array();
+        foreach($item_details as $items)
+		{
+			$return_data[]= array(
+			    'tot_bill_amount'=> $items['tot_bill_amount'],
+			    'emp_code'      => $items['emp_code'],
+			    'branch_name'  => $items['branch_name'],
+			    'tot_est'      => $items['tot_est'],
+                'piece'        => $items['piece'],
+                'gross_wt'     => $items['gross_wt'],
+                'less_wt'      => $items['less_wt'],
+                'net_wt'       => $items['net_wt'],
+                'dia_wt'       => $items['dia_wt'],
+			    'emp_name'     => $items['emp_name'],
+			    'created_by'   => $items['created_by'],
+			    'bill_details' => $this->get_sale_details($items['created_by'],$FromDt,$ToDt,$post['id_branch'],$post['id_ret_category'],$id_product,$post['id_metal']),
+			);
+		}
+        //print_r($return_data);exit;
+		return $return_data;
+	}
+	
+	function get_sale_details($id_emp,$FromDt,$ToDt,$id_branch,$id_ret_category,$id_product,$id_metal)
+	{
+	   
+	    $sql=$this->db->query("SELECT sum(d.item_cost) as item_cost,d.esti_item_id,p.product_name,sum(d.piece) as piece,sum(d.gross_wt) as gross_wt,IFNULL(des.design_name,'') as design_name,e.esti_no
+        FROM ret_estimation e
+        LEFT JOIN ret_estimation_items est on est.esti_id=e.estimation_id
+        LEFT JOIN ret_bill_details d on d.bill_det_id=est.bil_detail_id
+        LEFT JOIN ret_product_master p on p.pro_id=d.product_id
+        LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=c.id_metal
+        LEFT JOIN ret_design_master des on des.design_no=d.design_id
+        WHERE est.purchase_status=1  AND e.created_by=".$id_emp."
+        ".($FromDt != '' && $ToDt!=''? 'and date(e.estimation_datetime) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_branch!='' && $id_branch>0 ? " and e.id_branch=".$id_branch."" :'')."
+        ".($id_metal!='' && $id_metal>0 ? " and c.id_metal=".$id_metal."" :'')."
+        ".($id_ret_category!='' && $id_ret_category>0 ? " and p.cat_id=".$id_ret_category."" :'')."
+       ".($id_product!='' && $id_product !='0' ? " and p.pro_id in (".$id_product.") " :'' )."	
+        GROUP BY d.product_id");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+	}
+	
+	function get_gift_voucher_details($post)
+	{
+        $this->checkGiftExpire();
+		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+					
+		$return_data=array();
+		if($post['report_type']==1)
+		{
+    		$sql = $this->db->query("SELECT g.id_gift_card,if(g.gift_for=1,e.firstname,c.firstname) as owned_by,g.code,g.amount,b.name as branch_name,date_format(g.date_add,'%d-%m-%Y') as date,
+    		g.status,if(g.status=0,'Pending',if(g.status=3,'Expired',if(g.status=5,'Cancel',if(g.status=2,'Redeemed','')))) as gift_status
+            FROM gift_card g
+            LEFT JOIN customer c ON c.id_customer=g.purchased_by
+            LEFT JOIN employee e ON e.id_employee=g.purchased_by
+            LEFT JOIN branch b on b.id_branch=g.id_branch
+            WHERE g.id_gift_card IS NOT NULL
+    		".($post['dt_range'] != '' ? 'and date(g.date_add) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+    		".($post['id_branch']!='' && $post['id_branch']>0 ? " and g.id_branch=".$post['id_branch']."" :'')."
+    		order by g.id_gift_card DESC");
+    		$gift_details=$sql->result_array();
+    		foreach($gift_details as $gift)
+    		{
+    		    $return_data[]=array(
+    		                    'id_gift_card'  =>$gift['id_gift_card'],
+    		                    'owned_by'      =>$gift['owned_by'],
+    		                    'code'          =>$gift['code'],
+    		                    'amount'        =>$gift['amount'],
+    		                    'branch_name'   =>$gift['branch_name'],
+    		                    'date'          =>$gift['date'],
+    		                    'status'        =>$gift['status'],
+    		                    'gift_status'   =>$gift['gift_status'],
+    		                 );
+    		}
+    	
+	    }
+	    else
+	    {
+	        $sql = $this->db->query("SELECT d.gift_voucher_amt,d.bill_id,if(g.gift_for=1,e.firstname,c.firstname) as owned_by,
+	        br.name as branch_name,date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_no,g.code,b.bill_id
+	        FROM ret_billing_gift_voucher_details d
+	        LEFT JOIN ret_billing b on b.bill_id=d.bill_id
+	        LEFT JOIN gift_card g on g.id_gift_card=d.voucher_no
+	        LEFT JOIN customer c ON c.id_customer=g.purchased_by
+            LEFT JOIN employee e ON e.id_employee=g.purchased_by
+            LEFT JOIN branch br on br.id_branch=b.id_branch
+            where b.bill_status=1
+            ".($post['dt_range'] != '' ? 'and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+    		".($post['id_branch']!='' && $post['id_branch']>0 ? " and b.id_branch=".$post['id_branch']."" :'')."
+            ");
+            //print_r($this->db->last_query());exit;
+    		$return_data=$sql->result_array();
+    		
+	    }
+		return $return_data;
+	}
+	
+	function checkGiftExpire()
+	{
+	        $from_date = strtotime(date("Y-m-d")); 
+	        $sql = $this->db->query("SELECT g.id_gift_card,if(g.gift_for=1,e.firstname,c.firstname) as owned_by,g.code,g.amount,b.name as branch_name,date_format(g.date_add,'%d-%m-%Y') as date,
+    		g.status,if(g.status=0,'Pending',if(g.status=3,'Expired',if(g.status=5,'Cancel',''))) as gift_status,date_format(g.valid_to,'%Y-%m-%d') as valid_to
+            FROM gift_card g
+            LEFT JOIN customer c ON c.id_customer=g.purchased_by
+            LEFT JOIN employee e ON e.id_employee=g.purchased_by
+            LEFT JOIN branch b on b.id_branch=g.id_branch
+            WHERE g.status=0 order by g.id_gift_card DESC");
+    		$gift_details=$sql->result_array();
+    		foreach($gift_details as $items)
+    		{
+    		     $to_date = strtotime($items['valid_to']);
+    		      if($from_date>$to_date)
+    		      {
+    		          $data['status']=3;
+    		          $this->updateData($data,'id_gift_card',$items['id_gift_card'],'gift_card');
+    		      }
+    		}
+	}
+	
+	function order_status_message()
+	{
+	    $sql=$this->db->query("select * from order_status_message");
+	    return $sql->result_array();
+	}
+	
+		function order_status($data)
+	{
+	    
+	    /*if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        */
+        $FromDt     =$this->input->post('from_date');
+		$ToDt     =$this->input->post('to_date');
+			
+	    $sql=$this->db->query("SELECT cus.firstname as cus_name,cus.mobile,c.order_no,b.name as branch_name,od.weight,od.wast_percent,od.mc,od.totalitems,od.size,p.product_name,d.design_name,m.order_status,
+	    date_format(c.order_date,'%d-%m-%Y') as order_date,k.firstname as karigar_name,bill_det.tag_id,IFNULL(bill.bill_no,'') as bill_no,bill.bill_id,j.id_vendor,m.color,
+	    date_format(od.delivered_date,'%d-%m-%Y') as delivered_date,if(c.order_for=2,'Customer Order','Stock Order') as order_type,
+	    IFNULL(purord.pur_no,'') as pur_no,c.id_customerorder,
+	    date_format(purOrdDet.smith_due_date,'%d-%m-%Y') as smith_due_date,date_format(od.cus_due_date,'%d-%m-%Y') as cus_due_date,
+	    IFNULL(s.sub_design_name,'') as sub_design_name,IFNULL(purord.id_customerorder,'') as purord_id,IFNULL(tag.tag_code,'') as tag_code
+        FROM customerorderdetails od
+        LEFT JOIN customerorder c ON c.id_customerorder=od.id_customerorder
+        LEFT JOIN customerorder purord on purord.cus_ord_ref=c.id_customerorder
+        LEFT JOIN customerorderdetails purOrdDet ON purOrdDet.id_customerorder=purord.id_customerorder
+        LEFT JOIN joborder j ON j.id_order=od.id_orderdetails
+        LEFT JOIN ret_karigar k on k.id_karigar=purord.id_karigar
+        LEFT JOIN ret_product_master p ON p.pro_id=od.id_product
+        LEFT JOIN ret_design_master d ON d.design_no=od.design_no
+        LEFT JOIN ret_sub_design_master s ON s.id_sub_design=od.id_sub_design 
+        LEFT JOIN customer cus ON cus.id_customer=c.order_to
+        LEFT JOIN branch b ON b.id_branch=c.order_from
+        LEFT JOIN order_status_message m ON m.id_order_msg=od.orderstatus
+        LEFT JOIN ret_taging tag on tag.id_orderdetails=od.id_orderdetails
+        LEFT JOIN ret_bill_details bill_det on bill_det.tag_id=tag.tag_id
+        LEFT JOIN ret_billing bill on bill.bill_id=bill_det.bill_id
+        where c.order_type=2
+        ".($data['filter_by']==1 ? " and date(c.order_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."' " : ($data['filter_by']==2 ? "date(od.delivered_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."' " : ($data['filter_by']==3 ?   "date(od.cus_due_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."' "  : ($data['filter_by']==4 ? "date(od.smith_due_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."' " : ($data['filter_by']==7 ?   "date(od.deliverydate) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."' "  :($data['filter_by']==5 ? 'date(od.cus_due_date)<'."'date('Y-m-d',strtotime($FromDt))'" :($data['filter_by']==6 ? "date(od.smith_due_date)<'".date('Y-m-d',strtotime($FromDt))."'"  :''))) )  ) ) )."
+        ".($data['id_branch']!='' && $data['id_branch']>0 ? " and c.order_from=".$data['id_branch']."" :'')."
+        ".($data['orderstatus']!=''  ? ($data['filter_by']==3 || $data['filter_by']==5 ? " and od.orderstatus<=".$data['orderstatus']."" : " and od.orderstatus=".$data['orderstatus']."" ) :'')."
+        GROUP BY od.id_orderdetails
+        order by c.id_customerorder DESC
+        ");
+       // print_r($this->db->last_query());exit;
+        return $sql->result_array();
+	}
+	
+	function get_village()
+    {
+		$sql="Select *From village";
+		return $data = $this->db->query($sql)->result_array();			
+	}
+	
+	
+	//Tag Movement History
+	
+	function getTaggingBySearch($SearchTxt)
+    {
+        $data = $this->db->query("SELECT tag.tag_id as value,tag.tag_code as label
+        FROM ret_taging as tag
+        where tag.tag_id LIKE '%".$SearchTxt."%' ");
+        //print_r($this->db->last_query());exit;
+        return $data->result_array();
+    }
+	
+	function get_tag_history($data)
+	{
+	    $tag_data=array();
+	    $sql=$this->db->query("SELECT tag.tag_status as status,tag.tag_id,IFNULL(tag.gross_wt,0) as gross_wt,tag.tag_code,date_format(tag.tag_datetime,'%d-%m-%Y') as tag_date,IFNULL(tag.net_wt,0) as net_wt,
+        IF(tag.tag_status=0,'On Sale',if(tag.tag_status=1,'Sold Out',IF(tag.tag_status=2,'Deleted',IF(tag.tag_status=3,'Other Issue',if(tag.tag_status=4,'In Transit',if(tag.tag_status=5,'Deleted For Stock',if(tag.tag_status=6,'Sales Return',if(tag.tag_status=7,'Stock Issue For Marketing',' - ')))))))) as tag_status,
+        e.firstname as emp_name,IFNULL(tag.old_tag_id,'') as old_tag_id,p.product_name,des.design_name,subDes.sub_design_name,tag.piece,IFNULL(k.firstname,'') as supplier_name
+        FROM ret_taging tag
+        LEFT JOIN employee e on e.id_employee=tag.created_by
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT JOIN ret_design_master des ON des.design_no=tag.design_id
+        LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=tag.id_sub_design
+        LEFT JOIN ret_lot_inwards i ON i.lot_no=tag.tag_lot_id
+        LEFT JOIN ret_karigar k ON k.id_karigar=i.gold_smith
+        where ".($data['tag_id']!='' ? " tag_code='".$data['tag_id']."'" : ($data['old_tag_id']!='' ? "old_tag_id='".$data['old_tag_id']."'" :'') )." ");
+        //print_r($this->db->last_query());exit;
+        $data=$sql->result_array();
+        foreach($data as $items) 
+        {
+            $tag_data[]=array(
+                                'gross_wt'=>$items['gross_wt'],
+                                'tag_code'=>$items['tag_code'],
+                                'tag_date'=>$items['tag_date'],
+                                'net_wt'  =>$items['net_wt'],
+                                'tag_id'  =>$items['tag_id'],
+                                'piece'  =>$items['piece'],
+                                'old_tag_id' =>$items['old_tag_id'],
+                                'tag_status'=>$items['tag_status'],
+                                'status'    =>$items['status'],
+                                'emp_name'   =>$items['emp_name'],
+                                'product_name' =>$items['product_name'],
+                                'design_name' =>$items['design_name'],
+                                'sub_design_name' =>$items['sub_design_name'],
+                                'supplier_name' =>$items['supplier_name'],
+                                'tag_history'=>$this->get_tag_det($items['tag_id']),
+                                'est_details'=>$this->getTagEstDetails($items['tag_id'])
+                             );
+        }
+        return $tag_data;
+	}
+	
+	function get_tag_det($tag_id)
+	{
+	    $sql=$this->db->query("SELECT l.tag_id,IFNULL(b.name,'') as from_branch,IFNULL(br.name,'') as to_branch,date_format(l.date,'%d-%m-%Y') as date,
+        IF(l.status=0,'Stock Inward',if(l.status=1,'Sold Out',IF(l.status=2,'Deleted',IF(l.status=3,'Other Issue',if(l.status=4,'In Transit',IF(l.status=5,'Deleted For Stock','Bill Cancelled')))))) as tag_status
+        FROM ret_taging_status_log l
+        LEFT JOIN branch b ON b.id_branch=l.from_branch
+        LEFT JOIN branch br ON br.id_branch=l.to_branch
+        where l.tag_id=".$tag_id." and l.status!=1");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+	}
+	
+	function getTagEstDetails($tag_id)
+	{
+	    $sql=$this->db->query("SELECT est.est_item_id,e.estimation_id,e.esti_no,date_format(e.estimation_datetime,'%d-%m-%Y') as date_add,IFNULL(bill.bill_no,'') as bill_no,IFNULL(bill.bill_id,'') as bill_id
+        FROM ret_estimation_items est 
+        LEFT JOIN ret_estimation e ON e.estimation_id=est.esti_id
+        LEFT JOIN (
+        SELECT d.tag_id,b.bill_no,b.bill_id,d.esti_item_id
+        From ret_bill_details d 
+        left join ret_billing b on b.bill_id=d.bill_id
+        left join ret_estimation_items est on est.est_item_id=d.esti_item_id
+        where d.esti_item_id is not null) as bill on bill.esti_item_id=est.est_item_id
+        WHERE est.tag_id=".$tag_id."");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+	}
+    
+	//Tag Movement History
+	
+	
+	//Monthly sales  report
+	function monthly_sales($data)
+	{
+	    $return_data=array();
+	    if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+	    $sql=$this->db->query("select b.id_branch,b.name from branch b");
+        $items=$sql->result_array();
+        //print_r($this->db->last_query());exit;
+        foreach($items as $item)
+        {
+            $gold_sales=$this->get_sales_details_metal($item['id_branch'],1,$FromDt,$ToDt);
+            $silver_sales=$this->get_sales_details_metal($item['id_branch'],2,$FromDt,$ToDt);
+            $return_data[]=array(
+                                'starting_bill'     =>$this->get_min_bill($item['id_branch'],$FromDt,$ToDt),
+                                'ending_bill'       =>$this->get_max_bill($item['id_branch'],$FromDt,$ToDt),
+                                'gold_sales'        =>$gold_sales['sale_wt'].'/'.$gold_sales['sale_amount'],
+                                'silver_sales'      =>$silver_sales['sale_wt'].'/'.$silver_sales['sale_amount'],
+                                'pur_starting_bill' =>$this->get_pur_min_bill($item['id_branch'],$FromDt,$ToDt),
+                                'pur_ending_bill'   =>$this->get_pur_max_bill($item['id_branch'],$FromDt,$ToDt),
+                                'branch_name'       =>$item['name'],
+                                );
+        }
+	    return $return_data;
+	}
+	
+	function get_sales_details_metal($id_branch,$id_metal,$FromDt,$ToDt)
+	{
+	    $sql=$this->db->query("SELECT IFNULL(SUM(d.net_wt),0) as sale_wt,IFNULL(SUM(d.item_cost),0) as sale_amount
+        FROM ret_billing b
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=c.id_metal
+        LEFT JOIN branch  br ON br.id_branch=b.id_branch
+        WHERE m.id_metal is not null AND b.bill_status=1 AND m.id_metal=".$id_metal." 
+        ".($id_branch!='' && $id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."
+        ".($FromDt != '' ? 'and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ");
+        return $sql->row_array();;
+	}
+	
+	
+	function get_pur_min_bill($id_branch,$FromDt,$ToDt)
+	{
+	   $sql=$this->db->query("SELECT b.pur_ref_no
+        FROM ret_billing b
+        WHERE b.pur_ref_no IS NOT NULL AND b.pur_ref_no!=''
+        ".($id_branch!='' && $id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."
+        ".($FromDt != '' ? 'and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ORDER by b.bill_id ASC LIMIT 1");
+        return $sql->row()->pur_ref_no;
+	}
+    
+    function get_pur_max_bill($id_branch,$FromDt,$ToDt)
+	{
+	    
+	    $sql=$this->db->query("SELECT b.pur_ref_no
+        FROM ret_billing b
+        Where b.pur_ref_no IS NOT NULL AND b.pur_ref_no!=''
+        ".($FromDt != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_branch!='' && $id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."
+         ORDER by b.bill_id DESC LIMIT 1");
+        return $sql->row()->pur_ref_no;
+        
+	}
+	
+	function get_max_bill($id_branch,$FromDt,$ToDt)
+	{
+	    $sql=$this->db->query("SELECT b.sales_ref_no
+        FROM ret_billing b
+        Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!=''
+        ".($FromDt != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_branch!='' && $id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."
+         ORDER by b.bill_id DESC LIMIT 1");
+        return $sql->row()->sales_ref_no;
+	}
+	
+	function get_min_bill($id_branch,$FromDt,$ToDt)
+	{
+	    $sql=$this->db->query("SELECT b.sales_ref_no
+        FROM ret_billing b
+        Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' 
+        ".($FromDt != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_branch!='' && $id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."
+        ORDER by b.bill_id ASC LIMIT 1");
+        return $sql->row()->sales_ref_no;
+	}
+
+	//Monthly sales  report
+	
+	
+	//old metal analyse
+    function get_old_metal_type()
+    {
+        $sql=$this->db->query("SELECT * FROM ret_old_metal_type");
+        return $sql->result_array();
+    }
+    
+    	
+	function getOldMetalAnalyse($data){
+		$old_matel_detail = array();
+		if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        $metal_type=explode(",",$data['old_metal_type']);
+        if(sizeof($metal_type)>1)
+        {
+            $id_old_metal=str_replace(","," or d.id_old_metal_type =",$data['old_metal_type']);
+            $old_metal_type=" and (d.id_old_metal_type=".$id_old_metal.")";
+        }
+        else
+        {
+            $old_metal_type=" and d.id_old_metal_type=".$data['old_metal_type'];
+        }
+        
+        $branches=explode(",",$data['id_branch']);
+        if(sizeof($branches)>1)
+        {
+            $branch_filter=str_replace(","," or bill.id_branch =",$data['id_branch']);
+            $id_branch=" and (bill.id_branch=".$branch_filter.")";
+        }
+        else
+        {
+            $id_branch=" and bill.id_branch=".$data['id_branch'];
+        }
+
+        //print_r($old_metal_type);exit;
+		$old_matel_query = $this->db->query("SELECT   
+						   concat(c.firstname,' ',if(c.lastname!=NULL,c.lastname,'')) as customer,
+						   bill_no,bill_old.gross_wt, 
+						   ifnull(bill_old.dust_wt,0.000) as dust_wt,ifnull(bill_old.stone_wt,0.000) as stone_wt,
+						   (ifnull(bill_old.gross_wt,0.000) - ifnull(bill_old.stone_wt,0.000) - ifnull(bill_old.dust_wt,0.000)) as pure_wt,
+						   ifnull(bill_old.wast_wt,0.000) as wast_wt,
+						   ifnull(bill_old.net_wt,0.000) as net_wt,
+						   round((ifnull(bill_old.dust_wt,0.000) - ifnull(bill_old.stone_wt,0.000)),3) as less_wt,
+                           if(d.item_type = 1, 'Ornament', if(d.item_type = 2, 'Coin', if(d.item_type = 3, 'Bar',''))) as receiveditem,if(bill_old.metal_type =1,'Gold','Silver') as metal_type,
+						   bill_old.stone_wt, bill_old.dust_wt,d.wastage_percent,DATE_FORMAT(bill_date,'%d-%m-%Y') as bill_date,
+						   rate_per_grm, rate, 
+						   '' as purity, if(bill_old.purpose=1,'Sale','Purchase' ) as purpose,
+						   b.name as branch,d.est_id,emp.firstname as emp_name,e.esti_no,bill.bill_id,t.metal_type as old_metal_type_name,t.id_metal_type as old_metal_type,
+						   IFNULL(bill_old.old_metal_rate,0) as goldrate_24ct
+						   FROM ret_bill_old_metal_sale_details as bill_old 
+							LEFT JOIN ret_billing as bill ON bill.bill_id = bill_old.bill_id 
+							LEFT JOIN ret_estimation_old_metal_sale_details d on d.old_metal_sale_id=bill_old.esti_old_metal_sale_id
+							LEFT JOIN ret_old_metal_type t on t.id_metal_type=d.id_old_metal_type
+							LEFT JOIN customer c ON c.id_customer = bill.bill_cus_id 
+							LEFT JOIN branch as b ON b.id_branch = bill.id_branch 
+							left join ret_estimation e on e.estimation_id=d.est_id
+							left join employee emp on emp.id_employee=e.created_by
+						    WHERE bill.bill_id is not null and bill.bill_status=1 
+						   ".($data['id_branch'] != '' && $data['id_branch'] >0 ? $id_branch : '')." 
+						   ".($data['metal'] != '' && $data['metal']>0 ? ' and bill_old.metal_type ='.$data['metal']: '')." 
+						   ".($data['old_metal_type'] != '' ? "$old_metal_type" : '')." 
+						   ".($data['dt_range'] != '' ? ' and date(bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')." ORDER BY metal_type,bill_old.bill_id"); 
+		//print_r($this->db->last_query());exit;
+		$result = $old_matel_query->result_array();
+		foreach($result as $r){
+			$old_matel_detail['item_details'][$r['old_metal_type_name']][] = $r; 
+		}
+		$old_matel_detail['metal_rate']=$this->get_metal_rates();
+		return $old_matel_detail;
+	}
+	
+	function get_metal_rates()
+	{
+	    $sql=$this->db->query("SELECT * FROM metal_rates ORDER by id_metalrates DESC LIMIT 1");
+	    return $sql->row_array();
+	}
+	
+    //old metal analyse
+    
+    
+    //Village wise sales
+    
+    function getActiveZone($id_branch)
+    {
+        $sql=$this->db->query("SELECT * from village_zone ".($id_branch!='' ? " where id_branch=".$id_branch."" :'')."");
+        return $sql->result_array();
+    }
+    
+    
+    
+    
+    
+    function get_design_wise_sales_details($data,$from_weight,$to_weight)
+    {
+        $sql=$this->db->query("SELECT IFNULL(p.product_name,'') as product_name,IFNULL(SUM(d.piece),0) as total_pcs,IFNULL(SUM(d.gross_wt),0) as total_gwt,IFNULL(SUM(d.net_wt),0) as total_nwt,IFNULL(SUM(d.item_cost),0) as total_cost,IFNULL(v.village_name,'') as village_name, v.id_village,
+        d.product_id,des.design_name
+        FROM village v 
+        LEFT JOIN customer c ON c.id_village=v.id_village
+        LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id 
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_design_master des ON des.design_no=d.design_id
+        WHERE b.bill_status=1 and d.product_id is not null 
+        AND d.net_wt BETWEEN ".$from_weight." AND ".$to_weight."
+         ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ".($data['id_product']!='' ? " and d.product_id=".$data['id_product']."" :'')."
+         ".($data['id_village']!='' ? " and c.id_village=".$data['id_village']."" :'')."
+         ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+        GROUP by d.design_id 
+        ORDER by p.pro_id");
+        //print_r($this->db->last_query());exit;
+        $result= $sql->result_array();
+        return $result;
+    }
+    
+    
+    function cusSalesDetails($id_village,$FromDt,$ToDt)
+    {
+        $return_data=array();
+        
+
+        $sql=$this->db->query("SELECT c.firstname as cus_name,c.mobile,c.id_village,v.village_name,br.name as branch_name,IFNULL(z.name,'') as zone_name,
+        IFNULL(s.item_cost,0) as item_cost,g.gold,s.silver,IFNULL(g.tot_gross_wt,0) as sales_gold_gwt,IFNULL(s.tot_gross_wt,0) as sales_silver_gwt,
+        IFNULL(old.total_gwt,0) as old_gold_wt,IFNULL(old_s.total_gwt,0) as old_silver_wt,IFNULL(ret_g.total_gwt,0) as return_gold,IFNULL(ret_s.total_gwt,0) as return_silver,
+        IFNULL(mrp.item_cost,0) as mrp_cost
+        FROM ret_billing b
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT join village v on v.id_village=c.id_village
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        LEFT JOIN village_zone z on z.id_zone=v.id_zone
+        
+        LEFT join(SELECT c.id_village,b.bill_cus_id,sum(d.gross_wt) as tot_gross_wt,(d.item_cost) as item_cost,v.village_name,m.metal as gold
+        FROM ret_billing b
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=cat.id_metal
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN village v ON v.id_village=c.id_village
+        WHERE d.bill_det_id is NOT null and m.id_metal=1 and b.bill_status=1 and b.bill_id is not null
+        ".($FromDt != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+        group by b.bill_cus_id) as g ON g.bill_cus_id=b.bill_cus_id
+        
+        LEFT join(SELECT c.id_village,b.bill_cus_id,sum(d.item_cost) as item_cost,sum(d.gross_wt) as tot_gross_wt,v.village_name,m.metal as silver
+        FROM ret_billing b
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=cat.id_metal
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN village v ON v.id_village=c.id_village
+        WHERE d.bill_det_id is NOT null and m.id_metal=2 and b.bill_status=1 and b.bill_id is not null
+        ".($FromDt != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+        group by b.bill_cus_id) as s ON s.bill_cus_id=b.bill_cus_id
+        
+        LEFT JOIN(SELECT b.bill_cus_id,sum(s.gross_wt) as total_gwt,m.metal,c.id_village
+        FROM ret_billing b
+        LEFT JOIN ret_bill_old_metal_sale_details s ON s.bill_id=b.bill_id
+        LEFT JOIN metal m ON m.id_metal=s.metal_type
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN village v ON v.id_village=c.id_village
+        WHERE s.metal_type=1 AND s.old_metal_sale_id is not null and b.bill_status=1 and b.bill_id is not null
+        ".($FromDt != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+        group by b.bill_cus_id) as old on old.bill_cus_id=b.bill_cus_id
+        
+        LEFT JOIN(SELECT b.bill_cus_id,sum(s.gross_wt) as total_gwt,m.metal,c.id_village
+        FROM ret_billing b
+        LEFT JOIN ret_bill_old_metal_sale_details s ON s.bill_id=b.bill_id
+        LEFT JOIN metal m ON m.id_metal=s.metal_type
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN village v ON v.id_village=c.id_village
+        WHERE s.metal_type=2 AND s.old_metal_sale_id is not null and b.bill_status=1 and b.bill_id is not null
+        ".($FromDt != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+        group by b.bill_cus_id) as old_s on old_s.bill_cus_id=b.bill_cus_id
+        
+        
+        LEFT JOIN(SELECT b.bill_cus_id,SUM(d.gross_wt) as total_gwt,m.metal,c.id_village
+        FROM ret_billing b
+        LEFT JOIN ret_bill_return_details r ON r.bill_id=b.bill_id
+        LEFT JOIN ret_bill_details d on d.bill_det_id=r.ret_bill_det_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=cat.id_metal
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN village v ON v.id_village=c.id_village
+        WHERE m.id_metal=1 and b.bill_cus_id IS not null and d.status=2
+        ".($data['dt_range'] != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+        group by b.bill_cus_id) as ret_g on ret_g.bill_cus_id=b.bill_cus_id
+        
+        LEFT JOIN(SELECT b.bill_cus_id,SUM(d.gross_wt) as total_gwt,m.metal,c.id_village
+        FROM ret_billing b
+        LEFT JOIN ret_bill_return_details r ON r.bill_id=b.bill_id
+        LEFT JOIN ret_bill_details d on d.bill_det_id=r.ret_bill_det_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=cat.id_metal
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN village v ON v.id_village=c.id_village
+        WHERE m.id_metal=2 and b.bill_cus_id IS not null and d.status=2
+        ".($data['dt_range'] != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+        group by b.bill_cus_id) as ret_s on ret_s.bill_cus_id=b.bill_cus_id
+        
+        LEFT join(SELECT c.id_village,b.bill_cus_id,sum(d.gross_wt) as tot_gross_wt,SUM(d.item_cost) as item_cost,v.village_name,m.metal as gold
+        FROM ret_billing b
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=cat.id_metal
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN village v ON v.id_village=c.id_village
+        WHERE d.bill_det_id is NOT null and p.sales_mode=1 and b.bill_status=1
+        ".($data['dt_range'] != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+       ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+        group by b.bill_cus_id) as mrp ON mrp.bill_cus_id=b.bill_cus_id
+        
+        
+          
+        WHERE b.bill_cus_id IS not null and b.bill_status=1 and b.bill_id is not null
+        ".($FromDt != '' ? ' and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')."
+        group by b.bill_cus_id");
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+		return $result;
+    }
+    
+    
+    function get_scheme_account($data)
+    {
+        
+        if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        $sql=$this->db->query("SELECT c.id_customer,c.firstname as cus_name,c.mobile,IFNULL(v.village_name,'') as village_name,IFNULL(br.name,'') as branch_name,IFNULL(z.name,'') as zone_name,IFNULL(s.tot_acc,0) as tot_acc,IFNULL(bill.tot_bill,0) as tot_bill,IFNULL(act.active_acc,0) as active_acc,IFNULL(closed.closed_acc,0) as closed_acc
+        FROM customer c 
+        LEFT JOIN village v ON v.id_village=c.id_village 
+        LEFT JOIN village_zone z ON z.id_zone=v.id_zone 
+        LEFT JOIN branch br ON br.id_branch=c.id_branch 
+        LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+        LEFT JOIN(SELECT sa.id_customer,COUNT(sa.id_scheme_account) as tot_acc FROM scheme_account sa LEFT JOIN customer c ON c.id_customer=sa.id_customer GROUP by sa.id_customer) as s ON s.id_customer=c.id_customer
+        LEFT JOIN(SELECT sa.id_customer,COUNT(sa.id_scheme_account) as active_acc FROM scheme_account sa LEFT JOIN customer c ON c.id_customer=sa.id_customer where sa.active=1 GROUP by sa.id_customer) as act ON act.id_customer=c.id_customer
+        LEFT JOIN(SELECT sa.id_customer,COUNT(sa.id_scheme_account) as closed_acc FROM scheme_account sa LEFT JOIN customer c ON c.id_customer=sa.id_customer where sa.active=0 and sa.is_closed=1 GROUP by sa.id_customer) as closed ON closed.id_customer=c.id_customer
+        LEFT JOIN (SELECT b.bill_cus_id,COUNT(b.bill_cus_id) as tot_bill FROM ret_billing b LEFT JOIN customer c ON c.id_customer=b.bill_cus_id GROUP by b.bill_cus_id) as bill ON bill.bill_cus_id=c.id_customer
+        where c.id_customer is not null
+        ".($data['dt_range'] != '' ? ' and date(c.date_add) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($data['id_branch'] != '' && $data['id_branch'] >0 ? " and c.id_branch=".$data['id_branch']."" : '')." 
+        ".($data['id_village'] != '' && $data['id_village'] >0 ? " and c.id_village=".$data['id_village']."" : '')." 
+        ".($data['id_zone'] != '' && $data['id_zone'] >0 ? " and z.id_zone=".$data['id_zone']."" : '')."
+        Group by c.id_customer");
+        $result = $sql->result_array();
+		//print_r($this->db->last_query());exit;
+		return $result;
+    }
+    //Village wise sales
+    
+    
+    //Customer History
+    function get_customer_details($mobile)
+    {
+        $accounts=$this->db->query("select s.id_scheme_account,IFNULL(s.scheme_acc_number,'Not Allocated') as scheme_acc_number,s.account_name,DATE_FORMAT(s.start_date,'%d-%m-%Y') as start_date,
+        sc.scheme_name,sc.code,if(sc.scheme_type=0,'Amount',if(sc.scheme_type=1,'Weight',if(sc.scheme_type=3,'FLEXIBLE_AMOUNT','Amount To Weight')))as scheme_type,
+        FORMAT(if(sc.scheme_type=1,sc.max_weight,if(sc.scheme_type=3 && sc.max_amount!=0,sc.max_amount,if(sc.scheme_type=3 && sc.max_amount=0,(sc.max_weight*(SELECT m.goldrate_22ct FROM metal_rates m  order by id_metalrates Desc LIMIT 1)),sc.amount))),2) as amount,
+        sc.scheme_type  as scheme_types,
+        sc.total_installments,if(s.is_closed =0,'Active','Closed') as status,s.date_add,cs.currency_symbol,
+        IFNULL(IF(s.is_opening=1,IFNULL(s.paid_installments,0)+ IFNULL(if(sc.scheme_type = 1 and sc.min_weight != sc.max_weight, COUNT(Distinct Date_Format(pay.date_payment,'%Y%m')), sum(pay.no_of_dues)),0), if(sc.scheme_type = 1 and sc.min_weight != sc.max_weight or sc.scheme_type=3, COUNT(Distinct Date_Format(pay.date_payment,'%Y%m')), sum(pay.no_of_dues))) ,0)
+        as paid_installments
+        from scheme_account s
+        left join customer c on (s.id_customer=c.id_customer)
+        left join scheme sc on (sc.id_scheme=s.id_scheme)
+        left join payment pay on (pay.id_scheme_account=s.id_scheme_account  and (pay.payment_status=2 or pay.payment_status=1))
+        left join branch b on (b.id_branch=s.id_branch)
+        join chit_settings cs
+        Where c.mobile=".$mobile."
+        group by s.id_scheme_account");
+        
+        $data['accounts']=$accounts->result_array();
+        
+        $cus=$this->db->query("SELECT cus.firstname as cus_name,cus.mobile,IFNULL(cus.email,'-') as email,IFNULL(a.address1,'-') as address1,
+        IFNULL(a.address2,'-') as address2,IFNULL(a.address3,'-') as address3,IFNULL(c.name,'-') as county_name,IFNULL(s.name,'-') as state_name,IFNULL(ct.name,'-') as city_name,IFNULL(cus.cus_img,'') as cus_img,IF(cus.is_vip=1,'Yes','NO') as vip_cus
+        FROM customer cus
+        LEFT JOIN address a ON a.id_address=cus.id_address
+        LEFT JOIN country c ON c.id_country=a.id_country
+        LEFT JOIN state s ON s.id_state=a.id_state
+        LEFT JOIN city ct ON ct.id_city=a.id_city
+        WHERE cus.mobile=".$mobile."");
+        $data['customer']=$cus->row_array();
+        
+        $sales=$this->db->query("SELECT b.bill_id,b.bill_no,IFNULL(g_wt.tot_gold,0) as gold_wt,IFNULL(s_wt.tot_silver,0) as silver_wt,
+        IFNULL(fixed_rate.tot_fixed,0) as mrp_amount,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,
+        b.tot_bill_amount,if(b.bill_status=1,'Success','Cancelled') as bill_status
+        FROM ret_billing b 
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+
+        left JOIN (select sum(d.net_wt) as tot_gold,b.bill_id from ret_billing b 
+                  left join customer c ON c.id_customer=b.bill_cus_id
+                  left JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  left join ret_product_master as pro on pro.pro_id=d.product_id
+                  left join ret_category as cat on cat.id_ret_category=pro.cat_id
+                  left join metal as m on m.id_metal=cat.id_metal WHERE b.bill_status=1
+                  and m.id_metal=1 and d.bill_det_id is NOT NULL and c.mobile=".$mobile." GROUP BY b.bill_id) as g_wt 
+                  ON g_wt.bill_id=b.bill_id
+
+        left JOIN (select sum(d.net_wt)as tot_silver,b.bill_id from ret_billing b 
+                  left join customer c ON c.id_customer=b.bill_cus_id
+                  left JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  left join ret_product_master as pro on pro.pro_id=d.product_id
+                  left join ret_category as cat on cat.id_ret_category=pro.cat_id
+                  left join metal as m on m.id_metal=cat.id_metal WHERE b.bill_status=1
+                  and m.id_metal=2 and d.bill_det_id is NOT NULL and c.mobile=".$mobile." GROUP BY b.bill_id) as s_wt 
+                  ON s_wt.bill_id=b.bill_id
+
+        left JOIN (select sum(d.item_cost)as tot_fixed,b.bill_id from ret_billing b 
+                  left join customer c ON c.id_customer=b.bill_cus_id
+                  left JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  left join ret_product_master as pro on pro.pro_id=d.product_id
+                  left join ret_category as cat on cat.id_ret_category=pro.cat_id
+                  left join metal as m on m.id_metal=cat.id_metal WHERE b.bill_status=1
+                  and pro.sales_mode=1 and d.bill_det_id is NOT NULL and c.mobile=".$mobile." GROUP BY b.bill_id) as fixed_rate
+                  ON fixed_rate.bill_id=b.bill_id
+
+        WHERE b.bill_status=1 and d.bill_det_id is NOT null and c.mobile= ".$mobile." GROUP by b.bill_id");
+        // print_r($this->db->last_query());exit;
+        $data['sales']=$sales->result_array();
+        
+        $purchase=$this->db->query("SELECT c.id_customer,date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_id,b.bill_no,if(b.bill_status=1,'Success','Cancelled') as bill_status,SUM(bill_old.rate) as tot_pur_amt
+        FROM ret_bill_old_metal_sale_details bill_old
+        LEFT JOIN ret_billing b ON b.bill_id=bill_old.bill_id
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        WHERE c.mobile=".$mobile." GROUP by bill_old.bill_id");
+        $data['purchase']=$purchase->result_array();
+        
+        $credit=$this->db->query("SELECT b.bill_id,b.bill_no,date_format(b.bill_date,'%d-%m-%Y') as bill_date,if(b.credit_status=1,'Paid','Pending') as credit_status,(b.tot_bill_amount-tot_amt_received) as due_amount
+        FROM ret_billing b
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        WHERE b.is_credit=1 AND c.mobile=".$mobile."");
+        $data['credit']=$credit->result_array();
+        
+        return $data;
+    }
+    //Customer History
+    
+    function get_modules($code)
+    {
+        $sql=$this->db->query("SELECT * FROM modules WHERE m_code='".$code."'");
+        return $sql->row_array();
+    }
+    
+    //Unbilled Estimation
+    function unbilled_estimation($data)
+    {
+        
+        if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        $return_data=array();
+        $sql=$this->db->query("SELECT est.esti_no,est.estimation_id,c.firstname as cus_name,c.mobile,est.total_cost,date_format(est.estimation_datetime,'%d-%m-%Y') as est_date,
+        emp.firstname as emp_name
+        FROM ret_estimation_items e 
+        LEFT JOIN ret_estimation est ON est.estimation_id=e.esti_id
+        LEFT JOIN customer c ON c.id_customer=est.cus_id
+        LEFT JOIN employee emp on emp.id_employee=est.created_by
+        WHERE e.purchase_status=0 
+        ".($data['dt_range'] != '' ? ' and date(est.estimation_datetime) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ".($data['id_branch'] != '' && $data['id_branch'] >0 ? " and est.id_branch=".$data['id_branch']."" : '')." 
+        GROUP by e.esti_id");
+        //print_r($this->db->last_query());exit;
+        $result=$sql->result_array();
+        foreach($result as $items)
+        {
+            $return_data[]=array(
+                            'esti_no'       =>$items['esti_no'],
+                            'estimation_id' =>$items['estimation_id'],
+                            'cus_name'      =>$items['cus_name'],
+                            'mobile'        =>$items['mobile'],
+                            'total_cost'    =>$items['total_cost'],
+                            'est_date'      =>$items['est_date'],
+                            'emp_name'      =>$items['emp_name'],
+                            'est_details'   =>$this->get_estimation_details($items['estimation_id']),
+                         );
+        }
+        
+        return $return_data;
+    }
+    
+    function get_estimation_details($estimation_id)
+    {
+        $sql=$this->db->query("SELECT p.product_name,IFNULL(des.design_name,'') as design_name,est.item_cost,ifnull(est.tag_id,'-') as tag_id,ifnull(est.net_wt,0) as net_wt
+        FROM ret_estimation_items est
+        LEFT JOIN ret_product_master p ON p.pro_id=est.product_id
+        LEFT JOIN ret_design_master des ON des.design_no=est.design_id
+        WHERE est.est_item_id is not null AND est.purchase_status=0 and est.esti_id=".$estimation_id."");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    //Unbilled Estimation
+
+    //Karigar wise sales report
+    function karigar_wise_sales($id_product)
+    {
+        $sql=$this->db->query("SELECT SUM(d.no_of_piece) as total_lot_pcs,SUM(d.gross_wt) as tot_lot_wt,k.firstname as kaigar_name,IFNULL(l.gold_smith,'') as gold_smith,IFNULL(s.tot_pcs,0) as total_sold_pcs,
+        IFNULL(s.tot_gwt,0) as total_sold_gwt
+        FROM ret_lot_inwards l
+        LEFT JOIN ret_lot_inwards_detail d ON d.lot_no=l.lot_no
+        LEFT JOIN ret_karigar k ON k.id_karigar=l.gold_smith
+        LEFT JOIN(SELECT i.gold_smith,SUM(tag.piece) as tot_pcs,SUM(tag.gross_wt) as tot_gwt FROM ret_taging tag LEFT JOIN ret_lot_inwards i ON i.lot_no=tag.tag_lot_id 
+        WHERE tag.tag_status=1 ".($id_product!='' ? " and tag.product_id=".$id_product."" :'')." GROUP by i.gold_smith) as s ON s.gold_smith=l.gold_smith and l.gold_smith is not null
+        where l.gold_smith is not null ".($id_product!='' ? " and d.lot_product=".$id_product."" :'')."
+        GROUP by l.gold_smith order by l.gold_smith");
+        //print_r($this->db->last_query());exit;
+        $result= $sql->result_array();
+        foreach($result as $items)
+        {
+            $data[]=array(
+                         'gold_smith'           =>$items['gold_smith'],
+                         'kaigar_name'          =>$items['kaigar_name'],
+                         'total_received_pcs'   =>$items['total_lot_pcs'],
+                         'total_received_weight'=>$items['tot_lot_wt'],
+                         'total_sold_pcs'       =>$items['total_sold_pcs'],
+                         'total_sold_gwt'       =>$items['total_sold_gwt'],
+                         'sales_details'        =>($items['gold_smith']!='' ? $this->get_product_wise_sales($items['gold_smith'],$id_product):''),
+                         'lot_details'          =>$this->get_received_details($items['gold_smith'],$id_product),
+                        );
+        }
+        
+        return $data;
+    }
+    
+    function get_product_wise_sales($gold_smith,$id_product)
+    {
+        $sql=$this->db->query("SELECT p.product_name,IFNULL(SUM(tag.piece),0) as tot_pcs,IFNULL(SUM(tag.gross_wt),0) as tot_gwt
+        FROM ret_taging tag
+        LEFT JOIN ret_lot_inwards i ON i.lot_no=tag.tag_lot_id
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        WHERE tag.tag_status=1 AND i.gold_smith=".$gold_smith."
+        ".($id_product!='' ? " and tag.product_id=".$id_product."" :'')."
+        GROUP by tag.product_id");
+        return $sql->result_array();
+    }
+    
+    
+    
+    function get_received_details($gold_smith,$id_product)
+    {
+        $sql=$this->db->query("SELECT SUM(d.no_of_piece) as tot_pcs,IFNULL(SUM(d.gross_wt),0) as tot_gwt,p.product_name
+        FROM ret_lot_inwards i
+        LEFT JOIN ret_lot_inwards_detail d ON d.lot_no=i.lot_no
+        LEFT JOIN ret_product_master p ON p.pro_id=d.lot_product
+        where i.gold_smith=".$gold_smith."
+        ".($id_product!='' ? " and d.lot_product=".$id_product."" :'')."
+        GROUP by d.lot_product");
+        return $sql->result_array();
+    }
+    
+    //Karigar wise sales report
+    
+    
+    
+    //Lot History
+    function getLotDetails()
+    {
+        $sql=$this->db->query("SELECT l.lot_no,SUM(d.no_of_piece) as total_lot_pcs,SUM(d.gross_wt) as tot_lot_wt,k.firstname as kaigar_name,IFNULL(l.gold_smith,'') as gold_smith,IFNULL(s.tot_pcs,0) as total_sold_pcs,
+        IFNULL(s.tot_gwt,0) as total_sold_gwt,	IFNULL(l.po_id,'') as po_id,IFNULL(pur.po_ref_no,'-') as pur_ref_no,IFNULL(date_format(pur.po_date,'%d-%m-%Y'),'-')as po_date,
+        cat.name as category_name
+        FROM ret_lot_inwards l
+        LEFT JOIN ret_lot_inwards_detail d ON d.lot_no=l.lot_no
+        LEFT JOIN ret_karigar k ON k.id_karigar=l.gold_smith
+        LEFT JOIN ret_category cat on cat.id_ret_category=l.id_category
+        LEFT JOIN ret_purchase_order pur ON pur.po_id=l.po_id
+        LEFT JOIN(SELECT i.lot_no,SUM(tag.piece) as tot_pcs,SUM(tag.gross_wt) as tot_gwt FROM ret_taging tag LEFT JOIN ret_lot_inwards i ON i.lot_no=tag.tag_lot_id 
+        WHERE tag.tag_status=1 GROUP by i.lot_no) as s ON s.lot_no=l.lot_no and l.lot_no is not null
+        where l.lot_no is not null 
+        GROUP by l.lot_no order by l.lot_no DESC");
+        //print_r($this->db->last_query());exit;
+        $result= $sql->result_array();
+        foreach($result as $items)
+        {
+            $data[]=array(
+                         'pur_ref_no'           =>$items['pur_ref_no'],
+                          'po_date'             =>$items['po_date'],
+                          'lot_no'               =>$items['lot_no'],
+                         'gold_smith'           =>$items['gold_smith'],
+                         'kaigar_name'          =>$items['kaigar_name'],
+                         'total_received_pcs'   =>$items['total_lot_pcs'],
+                         'total_received_weight'=>$items['tot_lot_wt'],
+                         'total_sold_pcs'       =>$items['total_sold_pcs'],
+                         'total_sold_gwt'       =>$items['total_sold_gwt'],
+                         'category_name'        =>$items['category_name'],
+                        );
+        }
+        
+        return $data;
+    }
+    
+    
+    function getLotWiseSales($tag_lot_id)
+    {
+        $sql=$this->db->query("SELECT des.design_name,tag.tag_id,tag.tag_code,date_format(tag.tag_datetime,'%d-%m-%Y') as tag_date,p.product_name,IFNULL(tag.piece,0) as piece,IFNULL(tag.gross_wt,0) as gross_wt,IFNULL(tag.net_wt,0) as net_wt,
+        IF(tag.tag_status=0,'On Sale',if(tag.tag_status=1,'Sold Out',IF(tag.tag_status=2,'Deleted',IF(tag.tag_status=3,'Other Issue',if(tag.tag_status=4,'In Transit','Deleted For Stock'))))) as tag_status_name,tag.tag_status,
+        subDes.sub_design_name,br.name as branch_name
+        FROM ret_taging tag
+        LEFT JOIN ret_lot_inwards i ON i.lot_no=tag.tag_lot_id
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT JOIN ret_design_master as des ON des.design_no = tag.design_id
+        LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=tag.id_sub_design 
+        LEFT JOIN branch br on br.id_branch=tag.current_branch
+        WHERE tag.tag_lot_id=".$tag_lot_id."");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+ 
+    //Lot History
+
+
+    //Green Tag
+    function getGreenTagDetails($data)
+    {
+        $sql=$this->db->query("SELECT est.estimation_id,est.esti_no,b.bill_id,b.bill_no,date_format(b.bill_date,'%d-%m-%Y') as bill_date,emp.firstname as emp_name,emp.emp_code,tag.tag_id,tag.tag_code,date_format(tag.tag_datetime,'%d-%m-%Y') as tag_date,
+        p.product_name,d.item_cost,tag.gross_wt,tag.net_wt,m.id_metal
+        FROM ret_bill_details d
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN ret_taging tag ON tag.tag_id=d.tag_id
+        LEFT JOIN ret_estimation_items e ON e.tag_id=d.tag_id
+        LEFT JOIN ret_estimation est ON est.estimation_id=e.esti_id
+        LEFT JOIN employee emp ON emp.id_employee=est.created_by
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m on m.id_metal=cat.id_metal
+        WHERE tag.tag_status=1 AND tag.tag_mark=1 and b.bill_status=1 AND  d.status=1 and e.purchase_status=1
+        ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ".( $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch'] : '')."");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    //Green Tag
+    
+     //monthly sales comparision
+    function getMonthlySalesDetails($id_product)
+    {
+        $return_data=array();
+        $products=$this->db->query("SELECT SUM(d.net_wt) as net_wt,DATE_FORMAT(b.bill_date,'%m') as bill_date,DATE_FORMAT(b.bill_date,'%M-%Y') as bill_month
+        FROM ret_bill_details d
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id 
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+        WHERE b.bill_status=1 
+        ".($id_product!='' ? " and d.product_id=".$id_product."" :'')."
+        GROUP by DATE_FORMAT(b.bill_date,'%m') ORDER by b.bill_id ASC");
+        $prod_details= $products->result_array();
+        foreach($prod_details as $items)
+        {
+            $return_data['pro_details'][]=array(
+                        'x'=>$items['bill_date'],
+                        'y'=>$items['net_wt'],
+                       );
+        }
+        
+        $metal=$this->db->query("SELECT SUM(d.net_wt) as total_weight,m.metal as metal_name
+        FROM ret_bill_details d
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id 
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=cat.id_metal
+        WHERE b.bill_status=1 GROUP by m.id_metal");
+        $metal_details= $metal->result_array();
+        foreach($metal_details as $items)
+        {
+            $return_data['metal_details'][]=array(
+                        'label'=>$items['metal_name'],
+                        'value'=>$items['total_weight'],
+                        'color'=>'#3c8dbc',
+                       );
+        }
+       
+        return $return_data;
+    }
+    //monthly sales comparision
+    
+    //Intransit Details
+    function getIntransitDetails()
+    {
+        $sql1=$this->db->query("SELECT branch_trans_code,`branch_transfer_id`,fb.name as from_branch,tb.name as to_branch,bt.`pieces`,bt.`grs_wt`,bt.`net_wt`,`status`,date_format(bt.created_time,'%d-%m-%Y') as created_time,if( product_short_code = '' or product_short_code is null ,product_name ,CONCAT(product_short_code ,' - ',product_name) ) as product,is_other_issue,
+                if(bt.transfer_item_type=1,'Tagged','Non Tagged') as transfer_item_type
+				FROM `ret_branch_transfer` bt
+					Left join ret_brch_transfer_tag_items tag on tag.transfer_id=bt.branch_transfer_id
+					Left join ret_taging t on t.tag_id=tag.tag_id
+				    Left join ret_product_master p on p.pro_id = t.product_id 			
+					Left join branch fb on fb.id_branch = bt.transfer_from_branch			
+					Left join branch tb on tb.id_branch = bt.transfer_to_branch			
+			 	WHERE bt.status=2 and bt.transfer_item_type=1 ".($_POST['id_branch']!='' && $_POST['id_branch']>0 ? " and bt.transfer_to_branch=".$_POST['id_branch']."" :'')." group by tag.transfer_id");
+			   
+	    $tagged= $sql1->result_array();
+	    
+	    $sql2=$this->db->query("SELECT branch_trans_code,`branch_transfer_id`,fb.name as from_branch,tb.name as to_branch,bt.`pieces`,bt.`grs_wt`,bt.`net_wt`,`status`,date_format(bt.created_time,'%d-%m-%Y') as created_time,if( product_short_code = '' or product_short_code is null ,product_name ,CONCAT(product_short_code ,' - ',product_name) ) as product,is_other_issue,
+                if(bt.transfer_item_type=1,'Tagged','Non Tagged') as transfer_item_type
+				FROM `ret_branch_transfer` bt
+					left join ret_lot_inwards_detail d on d.id_lot_inward_detail=bt.id_lot_inward_detail
+				    Left join ret_product_master p on p.pro_id = d.lot_product 			
+					Left join branch fb on fb.id_branch = bt.transfer_from_branch			
+					Left join branch tb on tb.id_branch = bt.transfer_to_branch			
+			 	WHERE bt.status=2 and bt.transfer_item_type=2 ".($_POST['id_branch']!='' && $_POST['id_branch']>0 ? " and bt.transfer_to_branch=".$_POST['id_branch']."" :'')." ");
+	    //print_r($this->db->last_query());exit;
+		$non_tagged= $sql2->result_array();
+		
+		return array_merge($tagged,$non_tagged);
+    }
+    //Intransit Details
+    
+    
+    //credit pending
+    function get_credit_pending_details($data)
+    {
+	
+        $return_data=array();
+		$credit_detail = array();
+		$credit_detai2 = array();
+		$sql=$this->db->query("SELECT b.bill_id,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,DATE_FORMAT(b.credit_due_date,'%d-%m-%Y') as credit_due_date,b.tot_bill_amount,b.tot_amt_received,b.bill_cus_id,c.mobile,c.firstname as cus_name,
+		if(b.credit_status=1,'Paid','Pending') as credit_status,br.name as branch_name,b.tot_bill_amount,(b.tot_bill_amount-b.tot_amt_received-IFNULL(ret.credit_due_amt,0)) as bal_amt,b.credit_disc_amt,IFNULL(ret.credit_due_amt,0) as credit_due_amt,IFNULL(ret.credit_ret_amt,0) as credit_ret_amt
+			from ret_billing b
+			LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+			LEFT JOIN branch br on br.id_branch=b.id_branch
+            LEFT JOIN(SELECT IFNULL((b.credit_due_amt),0) as credit_due_amt,
+            r.ret_bill_id,IFNULL(b.credit_ret_amt,0) as credit_ret_amt
+            FROM ret_bill_return_details r 
+            LEFT JOIN ret_billing b ON b.bill_id = r.bill_id
+            WHERE b.bill_status = 1
+            GROUP BY r.ret_bill_id) as ret ON ret.ret_bill_id = b.bill_id
+			where  b.bill_id is not null and b.is_credit=1 and b.bill_status=1  and b.bill_type!=8 and b.credit_status=2 and b.bill_type!=12
+			".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." 
+			".($data['id_customer'] != '' && $data['id_customer'] >0 ? ' and b.bill_cus_id='.$data['id_customer']: '')." 
+			and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+			ORDER BY b.bill_cus_id");
+		$result = $sql->result_array();
+		foreach($result as $r){
+		    $paid_amount=$this->get_credit_collection_details($r['bill_id']);
+			$credit_detail[] = array(
+			                    'type'              =>0,
+								'bill_no'           =>$r['bill_no'],
+								'bill_date'         =>$r['bill_date'],
+								'cus_name'          =>$r['cus_name'],
+								'mobile'            =>$r['mobile'],
+								'branch_name'       =>$r['branch_name'],
+								'tot_bill_amount'   =>$r['tot_bill_amount'],
+								'credit_due_amt'    =>$r['credit_due_amt'],
+								'credit_ret_amt'    =>$r['credit_ret_amt'],
+								'bal_amt'           =>$r['bal_amt']-$paid_amount,
+								'due_amount'        =>$r['tot_bill_amount']-$r['tot_amt_received'],
+								'paid_amount'       =>$paid_amount,
+								'bill_id'           =>$r['bill_id'],
+								'credit_collection' =>$this->getCreditCollection($r['bill_id'])
+							); 
+		}
+		
+		$issue_sql=$this->db->query("SELECT r.id_issue_receipt as bill_id,r.bill_no as bill_no,cus.mobile,r.amount as due_amount,
+        DATE_FORMAT(r.bill_date,'%d-%m-%Y') as bill_date,'' as credit_due_date,IFNULL(r.amount-IFNULL(coll.paid_amt,0),0) as bal_amt,
+        IFNULL(coll.paid_amt,0) as paid_amount,cus.firstname as cus_name,br.name as branch_name,'1' as type,'0' as credit_ret_amt,r.amount as tot_bill_amount
+        FROM ret_issue_receipt r 
+        LEFT JOIN branch br on br.id_branch=r.id_branch
+        LEFT JOIN (SELECT IFNULL(SUM(c.received_amount+c.discount_amt),0) as paid_amt,c.receipt_for
+        FROM ret_issue_receipt r
+        LEFT JOIN ret_issue_credit_collection_details c ON c.id_issue_receipt=r.id_issue_receipt
+        where r.bill_status=1
+        GROUP by c.receipt_for) as coll ON coll.receipt_for=r.id_issue_receipt
+        LEFT JOIN customer cus ON cus.id_customer=r.id_customer
+        WHERE r.type=1  and r.bill_status=1 and (r.issue_type=2 or r.issue_type=4)
+        ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and r.id_branch='.$data['id_branch']: '')." 
+        and (date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')  ");
+        //print_r($this->db->last_query());exit;
+        $result1 = $issue_sql->result_array();
+        
+        	foreach($result1 as $r)
+        	{
+        	    $issueCreditDetails = $this->get_IssueCreditCollectionDetails($r['bill_id']);
+        	    $r['credit_collection']=$issueCreditDetails;
+        	    $credit_detai2[]=$r;
+        	}
+		//echo "<pre>"; print_r($credit_detai2);exit;
+		$return_data=array_merge($credit_detail,$credit_detai2);
+		
+		return $return_data;
+    }
+    
+    function get_IssueCreditCollectionDetails($bill_id)
+    {
+        $sql=$this->db->query("SELECT r.id_issue_receipt as bill_id,r.bill_no,date_format(r.bill_date,'%d-%m-%Y') as bill_date,r.amount as tot_amt_received,
+        coll.discount_amt as credit_disc_amt,'0' as old_metal_amount,'1' as type
+        FROM ret_issue_receipt r
+        LEFT JOIN ret_issue_credit_collection_details coll ON coll.id_issue_receipt=r.id_issue_receipt
+        WHERE r.receipt_type=1 and r.bill_status=1 AND coll.receipt_for=".$bill_id."");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    
+   function get_credit_collection_details($bill_id)
+    {
+        $return_data=array();
+        $total_bill_amount=0;
+        $credit_disc_amt=0;
+    	$data=$this->db->query("SELECT b.bill_id,b.bill_no,b.bill_type,b.ref_bill_id,b.tot_amt_received,b.credit_disc_amt,
+    	b.tot_bill_amount,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date
+    	 From ret_billing b 
+    	 where b.bill_status=1 and b.ref_bill_id=".$bill_id."");
+        $items=$data->result_array();
+        foreach($items as $item)
+        {
+            $total_bill_amount  += $item['tot_amt_received'];
+            $credit_disc_amt    += $item['credit_disc_amt'];
+            $old_metal_details  =  $this->getOld_sales_details($item['bill_id'],8);
+            $old_metal_amount  =0;
+            foreach($old_metal_details as $old_items)
+            {
+                $old_metal_amount+=$old_items['amount'];
+            }
+        }
+        return $total_bill_amount+$old_metal_amount+$credit_disc_amt;
+    }
+    
+    //credit pending
+    
+    //stock and sales
+    function stock_and_sales_details($data)
+    {
+        $return_data=array();
+        if($_POST['dt_range'] != ''){
+        $dateRange = explode('-',$_POST['dt_range']);
+        $from = str_replace('/','-',$dateRange[0]);
+        $to = str_replace('/','-',$dateRange[1]);  
+        $d1 = date_create($from);
+        $d2 = date_create($to);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        $lot=$this->db->query("SELECT tag.tag_lot_id,p.product_name,IFNULL(SUM(tag.gross_wt),0) as total_wt,SUM(tag.piece) as tot_pcs,b.name as branch_name,date_format(tag.tag_datetime,'%d-%m-%Y') as inw_date,tag.id_branch,tag.current_branch
+        FROM ret_taging tag 
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT JOIN branch b on b.id_branch=tag.current_branch
+        WHERE date(tag.tag_datetime)  BETWEEN '".$FromDt."' AND '".$ToDt."' 
+        ".($data['id_branch']!='' && $data['id_branch']>0 ? " and tag.id_branch=".$data['id_branch']."" :'')."
+        GROUP by tag.tag_lot_id,tag.current_branch");
+        $return_data['lot_details']=$lot->result_array();
+        
+        $branch_inw=$this->db->query("SELECT b.branch_transfer_id,b.branch_trans_code,date_format(b.created_time,'%d-%m-%Y') as transfer_date,b.transfer_item_type,
+        IF(b.status=1,'Yet to Approve',if(b.status=2,'Intransit',if(b.status=3,'Rejected','Downloaded'))) as bt_status,fb.name as from_branch,tb.name as to_branch,b.pieces
+        FROM ret_branch_transfer b 
+        LEFT JOIN branch fb on fb.id_branch=b.transfer_from_branch
+        LEFT JOIN branch tb on tb.id_branch=b.transfer_to_branch
+        WHERE b.added_type=1 and is_other_issue=0 AND date(b.created_time) BETWEEN '".$FromDt."' AND '".$ToDt."'
+        ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.transfer_to_branch=".$data['id_branch']."" :'')."");
+         $return_data['branch_inw_details']=$branch_inw->result_array();
+         
+        $branch_out=$this->db->query("SELECT b.branch_transfer_id,b.branch_trans_code,date_format(b.created_time,'%d-%m-%Y') as transfer_date,b.transfer_item_type,
+        IF(b.status=1,'Yet to Approve',if(b.status=2,'Intransit',if(b.status=3,'Rejected','Downloaded'))) as bt_status,fb.name as from_branch,tb.name as to_branch,b.pieces
+        FROM ret_branch_transfer b 
+        LEFT JOIN branch fb on fb.id_branch=b.transfer_from_branch
+        LEFT JOIN branch tb on tb.id_branch=b.transfer_to_branch
+        WHERE b.added_type=1 and is_other_issue=0 AND date(b.created_time) BETWEEN '".$FromDt."' AND '".$ToDt."'
+        ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.transfer_from_branch=".$data['id_branch']."" :'')."");
+         $return_data['branch_out_details']=$branch_out->result_array();
+         
+        $other_issue=$this->db->query("SELECT b.branch_transfer_id,b.branch_trans_code,date_format(b.created_time,'%d-%m-%Y') as transfer_date,b.transfer_item_type,
+        IF(b.status=1,'Yet to Approve',if(b.status=2,'Intransit',if(b.status=3,'Rejected','Downloaded'))) as bt_status,fb.name as from_branch,tb.name as to_branch,b.pieces
+        FROM ret_branch_transfer b 
+        LEFT JOIN branch fb on fb.id_branch=b.transfer_from_branch
+        LEFT JOIN branch tb on tb.id_branch=b.transfer_to_branch
+        WHERE b.added_type=1 and is_other_issue=1 AND date(b.created_time) BETWEEN '".$FromDt."' AND '".$ToDt."'
+        ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.transfer_from_branch=".$data['id_branch']."" :'')."");
+         $return_data['other_issue_details']=$other_issue->result_array();
+         
+        $sales_details=$this->db->query("SELECT p.product_name,IFNULL(SUM(d.gross_wt),0) as tot_sale_wt,SUM(d.piece) as tot_pcs,SUM(d.item_cost) as sale_amt
+        FROM ret_bill_details d 
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        WHERE b.bill_status=1 AND date(b.bill_date) BETWEEN '".$FromDt."' AND '".$ToDt."'
+         ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+        GROUP by d.product_id");
+        $return_data['sales_details']=$sales_details->result_array();
+        
+        return $return_data;
+    }
+    //stock and sales
+    
+    
+     //incentive report
+    function get_incentive_report($data)
+    {
+        $sql=$this->db->query("SELECT wa.id_wallet_account,wa.wallet_acc_number,(IFNULL(trans.tot_credit,0)-IFNULL(debit.tot_debit,0)) as total_value,wa.idemployee,concat(e.firstname,ifnull(concat('-',e.emp_code),'')) as emp_name,e.mobile,IFNULL(b.name,'') as branch_name
+        FROM wallet_account wa 
+        LEFT JOIN employee e on e.id_employee=wa.idemployee
+        LEFT JOIN branch b ON b.id_branch=e.login_branches
+        LEFT JOIN (
+        		  SELECT SUM(t.value) as tot_credit,t.id_wallet_account
+        		  FROM wallet_transaction t 
+        		  WHERE t.transaction_type=0 ".($data['from_date']!='' ? " and date(t.date_transaction) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."' " :'')." 
+        GROUP by t.id_wallet_account) trans ON trans.id_wallet_account=wa.id_wallet_account
+        LEFT JOIN (
+        		  SELECT SUM(t.value) as tot_debit,t.id_wallet_account
+        		  FROM wallet_transaction t 
+        		  WHERE t.transaction_type=1 ".($data['from_date']!='' ? " and date(t.date_transaction) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."' " :'')." 
+        GROUP by t.id_wallet_account) debit ON debit.id_wallet_account=wa.id_wallet_account
+        GROUP by wa.id_wallet_account
+        HAVING idemployee IS not NULL");
+       // print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    function incentive_emp_list($id_wallet_account)
+    {
+        $sql=$this->db->query("SELECT wt.id_wallet_transaction,if(wt.transaction_type=0,wt.value,concat('-',wt.value)) as value,if(wt.transaction_type=0,'green','red') as color,if(wt.transaction_type=0,'Credit','Debit') as transaction_type,date_format(wt.date_transaction,'%d-%m-%Y') as date_transaction,wt.description,wt.bill_id,tag.tag_code,tag.tag_id,
+        e.emp_code,e.id_employee,IFNULL(b.bill_no,'') as bill_no,e.firstname as emp_name,e.emp_code,rpm.product_name,wt.description,
+        IFNULL(wt.id_sch_ac,'') as id_sch_ac,wt.type
+        FROM wallet_transaction wt
+        LEFT JOIN wallet_account a ON a.id_wallet_account=wt.id_wallet_account
+        LEFT JOIN employee e ON e.id_employee=a.idemployee
+        LEFT JOIN ret_taging tag ON tag.tag_id=wt.ref_no
+        LEFT JOIN ret_billing b on b.bill_id=wt.bill_id
+        LEFT JOIN ret_product_master rpm ON rpm.pro_id=tag.product_id
+        WHERE wt.id_wallet_account=".$id_wallet_account."");
+        return $sql->result_array();
+    }
+    //incentive report
+
+    //monthly sales comparision
+    function getVillageWiseSales($data)
+    {
+        $return_data=array();
+        $sql=$this->db->query("SELECT SUM(d.net_wt) as total_net_wt,m.metal,date_format(b.bill_date,'%M') as bill_month,br.name as branch_name,v.village_name,z.name as zone_name,
+        IFNULL(c.id_village,'') as id_village,b.id_branch,if(p.sales_mode=1,SUM(d.item_cost),0) as tot_fixed_amt
+        FROM ret_bill_details d 
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN branch br ON br.id_branch=b.id_branch
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id 
+        LEFT JOIN village v ON v.id_village=c.id_village 
+        LEFT JOIN village_zone z ON z.id_zone=v.id_zone 
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=cat.id_metal
+        LEFT JOIN ret_taging tag on tag.tag_id=d.tag_id
+        WHERE b.bill_status=1 AND DATE_FORMAT(b.bill_date,'%Y')='".$data['year']."'
+        AND (m.id_metal=1 or m.id_metal=2)
+        ".($data['id_village']!='' ? " and c.id_village=".$data['id_village']."" :'')."
+        ".($data['id_branch']!='' && $data['id_branch']>0? " and b.id_branch=".$data['id_branch']."" :'')."
+        GROUP by m.id_metal,c.id_village,b.id_branch,p.sales_mode,MONTH(b.bill_date)");
+        $result=$sql->result_array();
+        foreach($result as $r){
+			$return_data[$r['village_name']][$r['branch_name']][$r['bill_month']][] = $r; 
+		}
+        return $return_data;
+    }
+    
+    function get_monthly_sales_details($data)
+    {
+        $sql=$this->db->query("SELECT d.net_wt as total_net_wt,m.metal,date_format(b.bill_date,'%d-%m-%Y') as bill_date,br.name as branch_name,
+        v.village_name,z.name as zone_name,IFNULL(c.id_village,'') as id_village,b.id_branch,b.bill_no,b.bill_id,c.firstname as cus_name,c.mobile,
+        p.product_name,if(p.sales_mode=1,d.item_cost,0) as tot_fixed_amt
+        FROM ret_bill_details d 
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN branch br ON br.id_branch=b.id_branch
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id 
+        LEFT JOIN village v ON v.id_village=c.id_village 
+        LEFT JOIN village_zone z ON z.id_zone=v.id_zone 
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m ON m.id_metal=cat.id_metal
+        LEFT JOIN ret_taging tag on tag.tag_id=d.tag_id
+        WHERE b.bill_status=1 AND DATE_FORMAT(b.bill_date,'%Y-%m')='".($data['year'].'-'.$data['month'])."'
+        ".($data['sales_mode']!='' ? " and p.sales_mode=".$data['sales_mode']."" : '')."
+        ".($data['id_metal']!='' && $data['sales_mode']==2 ? " and m.id_metal=".$data['id_metal']."" :'')."
+        ".($data['id_village']!='' ? " and c.id_village=".$data['id_village']."" :'')."
+        ".($data['id_branch']!='' && $data['id_branch']>0? " and b.id_branch=".$data['id_branch']."" :'')."
+        ");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    //monthly sales comparision
+    
+    
+     //Telecalling Module
+    function get_telecalling_cus_det($post)
+    {
+        
+        $FromDt=$this->input->post('from_date');
+        $ToDt=$this->input->post('to_date');
+        $id_zone=$this->input->post('id_zone');
+        $id_village=$this->input->post('id_village');
+        $id_branch=$this->input->post('id_branch');
+
+        
+        
+        $sql=$this->db->query("SELECT c.firstname,c.id_customer,c.mobile,v.village_name,b.name as branch_name,IFNULL(esti.tot_est,0) as estimation_no,
+        IFNULL(bill_tot.bill_count,0) as bill_count,IFNULL(tot_acc.tot_acc,0) as tot_account,IFNULL(iactive.tot_acc,0)as inactive_acount,
+        IFNULL(tot_gold.gold_wt,0) as gold_wt,IFNULL(tot_silver.silver_wt,0) as silver_wt,IFNULL(closed_chit.closed_count,0) as closed_count,IFNULL(tot_payment.pay_amount,0) as tot_amount,
+        IFNULL(fixed_rate.item_cost,0) as tot_fixed_rate,IFNULL(active_acc.tot_acc,0) as active_acc,DATE_FORMAT(max(bill.bill_date),'%d-%m-%Y') as last_billdate,z.name as zone_name,
+        IF(c.is_vip=1,'VIP Customer','') as vip_customer
+        from ret_billing bill
+        left join customer c on (c.id_customer=bill.bill_cus_id)
+        left join branch b on (b.id_branch=c.id_branch)
+        LEFT JOIN village v on (v.id_village=c.id_village)
+        LEFT JOIN village_zone z on (z.id_zone=v.id_zone)
+        
+        
+       
+       
+        left join (select count(est.estimation_id) as tot_est,est.cus_id from ret_estimation est
+                   left join customer as c on c.id_customer=est.cus_id where cus_id is not null
+                   GROUP by cus_id)as esti on esti.cus_id=c.id_customer
+       
+        left join (select COUNT(bill.bill_id) as bill_count,bill.bill_cus_id from ret_billing as bill
+            left join customer as c on c.id_customer=bill.bill_cus_id
+            where bill.bill_status=1
+            GROUP by bill.bill_cus_id) as bill_tot on bill_tot.bill_cus_id=c.id_customer
+                   
+        left join(select count(sa.id_scheme_account) as tot_acc,sa.id_customer,c.mobile from scheme_account sa
+            left join customer c on (c.id_customer=sa.id_customer)
+            where sa.scheme_acc_number is not null GROUP by sa.id_customer) as tot_acc on tot_acc.id_customer=c.id_customer
+           
+        left join(select count(sa.id_scheme_account) as tot_acc,sa.id_customer,c.mobile from scheme_account sa
+            left join customer c on (c.id_customer=sa.id_customer)
+            where sa.scheme_acc_number is not null and sa.is_closed=0 GROUP by sa.id_customer) as active_acc on active_acc.id_customer=c.id_customer
+           
+        left join(select count(sa.scheme_acc_number) as closed_count,sa.id_customer,c.mobile from scheme_account sa
+            left join customer c on (c.id_customer=sa.id_customer)
+            where sa.is_closed=1 GROUP by sa.id_customer) as closed_chit on closed_chit.id_customer=c.id_customer
+        
+        left join (SELECT COUNT(sa.id_scheme_account) as tot_acc,
+            TIMESTAMPDIFF(month, max(p.date_add), current_date()) as month_ago,sa.id_customer
+            FROM scheme_account sa
+            LEFT JOIN payment p ON p.id_scheme_account=sa.id_scheme_account
+            LEFT JOIN scheme s ON s.id_scheme=sa.id_scheme
+            LEFT JOIN customer cus ON cus.id_customer=sa.id_customer
+            WHERE sa.is_closed=0
+            GROUP by sa.id_customer HAVING month_ago>3) as iactive on iactive.id_customer=c.id_customer
+
+
+        left join(select sum(bill_det.net_wt) as gold_wt,c.id_customer from ret_billing as bill
+            left JOIN ret_bill_details  as bill_det on(bill_det.bill_id=bill.bill_id)
+            left join ret_product_master as pro on(pro.pro_id=bill_det.product_id)
+            left join ret_category as cat on(cat.id_ret_category=pro.cat_id)
+            left join metal as m on(m.id_metal=cat.id_metal)
+            left join customer as c on(c.id_customer=bill.bill_cus_id)
+            left join branch b on (b.id_branch=c.id_branch)
+            LEFT join village v on (v.id_village=c.id_village)
+            LEFT JOIN village_zone z on (z.id_zone=v.id_zone)
+            where bill.bill_status=1 and m.id_metal=1 
+            ".($FromDt != '' ? 'and date(bill.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')." 
+            ".($id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."
+            ".($id_zone != '' && $id_zone >0 ? " and z.id_zone=".$id_zone."" : '')." 
+            ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+            group by c.id_customer) as tot_gold on tot_gold.id_customer=c.id_customer
+           
+        left join(SELECT sum(bill_det.net_wt) as silver_wt,c.id_customer from ret_billing as bill
+            left JOIN ret_bill_details  as bill_det on(bill_det.bill_id=bill.bill_id)
+            left join ret_product_master as pro on(pro.pro_id=bill_det.product_id)
+            left join ret_category as cat on(cat.id_ret_category=pro.cat_id)
+            left join metal as m on(m.id_metal=cat.id_metal)
+            left join customer as c on(c.id_customer=bill.bill_cus_id)
+            left join branch b on (b.id_branch=c.id_branch)
+            LEFT join village v on (v.id_village=c.id_village)
+            LEFT JOIN village_zone z on (z.id_zone=v.id_zone)
+            where bill.bill_status=1 and m.id_metal=2 
+            ".($FromDt != '' ? 'and date(bill.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')." 
+            ".($id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."
+            ".($id_zone != '' && $id_zone >0 ? " and z.id_zone=".$id_zone."" : '')." 
+            ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+            group by c.id_customer) as tot_silver on tot_silver.id_customer=c.id_customer
+           
+         left join(SELECT sum(bill_det.item_cost) as item_cost,c.id_customer from ret_billing as bill
+            left JOIN ret_bill_details  as bill_det on(bill_det.bill_id=bill.bill_id)
+            left join ret_product_master as pro on(pro.pro_id=bill_det.product_id)
+            left join ret_category as cat on(cat.id_ret_category=pro.cat_id)
+            left join metal as m on(m.id_metal=cat.id_metal)
+            left join customer as c on(c.id_customer=bill.bill_cus_id)
+            left join branch b on (b.id_branch=c.id_branch)
+            LEFT join village v on (v.id_village=c.id_village)
+            LEFT JOIN village_zone z on (z.id_zone=v.id_zone)
+            where bill.bill_status=1 and pro.sales_mode=1 
+            ".($FromDt != '' ? 'and date(bill.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')." 
+            ".($id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."
+            ".($id_zone != '' && $id_zone >0 ? " and z.id_zone=".$id_zone."" : '')." 
+            ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')." 
+            group by c.id_customer) as fixed_rate on fixed_rate.id_customer=c.id_customer
+           
+        left join(select sum(p.payment_amount) as pay_amount,c.id_customer,c.mobile from customer as c
+            left join scheme_account as sa on(sa.id_customer=c.id_customer)
+            left join payment as p on (p.id_scheme_account=sa.id_scheme_account)
+            group by c.id_customer) as tot_payment on tot_payment.id_customer=c.id_customer 
+
+            where bill.bill_type!=12
+            ".($FromDt != '' ? ' and date(bill.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')." 
+            ".($id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."
+            ".($id_zone != '' && $id_zone >0 ? " and z.id_zone=".$id_zone."" : '')." 
+            ".($id_village != '' && $id_village >0 ? " and c.id_village=".$id_village."" : '')."
+            and bill.bill_cus_id is not null
+            GROUP BY c.id_customer" );
+            return $sql->result_array();
+    }
+    //Telecalling Module
+    
+    function get_feedbackReport()
+    {
+        
+        $data=$this->db->query("SELECT c.firstname,c.mobile,c.id_customer,max(cus_feed.feedback_date) feedback_date,e.firstname feedback_takenby from customer_feedback cus_feed
+        left join customer as c on (c.id_customer=cus_feed.id_customer)
+        left join employee as e on(e.id_employee=cus_feed.feedback_taken_by) group by c.id_customer order by c.id_customer desc");
+        return $data->result_array();
+    }
+
+    function get_feedbackById($id){
+        $data=$this->db->query("SELECT cus_feed.id_customer,cus_feed.comments,mas.name,cus_feed_res.id_feedback,cus_feed_res.feedback_response from customer_feedback cus_feed
+        LEFT JOIN customer_feedback_response as cus_feed_res on(cus_feed_res.id_cus_feedback=cus_feed.id_cus_feedback)
+        left join customer_feedback_master as mas on (mas.id_feedback=cus_feed_res.id_feedback)
+                where cus_feed.id_customer=".$id. " order by cus_feed_res.id_feedback desc");
+        return $data->result_array();
+    }
+    
+    
+    //Customer Edit Log
+    function get_customer_edit_log($data)
+	{
+	    $FromDt = $data['from_date'];
+		$ToDt = $data['to_date'];
+		
+	    $sql=$this->db->query("SELECT cel.id_customer,cel.previous_firstname,cel.previous_lastname,cel.previous_mobile,cel.previous_email,cel.updated_firstname,cel.updated_lastname,cel.updated_mobile,cel.updated_email,cel.previous_address1,cel.updated_address1,cel.updated_on,emp.firstname 
+	    from customer_edit_log cel
+		left join employee as emp on (emp.id_employee=cel.updated_by)
+        WHERE
+        ".($FromDt != '' && $ToDt!=''? 'date(cel.updated_on) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+        ");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    
+	}
+    //Customer Edit Log
+    
+    
+     //Green Tag Return Report STARTS
+    function get_gt_return_report()
+    {
+        $sql=$this->db->query("SELECT est.estimation_id,est.esti_no,b.bill_id,b.bill_no,date_format(b.bill_date,'%d-%m-%Y') as bill_date,emp.firstname as emp_name,emp.emp_code,tag.tag_id,tag.tag_code,date_format(tag.tag_datetime,'%d-%m-%Y') as tag_date,tag.tag_status,
+        p.product_name,d.item_cost,tag.gross_wt,tag.net_wt,m.id_metal
+        FROM ret_bill_return_details r
+        LEFT JOIN ret_billing b ON b.bill_id=r.bill_id
+        LEFT JOIN ret_bill_details d ON d.bill_det_id=r.ret_bill_det_id
+        LEFT JOIN ret_taging tag ON tag.tag_id=d.tag_id
+        LEFT JOIN ret_estimation_items e ON e.est_item_id=d.esti_item_id
+        LEFT JOIN ret_estimation est ON est.estimation_id=e.esti_id
+        LEFT JOIN employee emp ON emp.id_employee=est.created_by
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+        LEFT JOIN metal m on m.id_metal=cat.id_metal
+        WHERE tag.tag_status=6 AND tag.tag_mark=1
+        ");
+       // print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    //Green Tag Return Report ENDS
+    
+    
+   //Dashboard Reports
+    
+      function dashboard_EstimationList($from_date,$to_date,$type,$id_branch)
+    {
+        switch($type)
+        {
+            case "1": // type 1 is created estimation , 2 is converted estimation
+                $data=$this->db->query("SELECT esti_no,c.firstname,est.estimation_id, DATE_format(est.created_time,'%d-%m-%Y %h:%m') as date, est.total_cost	FROM ret_estimation as est
+                left join customer as c on (c.id_customer=est.cus_id)
+                ".($from_date != '' ? 'where date(est.estimation_datetime) BETWEEN "'.$from_date.'" AND "'.$to_date.'"' : '')." 
+                ".($id_branch != '' && $id_branch>0  ? " and est.id_branch=".$id_branch."" :'')." order by esti_no desc");
+                
+                return $data->result_array();
+            break;
+            case "2":
+                $data=$this->db->query("SELECT est.esti_no, c.firstname,est.estimation_id,DATE_format(est.created_time,'%d-%m-%Y') as date,est.total_cost
+                FROM ret_estimation as est 
+                LEFT JOIN ret_estimation_items AS estitm ON estitm.esti_id = est.estimation_id 
+                left join customer as c on (c.id_customer=est.cus_id)
+                WHERE estitm.purchase_status = 1
+                ".($from_date != '' ? 'and date(est.estimation_datetime) BETWEEN "'.$from_date.'" AND "'.$to_date.'"' : '')."
+                ".($id_branch != '' && $id_branch>0  ? " and est.id_branch=".$id_branch."" :'')." GROUP BY estitm.esti_id  order by est.esti_no desc");
+                
+                return $data->result_array();
+            break;
+        }
+        
+    }
+
+    function dashboard_salesList($from_date,$to_date,$type,$id_branch)
+    {
+        
+        switch($type)
+        {
+            case "1": // 1 is gold sales list, 2 is silver, 3 is mrp amount
+                $data = $this->db->query("SELECT bill_det.net_wt,bill.bill_id,bill.tot_bill_amount,c.firstname,bill.bill_no,pro.product_name,bill_det.piece,DATE_FORMAT(bill.bill_date,'%d-%m-%Y') as bill_date from ret_billing as bill
+                left JOIN ret_bill_details  as bill_det on(bill_det.bill_id=bill.bill_id)
+                left join ret_product_master as pro on(pro.pro_id=bill_det.product_id)
+                left join ret_category as cat on(cat.id_ret_category=pro.cat_id)
+                left join metal as m on(m.id_metal=cat.id_metal)
+                left join branch b on (b.id_branch=bill.id_branch)
+                left join customer c on (c.id_customer=bill.bill_cus_id)
+                where bill.bill_status=1 and m.id_metal=1  ".($id_branch!='' && $id_branch>0 ? " and bill.id_branch=".$id_branch."" :'')."
+                and date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' order by bill.bill_no DESC");
+                
+                return $data->result_array();
+            break;
+            case "2": 
+                $data = $this->db->query("SELECT bill_det.net_wt,bill.bill_id,bill.tot_bill_amount,c.firstname,bill.bill_no,pro.product_name,bill_det.piece,DATE_FORMAT(bill.bill_date,'%d-%m-%Y') as bill_date from ret_billing as bill
+                left JOIN ret_bill_details  as bill_det on(bill_det.bill_id=bill.bill_id)
+                left join ret_product_master as pro on(pro.pro_id=bill_det.product_id)
+                left join ret_category as cat on(cat.id_ret_category=pro.cat_id)
+                left join metal as m on(m.id_metal=cat.id_metal)
+                left join branch b on (b.id_branch=bill.id_branch)
+                left join customer c on (c.id_customer=bill.bill_cus_id)
+                where bill.bill_status=1 and m.id_metal=2 ".($id_branch!='' && $id_branch>0 ? " and bill.id_branch=".$id_branch."" :'')."
+                and date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' order by bill.bill_no DESC");
+                return $data->result_array();
+            break;
+            case "3": 
+                $data = $this->db->query("SELECT bill_det.net_wt,bill.bill_id,bill_det.item_cost as tot_bill_amount,c.firstname,bill.bill_no,pro.product_name,bill_det.piece,DATE_FORMAT(bill.bill_date,'%d-%m-%Y') as bill_date from ret_billing as bill
+                left JOIN ret_bill_details  as bill_det on(bill_det.bill_id=bill.bill_id)
+                left join ret_product_master as pro on(pro.pro_id=bill_det.product_id)
+                left join ret_category as cat on(cat.id_ret_category=pro.cat_id)
+                left join metal as m on(m.id_metal=cat.id_metal)
+                left join branch b on (b.id_branch=bill.id_branch)
+                left join customer c on (c.id_customer=bill.bill_cus_id)
+                where bill.bill_status=1 and pro.sales_mode=1 ".($id_branch!='' && $id_branch>0 ? " and bill.id_branch=".$id_branch."" :'')."
+                and date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' order by bill.bill_no DESC");
+               
+                return $data->result_array();
+            break;
+            
+            case "4":
+
+                $data=$this->db->query("SELECT bill.bill_id,bill.bill_no,bill_stn.stone_id,bill_stn.pieces as piece,DATE_FORMAT(bill.bill_date,'%d-%m-%Y') as bill_date,
+                bill_stn.wt as net_wt,bill_stn.price as tot_bill_amount,stn.stone_name as product_name,
+                c.firstname
+                from ret_billing_item_stones bill_stn
+                Left Join ret_billing bill on bill.bill_id=bill_stn.bill_id
+                left join ret_stone stn on stn.stone_id=bill_stn.stone_id
+                left join branch b on (b.id_branch=bill.id_branch)
+                left join customer c on (c.id_customer=bill.bill_cus_id)
+                where stn.stone_type=1 ".($id_branch!='' && $id_branch>0 ? " and bill.id_branch=".$id_branch."" :'')."
+                and date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' order by bill.bill_no DESC");
+                
+                return $data->result_array();
+        }
+    }
+
+    function dashboard_greentagList($from_date,$to_date,$id_branch)
+    {
+        $sql=$this->db->query("SELECT IFNULL(tag.gross_wt,0) as gross_wt,tag.net_wt,IFNULL(d.piece,0) as piece,c.firstname,pro.product_name,DATE_FORMAT(b.bill_date,'%d-%m-%Y') bill_date,b.bill_id,b.bill_no,d.piece,b.tot_bill_amount,m.id_metal
+        FROM ret_bill_details d
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN ret_taging tag ON tag.tag_id=d.tag_id
+        left join ret_product_master as pro on(pro.pro_id=d.product_id)
+         left join ret_category as cat on(cat.id_ret_category=pro.cat_id)
+         left join metal as m on(m.id_metal=cat.id_metal)
+         left join customer c on (c.id_customer=b.bill_cus_id)
+        WHERE tag.tag_status=1 AND tag.tag_mark=1
+        and date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+        ".($id_branch!='' && $id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."");
+
+        return $sql->result_array();
+    }
+
+    function dashboard_greentagList_incent($from_date,$to_date,$id_branch)
+    {
+        $sql=$this->db->query("SELECT b.bill_id,b.bill_no,date_format(b.bill_date,'%d-%m-%Y') as bill_date,emp.firstname as emp_name,emp.emp_code,tag.tag_id,tag.tag_code,date_format(tag.tag_datetime,'%d-%m-%Y') as tag_date
+        FROM ret_bill_details d
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN ret_taging tag ON tag.tag_id=d.tag_id
+        LEFT JOIN ret_estimation_items e ON e.tag_id=d.tag_id
+        LEFT JOIN ret_estimation est ON est.estimation_id=e.esti_id
+        LEFT JOIN employee emp ON emp.id_employee=est.created_by
+        WHERE tag.tag_status=1 AND tag.tag_mark=1
+        and date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+         ".($id_branch!='' && $id_branch>0 ? " and b.id_branch=".$id_branch."" :'')."");
+        //  print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+
+    function dashboard_oldmetalList($from_date,$to_date,$type,$id_branch)
+    {
+        $sql=$this->db->query("SELECT if(oldmp.metal_type=1,'GOLD',IF(oldmp.metal_type=2,'SILVER','')) as metal_type,c.firstname,DATE_FORMAT(bill.bill_date,'%d-%m-%Y') as bill_date,bill.bill_id,bill.bill_no,
+		ifnull(net_wt,0) as weight, ifnull(rate,0) amount FROM ret_bill_old_metal_sale_details oldmp 
+		LEFT JOIN ret_billing as bill ON bill.bill_id = oldmp.bill_id 
+        left  join customer c on (c.id_customer=bill.bill_cus_id)
+        where oldmp.metal_type=".$type." and bill.bill_status=1 
+        and date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+        ".($id_branch!='' && $id_branch>0 ? " and bill.id_branch=".$id_branch."" :'')." order by bill.bill_date desc");
+                
+        return $sql->result_array();
+    }
+    
+    function dashboard_creditsalesList($from_date,$to_date,$type,$id_branch)
+    {
+        switch($type){
+            case "1": // case 1 is credit issue, 2 is credit collection
+                $sql=$this->db->query("SELECT  ifnull(tot_bill_amount-tot_amt_received,0) as amount,c.firstname,DATE_FORMAT(bill.bill_date,'%d-%m-%Y') as bill_date,bill.bill_no,bill.bill_id
+                FROM ret_billing as bill 
+                left join customer c on (c.id_customer=bill.bill_cus_id)
+                WHERE bill.bill_type != 8 and bill.is_credit=1 and bill.bill_status=1
+                and date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+                ".($id_branch!='' && $id_branch>0 ? " and bill.id_branch=".$id_branch."" :'')." order by bill.bill_date desc");
+                return $sql->result_array();
+            break;
+            case "2":
+                $sql=$this->db->query("SELECT ifnull(tot_bill_amount,0) as amount,c.firstname,DATE_FORMAT(bill.bill_date,'%d-%m-%Y') bill_date,bill.bill_no,bill.bill_id from ret_billing as bill
+                left join customer as c on(c.id_customer=bill.bill_cus_id)
+                WHERE bill.ref_bill_id is not null and bill.bill_status=1 and bill.bill_type = 8
+                and date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+                ".($id_branch!='' && $id_branch>0 ? " and bill.id_branch=".$id_branch."" :'')." order by bill.bill_date desc");
+                return $sql->result_array();
+            break;
+        }
+        
+    }
+
+    function dashboard_virtualsalesList($from_date,$to_date,$type,$id_branch)
+    {
+        switch($type)
+        {
+            case "1":  // case 1 is home sales , 2 is partly sales
+                $sql=$this->db->query("SELECT ifnull((d.gross_wt),0) as gross_wt, 
+                ifnull((d.item_cost),0) as item_cost,
+                ifnull((d.piece),0) as pcs , c.firstname, b.bill_no,b.bill_id,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date
+                FROM ret_billing b
+                LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id 
+                LEFT JOIN ret_estimation_items e ON e.est_item_id=d.esti_item_id 
+                left join customer c on (c.id_customer=b.bill_cus_id)
+                WHERE d.esti_item_id IS NOT null AND d.tag_id is null 
+                AND e.item_type =2 and b.bill_status = 1
+                and date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+                ".($id_branch!='' && $id_branch>0 ? " and b.id_branch=".$id_branch."" :'')." order by b.bill_date desc");
+                // print_r($this->db->last_query());exit;
+                return $sql->result_array();
+            break;
+            case "2":
+                $sql=$this->db->query("SELECT ifnull((d.gross_wt),0) as gross_wt, 
+                ifnull((d.item_cost),0) as item_cost, 
+                ifnull((d.piece),0) as pcs ,b.bill_no,b.bill_id,
+                c.firstname,b.bill_date,d.item_cost,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date
+                FROM ret_billing b 
+                LEFT JOIN ret_bill_details d ON d.bill_id = b.bill_id 
+                LEFT JOIN ret_estimation_items e ON e.est_item_id=d.esti_item_id 
+                LEFT JOIN ret_estimation est ON est.estimation_id=e.esti_id 
+                LEFT JOIN ret_taging tag on tag.tag_id=d.tag_id 
+                left join customer c on(c.id_customer=b.bill_cus_id)
+                WHERE d.tag_id IS NOT null AND d.is_partial_sale=1 and 
+                b.bill_status = 1
+                and date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+                ".($id_branch!='' && $id_branch>0 ? " and b.id_branch=".$id_branch."" :'')." order by b.bill_date desc");
+                return $sql->result_array();
+            break;
+        }
+        
+    }
+
+    function dashboard_salereturnList($from_date,$to_date,$id_branch)
+    {
+        $sql=$this->db->query("select IFNULL((d.gross_wt),0) as wt,c.firstname, IFNULL((d.piece),0) as pcs,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date, b.bill_no,b.bill_id,d.gross_wt from ret_bill_details as d
+        left join ret_billing as b on(b.bill_id=d.bill_id)
+        left join customer as c on(c.id_customer=b.bill_cus_id)
+        where d.status=2 and b.bill_status=1
+        and date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+		".($id_branch!='' && $id_branch>0 ?  " and b.id_branch=".$id_branch."" :'')." ");
+        return $sql->result_array();
+    }
+
+
+    function dashboard_taglotList($from_date,$to_date,$type,$id_branch)
+    {
+        switch($type)
+        {
+            case "1": // case 1 is lot , 2 is tag
+                $sql=$this->db->query("SELECT ifnull(sum(d.no_of_piece),0) piece,k.firstname,l.lot_no,ifnull(sum(d.gross_wt),0) gross_wt,date_format(lot_date,'%d-%m-%Y') as date FROM ret_lot_inwards l 
+                left JOIN ret_lot_inwards_detail d on d.lot_no=l.lot_no 
+                left join ret_karigar k on k.id_karigar=l.gold_smith
+                where date(l.lot_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+                ".($id_branch!='' && $id_branch>0 ? " and l.created_branch=1 ".$id_branch."" :'')." GROUP by l.lot_no order by lot_date desc");
+                // print_r($this->db->last_query());exit;
+                return $sql->result_array();
+            break;
+            case "2":
+                $sql=$this->db->query("SELECT ifnull((tag.piece),0) piece ,tag.tag_code,p.product_name,des.design_name,tag.net_wt,ifnull((tag.gross_wt),0) gross_wt,DATE_FORMAT(tag_datetime,'%d-%m-%Y')as date FROM ret_taging tag 
+                left join ret_product_master  as p on (p.pro_id=tag.product_id)
+                left join ret_design_master as des on (des.design_no=tag.design_id)
+                where tag.id_branch=1 and tag.tag_status!=2 
+                and date(tag.tag_datetime) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' order by tag_datetime desc");
+                
+                return $sql->result_array();
+            break;
+        }
+        
+    }
+
+    function dashboard_giftcardList($from_date,$to_date,$type,$id_branch)
+    {
+        switch($type)
+        {
+            case "1":
+                $sql=$this->db->query("SELECT ifnull((amount),0) amount,c.firstname,DATE_FORMAT(gc.date_add,'%d-%m-%Y')as date FROM gift_card as gc
+                left join customer c on (c.id_customer=gc.purchased_by) WHERE status = 2
+                and date(gc.date_add) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' 
+                ".($id_branch!='' && $id_branch>0 ? " and gc.id_branch= ".$id_branch."" :'')." order by date desc");
+                
+                return $sql->result_array();
+            break;
+            case "2":
+                $sql=$this->db->query(" SELECT ifnull((amount),0) amount,c.firstname,DATE_FORMAT(gc.date_add,'%d-%m-%Y')as date FROM gift_card as gc
+                left join customer c on (c.id_customer=gc.purchased_by) WHERE status = 0 
+                and date(gc.date_add) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+                ".($id_branch!='' && $id_branch>0 ? " and gc.id_branch= ".$id_branch."" :'')." order by date desc");
+                
+                return $sql->result_array();
+            break;
+            case "3":
+                $sql=$this->db->query("SELECT ifnull((amount),0) amount,c.firstname,DATE_FORMAT(gc.date_add,'%d-%m-%Y')as date FROM gift_card as gc
+                left join customer c on (c.id_customer=gc.purchased_by) where free_card = 2 
+                and date(gc.date_add) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' 
+                ".($id_branch!='' && $id_branch>0 ? " and gc.id_branch= ".$id_branch."" :'')." order by date desc");
+               
+                return $sql->result_array();
+            break;
+        }
+        
+    }
+
+    function dashboard_customerorderList($from_date,$to_date,$type,$id_branch)
+    {
+        switch($type)
+        {
+            case "1": // case 1 is created, 2 is allocated, 3 is pending, 4 is delivery ready, 5 is delivered
+                $sql=$this->db->query("SELECT (d.totalitems) as piece,b.name branch,DATE_FORMAT(c.order_date,'%d-%m-%Y') as order_date,d.orderno,pro.product_name,d.weight,d.rate
+                FROM customerorder c 
+                left join branch b on (b.id_branch=c.order_from)
+                LEFT JOIN customerorderdetails d ON d.id_customerorder=c.id_customerorder
+                left join ret_product_master as pro on(pro.pro_id=d.id_product)
+                WHERE date(c.order_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' 
+                ".($id_branch!='' && $id_branch>0 ? " and c.order_from= ".$id_branch."" :'')." and c.order_for='2' and d.orderstatus = 0 order by c.order_from desc");
+                
+                return $sql->result_array();
+            break;
+            case "2":
+                $sql=$this->db->query("SELECT (d.totalitems) as piece,b.name branch,DATE_FORMAT(c.order_date,'%d-%m-%Y') as order_date,d.orderno,pro.product_name,d.weight,d.rate
+                FROM customerorder c 
+                LEFT JOIN customerorderdetails d ON d.id_customerorder=c.id_customerorder
+                left join branch b on (b.id_branch=c.order_from)
+                left join ret_product_master as pro on(pro.pro_id=d.id_product)
+                WHERE date(c.order_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' 
+                ".($id_branch!='' && $id_branch>0 ? " and c.order_from= ".$id_branch."" :'')." and c.order_for='2' and d.orderstatus = 3 order by c.order_from desc");
+                
+                return $sql->result_array();
+            break;
+            case "3":
+                $sql=$this->db->query("SELECT (d.totalitems) as piece,b.name branch,DATE_FORMAT(c.order_date,'%d-%m-%Y') as order_date,d.orderno,pro.product_name,d.weight,d.rate
+                FROM customerorder c 
+                LEFT JOIN customerorderdetails d ON d.id_customerorder=c.id_customerorder
+                left join branch b on (b.id_branch=c.order_from)
+                left join ret_product_master as pro on(pro.pro_id=d.id_product)
+                WHERE date(c.order_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' 
+                ".($id_branch!='' && $id_branch>0 ? " and c.order_from= ".$id_branch."" :'')." and c.order_for='2' and d.orderstatus <= 2 order by c.order_from desc");
+                
+                return $sql->result_array();
+            break;
+
+            case "4":
+                $sql=$this->db->query("SELECT (d.totalitems) as piece,b.name branch,DATE_FORMAT(c.order_date,'%d-%m-%Y') as order_date,d.orderno,pro.product_name,d.weight,d.rate
+                FROM customerorder c 
+                LEFT JOIN customerorderdetails d ON d.id_customerorder=c.id_customerorder
+                left join branch b on (b.id_branch=c.order_from)
+                left join ret_product_master as pro on(pro.pro_id=d.id_product)
+                WHERE date(c.order_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' 
+                ".($id_branch!='' && $id_branch>0 ? " and c.order_from= ".$id_branch."" :'')." and c.order_for='2' and d.orderstatus = 4 order by c.order_from desc");
+                
+                return $sql->result_array();
+            break;
+
+            case "5":
+                $sql=$this->db->query("SELECT (d.totalitems) as piece,b.name branch,DATE_FORMAT(c.order_date,'%d-%m-%Y') as order_date,d.orderno,pro.product_name,d.weight,d.rate
+                FROM customerorder c 
+                LEFT JOIN customerorderdetails d ON d.id_customerorder=c.id_customerorder
+                left join branch b on (b.id_branch=c.order_from)
+                left join ret_product_master as pro on(pro.pro_id=d.id_product)
+                WHERE date(c.order_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' 
+                ".($id_branch!='' && $id_branch>0 ? " and c.order_from= ".$id_branch."" :'')." and c.order_for='2' and d.orderstatus = 5 order by c.order_from desc");
+                
+                return $sql->result_array();
+            break;
+        }
+    }
+    
+    
+     //Old Metal Opening stock
+    function get_OpeningStockDetails()
+    {
+        $sql=$this->db->query("SELECT s.id_metal_stock,s.closing_wt,s.closing_purity,mt.metal as metal_name,t.metal_type as metal_type,emp.firstname as emp_name,date_format(s.date,'%d-%m-%Y') as date_add,s.closing_amt
+        FROM ret_purchase_item_stock s
+        LEFT JOIN metal mt ON mt.id_metal=s.id_metal
+        LEFT JOIN ret_old_metal_type t ON t.id_metal_type=s.id_metal_category
+        LEFT JOIN employee emp ON emp.id_employee=s.created_by
+        WHERE s.stock_type=3");
+        return $sql->result_array();
+    }
+    //Old Metal Opening stock
+    
+    //Metal Stock Details
+    /*function get_metal_stock_details($data)
+    {
+        //print_r($data);exit;
+        $return_data=array("old_metal_details"=>array(),"sales_return_details"=>array());
+        
+        $day_closing=$this->getBranchDayClosingData($data['id_branch']);
+        $date=($day_closing['is_day_closed']==1 ? $day_closing['entry_date']:date("Y-m-d"));
+        $d1 = date_create($data['from_date']);
+        $d2 = date_create($data['to_date']);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        
+        if(($FromDt!=$date) && ($ToDt!=$date))
+        {
+            
+            $old_metal_query=$this->db->query("SELECT t.metal_type as metal_type,s.op_blc_gwt,s.op_blc_nwt,s.inw_gwt,s.inw_nwt,s.closing_gwt,s.closing_nwt,s.outward_gwt as br_out_gwt,s.outward_nwt as br_out_nwt
+            FROM ret_purchase_item_stock s 
+            LEFT JOIN ret_old_metal_type t ON t.id_metal_type=s.id_old_metal_type
+            WHERE s.stock_type=0 AND  (date(s.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' ? " and s.id_branch=".$data['id_branch']."" :'')." ");
+            //print_r($this->db->last_query());exit;
+            $return_data['old_metal_details']=$old_metal_query->result_array();
+            
+            $sales_return_query=$this->db->query("SELECT s.id_ret_category,c.name as category_name,s.op_blc_gwt,s.op_blc_nwt,s.inw_gwt as inw_gross_wt,s.inw_nwt as inw_net_wt,s.closing_gwt,s.closing_nwt,s.outward_gwt as br_out_gwt,s.outward_nwt as br_out_nwt
+            FROM ret_purchase_item_stock s 
+            LEFT JOIN ret_category c ON c.id_ret_category=s.id_ret_category
+            WHERE (s.stock_type=2 or s.stock_type=3) AND  (date(s.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+            ".($data['id_branch']!='' ? " and s.id_branch=".$data['id_branch']."" :'')." ");
+            
+            $return_data['purchase_items_details']=$sales_return_query->result_array();
+           
+        }
+        else
+        {
+            $op_date= date('Y-m-d',(strtotime('-1 day',strtotime($FromDt))));
+            
+            //Old Metal Details
+            $old_metal=$this->db->query("SELECT t.id_metal_type,t.metal_type,
+            (IFNULL(inw.inw_gwt,0)+IFNULL(adv_inw.inw_gwt,0)) as inw_gwt,(IFNULL(inw.inw_nwt,0)+IFNULL(adv_inw.inw_nwt,0)) as inw_nwt,
+            IFNULL(op_blc.closing_nwt,0) as op_blc_nwt,IFNULL(op_blc.closing_gwt,0) as op_blc_gwt,
+            IFNULL(br_out.br_out_gwt,0) as br_out_gwt,IFNULL(br_out.br_out_nwt,0) as br_out_nwt
+            FROM ret_old_metal_type t
+            
+            LEFT JOIN(SELECT IFNULL(SUM(m.closing_gwt),0) as closing_gwt,IFNULL(SUM(m.closing_nwt),0) as closing_nwt,m.id_old_metal_type
+                     FROM ret_purchase_item_stock m 
+                     where (date(m.date) BETWEEN '".date('Y-m-d',strtotime($op_date))."' AND '".date('Y-m-d',strtotime($op_date))."') and m.stock_type=0) as op_blc ON op_blc.id_old_metal_type=t.id_metal_type
+            
+            LEFT JOIN(SELECT IFNULL(SUM(s.gross_wt),0) as inw_gwt,IFNULL(SUM(s.net_wt),0) as inw_nwt,e.id_old_metal_type
+					 FROM ret_purchase_items_log l
+                     LEFT JOIN ret_bill_old_metal_sale_details s ON s.old_metal_sale_id=l.old_metal_sale_id
+                     LEFT JOIN ret_estimation_old_metal_sale_details e ON e.old_metal_sale_id=s.esti_old_metal_sale_id
+                     LEFT JOIN ret_billing b ON b.bill_id=s.bill_id
+                     WHERE b.bill_status=1 and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                     ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+                     GROUP by e.id_old_metal_type) as inw ON inw.id_old_metal_type=t.id_metal_type
+                     
+            LEFT JOIN (SELECT IFNULL(SUM(s.gross_wt),0) as inw_gwt,IFNULL(SUM(s.net_wt),0) as inw_nwt,s.id_old_metal_type
+            FROM ret_purchase_items_log l 
+            LEFT JOIN ret_issue_receipt i ON i.id_issue_receipt=l.id_issue_receipt
+            LEFT JOIN ret_adv_receipt_weight w ON w.id_issue_receipt=i.id_issue_receipt
+            LEFT JOIN ret_estimation_old_metal_sale_details s ON s.old_metal_sale_id=w.est_old_metal_sale_id
+            WHERE s.purchase_status=3 AND i.bill_status=1 and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+            GROUP by s.id_old_metal_type) as adv_inw ON adv_inw.id_old_metal_type=t.id_metal_type
+                     
+             LEFT JOIN(SELECT IFNULL(SUM(s.gross_wt),0) as br_out_gwt,IFNULL(SUM(s.net_wt),0) as br_out_nwt,e.id_old_metal_type
+					 FROM ret_purchase_items_log l
+                     LEFT JOIN ret_bill_old_metal_sale_details s ON s.old_metal_sale_id=l.old_metal_sale_id
+                     LEFT JOIN ret_estimation_old_metal_sale_details e ON e.old_metal_sale_id=s.esti_old_metal_sale_id
+                     LEFT JOIN ret_billing b ON b.bill_id=s.bill_id
+                     WHERE b.bill_status=1 and (l.status=2 or l.status=3) and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                     ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+                     GROUP by e.id_old_metal_type) as br_out ON br_out.id_old_metal_type=t.id_metal_type
+                     
+            
+            GROUP by t.id_metal_type");
+            //print_r($this->db->last_query());exit;
+            $return_data['old_metal_details']=$old_metal->result_array();
+            //Old Metal Details
+            
+            //Return Details
+            $sql=$this->db->query("SELECT c.id_ret_category,c.name as category_name,mt.metal as metal_name,
+            IFNULL(s_ret_inw.inw_gwt,0) as inw_gross_wt,IFNULL(s_ret_inw.inw_nwt,0)+IFNULL(partly_sale_inw.inw_nwt,0)+IFNULL(process_inw.inw_nwt,0)+IFNULL(testing_process_inw.inw_nwt,0)+IFNULL(refining_process_inw.inw_nwt,0) as inw_net_wt,IFNULL(op_blc.closing_nwt,0) as op_blc_nwt,
+            IFNULL(op_blc.closing_gwt,0) as op_blc_gwt,
+            (IFNULL(sales_ret_br_out.br_out_nwt,0)+IFNULL(partly_sale_br_out.br_out_nwt,0)+IFNULL(process_out.process_out_wt,0)+IFNULL(refining_out.process_out_wt,0)) as br_out_nwt
+            FROM ret_category c 
+            LEFT JOIN metal mt on mt.id_metal=c.id_metal
+            
+            LEFT JOIN(SELECT IFNULL(SUM(m.closing_gwt),0) as closing_gwt,IFNULL(SUM(m.closing_nwt),0) as closing_nwt,m.id_ret_category
+                     FROM ret_purchase_item_stock m 
+                     where (date(m.date) BETWEEN '".date('Y-m-d',strtotime($op_date))."' AND '".date('Y-m-d',strtotime($op_date))."') and (m.stock_type=2 or m.stock_type=3)) as op_blc ON op_blc.id_ret_category=c.id_ret_category
+            
+            LEFT JOIN(SELECT IFNULL(SUM(tag.gross_wt),0) as inw_gwt,IFNULL(SUM(tag.net_wt),0) as inw_nwt,p.cat_id
+            FROM ret_purchase_items_log l 
+            LEFT JOIN ret_taging tag ON tag.tag_id=l.tag_id
+            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+            LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+            LEFT JOIN ret_bill_details d on d.tag_id=tag.tag_id
+            LEFT JOIN ret_billing b on b.bill_id=d.bill_id
+            WHERE tag.tag_status=6  and (l.item_type=2) and b.bill_status=1
+            and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+            GROUP by p.cat_id) as s_ret_inw ON s_ret_inw.cat_id=c.id_ret_category
+            
+            LEFT JOIN(SELECT IFNULL((SUM(tag.gross_wt)-SUM(d.gross_wt)),0) as inw_gwt,(IFNULL(sum(tag.net_wt),0)-IFNULL(sum(d.net_wt),0)) as inw_nwt,p.cat_id
+            FROM ret_purchase_items_log l 
+            LEFT JOIN ret_taging tag ON tag.tag_id=l.tag_id
+            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+            LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+            LEFT JOIN ret_bill_details d on d.tag_id=tag.tag_id
+            LEFT JOIN ret_billing b on b.bill_id=d.bill_id
+            WHERE tag.is_partial=1  and (l.item_type=3) and b.bill_status=1
+            and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+            GROUP by p.cat_id) as partly_sale_inw ON partly_sale_inw.cat_id=c.id_ret_category
+                     
+            LEFT JOIN (SELECT IFNULL(SUM(m.received_wt),0) as inw_nwt,m.received_category as id_category
+            FROM ret_purchase_items_log l 
+            LEFT JOIN ret_old_metal_process p ON p.id_old_metal_process=l.id_old_metal_process
+            LEFT JOIN ret_old_metal_melting m ON m.id_old_metal_process=p.id_old_metal_process
+            WHERE l.id_old_metal_process IS NOT NULL AND l.item_type=4
+            and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+            GROUP by m.received_category) as process_inw ON process_inw.id_category=c.id_ret_category
+            
+            LEFT JOIN (SELECT IFNULL(SUM(t.received_wt),0) as inw_nwt,m.received_category as id_category
+            FROM ret_purchase_items_log l 
+            LEFT JOIN ret_old_metal_testing t ON t.id_old_metal_process_receipt=l.id_old_metal_process
+            LEFT JOIN ret_old_metal_melting m ON m.id_melting=t.id_melting
+            LEFT JOIN ret_old_metal_process p ON p.id_old_metal_process=l.id_old_metal_process
+            WHERE l.id_old_metal_process IS NOT NULL AND l.item_type=4
+             and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+            AND l.status=1 AND p.process_for=2
+            GROUP by m.received_category) as testing_process_inw ON testing_process_inw.id_category=c.id_ret_category
+            
+            
+            LEFT JOIN(SELECT IFNULL(SUM(d.received_wt),0) as inw_nwt,d.received_category as id_category
+            FROM ret_purchase_items_log l 
+            LEFT JOIN ret_old_metal_refining ref ON ref.id_old_metal_process_receipt=l.id_old_metal_process
+            LEFT JOIN ret_old_metal_refining_details d ON d.id_metal_refining=ref.id_metal_refining
+            WHERE l.id_old_metal_process IS NOT NULL AND l.item_type=4 and d.received_category IS NOT NULL
+            and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+            GROUP by d.received_category) as refining_process_inw on refining_process_inw.id_category=c.id_ret_category
+            
+            
+            LEFT JOIN (SELECT p.id_old_metal_process,IFNULL(SUM(t.net_wt),0) as process_out_wt,m.received_category as id_category
+            FROM ret_purchase_items_log l
+            LEFT JOIN ret_old_metal_testing t ON t.id_old_metal_process=l.id_old_metal_process
+            LEFT JOIN ret_old_metal_process p ON p.id_old_metal_process=t.id_old_metal_process LEFT JOIN ret_old_metal_melting m ON m.id_melting=t.id_melting
+            WHERE l.item_type=5 AND p.process_for=1 and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+            GROUP by m.received_category) as process_out ON process_out.id_category=c.id_ret_category
+            
+            LEFT JOIN (SELECT p.id_old_metal_process,IFNULL(SUM(t.received_wt),0) as process_out_wt,m.received_category as id_category
+            FROM ret_purchase_items_log l
+            LEFT JOIN ret_old_metal_refining r ON r.id_old_metal_process=l.id_old_metal_process
+            LEFT JOIN ret_old_metal_melting m ON m.id_melting=r.id_melting
+            LEFT JOIN ret_old_metal_testing t ON t.id_metal_testing=r.id_metal_testing
+            LEFT JOIN ret_old_metal_process p ON p.id_old_metal_process=l.id_old_metal_process
+            WHERE l.item_type=5 AND m.melting_status=4 AND p.process_for=1 and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+            GROUP by m.received_category) as refining_out ON refining_out.id_category=c.id_ret_category
+            
+                     
+            LEFT JOIN(SELECT IFNULL(SUM(tag.gross_wt),0) as br_out_gwt,IFNULL(SUM(tag.net_wt),0) as br_out_nwt,p.cat_id
+            FROM ret_purchase_items_log l 
+            LEFT JOIN ret_taging tag ON tag.tag_id=l.tag_id
+            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+            LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+            LEFT JOIN ret_bill_details d on d.tag_id=tag.tag_id
+            LEFT JOIN ret_billing b on b.bill_id=d.bill_id
+            WHERE tag.tag_status=6 and (l.item_type=2)
+            and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+            GROUP by p.cat_id) as sales_ret_br_out ON sales_ret_br_out.cat_id=c.id_ret_category
+            
+            
+            LEFT JOIN(SELECT IFNULL((SUM(tag.gross_wt)-SUM(d.gross_wt)),0) as br_out_gwt,(IFNULL(sum(tag.net_wt),0)-IFNULL(sum(d.net_wt),0)) as br_out_nwt,p.cat_id
+            FROM ret_purchase_items_log l 
+            LEFT JOIN ret_taging tag ON tag.tag_id=l.tag_id
+            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+            LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+            LEFT JOIN ret_bill_details d on d.tag_id=tag.tag_id
+            LEFT JOIN ret_billing b on b.bill_id=d.bill_id
+            WHERE tag.is_partial=1 and (l.item_type=3)
+            and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+            GROUP by p.cat_id) as partly_sale_br_out ON partly_sale_br_out.cat_id=c.id_ret_category
+                     
+            GROUP by c.id_ret_category");
+    		$return_data['purchase_items_details'] = $sql->result_array();
+           
+        }
+        
+        return $return_data;
+    }*/
+    
+    
+    
+    function get_metal_stock_details($data)
+    {
+        //print_r($data);exit;
+        $return_data=array();
+        
+        $day_closing=$this->getBranchDayClosingData($data['id_branch']);
+        $date=($day_closing['is_day_closed']==1 ? $day_closing['entry_date']:date("Y-m-d"));
+        $d1 = date_create($data['from_date']);
+        $d2 = date_create($data['to_date']);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        $op_date= date('Y-m-d',(strtotime('-1 day',strtotime($FromDt))));
+        
+        if($data['report_type']==1) // SALES RETURN
+        {
+            if(($FromDt!=$date) && ($ToDt!=$date))
+            {
+                    $sql = $this->db->query("SELECT p.product_name,p.pro_id,s.op_blc_pcs,s.op_blc_gwt,s.op_blc_nwt,s.inw_pcs,
+                    s.inw_gwt,s.inw_nwt,s.out_ward_pcs as outward_pcs,s.outward_gwt,s.outward_nwt,
+                    s.closing_gwt,s.closing_nwt as closing_nwt,s.closing_pcs
+                    From ret_purchase_item_stock s 
+                    LEFT JOIN ret_product_master p on p.pro_id=s.id_product
+                    where date(s.date) BETWEEN '$FromDt' AND '$ToDt' and s.stock_type=2
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and s.id_branch=".$data['id_branch']."" :'')." 
+                    Having closing_pcs>0");
+                    //print_r($this->db->last_query());exit;
+                    $return_data=$sql->result_array();
+            }
+            else
+            {
+                    $sql=$this->db->query("SELECT p.product_name,p.pro_id,
+            
+                    IFNULL(op_blc.closing_gwt,0) as op_blc_gwt,IFNULL(op_blc.closing_nwt,0) as op_blc_nwt,IFNULL(op_blc.closing_pcs,0) as op_blc_pcs,
+                    
+                    IFNULL(inw.inw_pcs,0) as inw_pcs,IFNULL(inw.inw_gwt,0) as inw_gwt,IFNULL(inw.inw_nwt,0) as inw_nwt,
+                    
+                    IFNULL(out_ward.br_out_pcs,0) as br_out_pcs,IFNULL(out_ward.br_out_gwt,0) as br_out_gwt,IFNULL(out_ward.br_out_nwt,0) as br_out_nwt
+                    
+                    FROM ret_product_master p 
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(m.closing_gwt),0) as closing_gwt,IFNULL(SUM(m.closing_pcs),0) as closing_pcs,IFNULL(SUM(m.closing_nwt),0) as closing_nwt,p.pro_id
+                    FROM ret_purchase_item_stock m 
+                    LEFT JOIN ret_product_master p ON p.pro_id=m.id_product
+                    where (date(m.date) BETWEEN '".date('Y-m-d',strtotime($op_date))."' AND '".date('Y-m-d',strtotime($op_date))."') and (m.stock_type=2)
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and m.id_branch=".$data['id_branch']."" :'')."
+                    GROUP by p.pro_id) as op_blc ON op_blc.pro_id=p.pro_id
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(tag.piece),0) as inw_pcs,IFNULL(SUM(tag.gross_wt),0) as inw_gwt,IFNULL(SUM(tag.net_wt),0) as inw_nwt,p.pro_id
+                    FROM ret_purchase_items_log l 
+                    LEFT JOIN ret_taging tag ON tag.tag_id=l.tag_id
+                    LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                    LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+                    LEFT JOIN ret_bill_details d on d.tag_id=tag.tag_id
+                    LEFT JOIN ret_billing b on b.bill_id=l.bill_id
+                    WHERE tag.tag_status=6  and (l.item_type=2) and b.bill_status=1
+                    and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+                    GROUP by p.pro_id) AS inw ON inw.pro_id=p.pro_id
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(tag.piece),0) as br_out_pcs,IFNULL(SUM(tag.gross_wt),0) as br_out_gwt,IFNULL(SUM(tag.net_wt),0) as br_out_nwt,p.pro_id
+                    FROM ret_purchase_items_log l 
+                    LEFT JOIN ret_taging tag ON tag.tag_id=l.tag_id
+                    LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                    LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+                    WHERE (l.item_type=2) and (l.status=2 or l.status=3)
+                    and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+                    GROUP by p.pro_id) AS out_ward ON out_ward.pro_id=p.pro_id
+                                    
+                    WHERE p.pro_id is NOT NULL order by p.pro_id ASC");
+                    //print_r($this->db->last_query());exit;
+                    
+                    $result=$sql->result_array();
+                    foreach($result as $items)
+                    {
+                        $closing_gwt=number_format($items['op_blc_gwt']+$items['inw_gwt']-$items['br_out_gwt'],3,'.','');
+                        $closing_nwt=number_format($items['op_blc_nwt']+$items['inw_nwt']-$items['br_out_nwt'],3,'.','');
+                        if($closing_gwt>0 || $closing_nwt>0 || $items['inw_pcs']>0 || $items['br_out_pcs']>0)
+                        {
+                            $return_data[]=array(
+                                            'product_name'=>$items['product_name'],
+                                            'pro_id'=>$items['pro_id'],
+                                            'op_blc_pcs'=>$items['op_blc_pcs'],
+                                            'op_blc_gwt'=>$items['op_blc_gwt'],
+                                            'op_blc_nwt'=>$items['op_blc_nwt'],
+                                            'inw_pcs'=>$items['inw_pcs'],
+                                            'inw_gwt'=>$items['inw_gwt'],
+                                            'inw_nwt'=>$items['inw_nwt'],
+                                            'outward_pcs'=>$items['br_out_pcs'],
+                                            'outward_gwt'=>$items['br_out_gwt'],
+                                            'outward_nwt'=>$items['br_out_nwt'],
+                                            'closing_pcs'=>($items['op_blc_pcs']+$items['inw_pcs']-$items['br_out_pcs']),
+                                            'closing_gwt'=>($items['op_blc_gwt']+$items['inw_gwt']-$items['br_out_gwt']),
+                                            'closing_nwt'=>($items['op_blc_nwt']+$items['inw_nwt']-$items['br_out_nwt']),
+                                            );
+                        }
+                        
+                    }
+                    
+            
+            }
+           
+        }
+        else if($data['report_type']==2) // PARTLY SALE
+        {
+            if(($FromDt!=$date) && ($ToDt!=$date))
+            {
+                $sql = $this->db->query("SELECT p.product_name,p.pro_id,s.op_blc_pcs,s.op_blc_gwt,s.op_blc_nwt,s.inw_pcs,
+                    s.inw_gwt,s.inw_nwt,s.out_ward_pcs as outward_pcs,s.outward_gwt,s.outward_nwt,
+                    s.closing_gwt,s.closing_nwt as closing_nwt,s.closing_pcs
+                    From ret_purchase_item_stock s 
+                    LEFT JOIN ret_product_master p on p.pro_id=s.id_product
+                    where date(s.date) BETWEEN '$FromDt' AND '$ToDt' and s.stock_type=3
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and s.id_branch=".$data['id_branch']."" :'')." 
+                    ");
+                    //print_r($this->db->last_query());exit;
+                    $return_data=$sql->result_array();
+            }
+            else
+            {
+                    $sql=$this->db->query("SELECT p.product_name,p.pro_id,
+            
+                    IFNULL(op_blc.closing_gwt,0) as op_blc_gwt,IFNULL(op_blc.closing_nwt,0) as op_blc_nwt,IFNULL(op_blc.closing_pcs,0) as op_blc_pcs,
+                    
+                    IFNULL(inw.inw_pcs,0) as inw_pcs,IFNULL(inw.inw_gwt,0) as inw_gwt,IFNULL(inw.inw_nwt,0) as inw_nwt,
+                    
+                    IFNULL(out_ward.br_out_pcs,0) as br_out_pcs,IFNULL(out_ward.br_out_gwt,0) as br_out_gwt,IFNULL(out_ward.br_out_nwt,0) as br_out_nwt
+                    
+                    FROM ret_product_master p 
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(m.closing_gwt),0) as closing_gwt,IFNULL(SUM(m.closing_pcs),0) as closing_pcs,IFNULL(SUM(m.closing_nwt),0) as closing_nwt,p.pro_id
+                    FROM ret_purchase_item_stock m 
+                    LEFT JOIN ret_product_master p ON p.pro_id=m.id_product
+                    where (date(m.date) BETWEEN '".date('Y-m-d',strtotime($op_date))."' AND '".date('Y-m-d',strtotime($op_date))."') and (m.stock_type=3)
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and m.id_branch=".$data['id_branch']."" :'')."
+                    GROUP by p.pro_id) as op_blc ON op_blc.pro_id=p.pro_id
+                    
+                    LEFT JOIN(
+                    SELECT IFNULL(SUM(l.gross_wt),0) as inw_gwt,'0' as inw_nwt,p.pro_id,'0' as inw_pcs
+                    FROM ret_purchase_items_log l 
+                    LEFT JOIN ret_bill_details d ON d.bill_det_id=l.sold_bill_det_id
+                    LEFT JOIN ret_partlysold tag ON tag.sold_bill_det_id=d.bill_det_id
+                    LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+                    LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                    LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                    WHERE d.is_partial_sale=1 and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+                    AND b.bill_status=1 and l.item_type=3 and (l.status=1)
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+                    GROUP by p.pro_id
+                    ) AS inw ON inw.pro_id=p.pro_id
+                                    
+                    LEFT JOIN(SELECT SUM(l.gross_wt) as  br_out_gwt,'0' as br_out_pcs,'0' as br_out_nwt,p.pro_id
+                    FROM ret_purchase_items_log l
+                    LEFT JOIN ret_bill_details d ON d.tag_id=l.tag_id
+                    LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+                    LEFT JOIN ret_taging t ON t.tag_id=l.tag_id
+                    LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                    WHERE l.item_type=3 and (l.status=2 or l.status=3) and b.bill_status=1 and d.item_type=0
+                    and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                   ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+                    GROUP by p.pro_id) as out_ward ON out_ward.pro_id=p.pro_id
+
+                    WHERE p.pro_id is NOT NULL order by p.pro_id ASC");
+                    //print_r($this->db->last_query());exit;
+                    
+                    $result=$sql->result_array();
+                    foreach($result as $items)
+                    {
+                        $closing_gwt=number_format($items['op_blc_gwt']+$items['inw_gwt']-$items['br_out_gwt'],3,'.','');
+                        $closing_nwt=number_format($items['op_blc_nwt']+$items['inw_nwt']-$items['br_out_nwt'],3,'.','');
+                        if($closing_gwt!=0 || $closing_nwt!=0 || $items['inw_gwt']!=0 || $items['br_out_gwt']!=0)
+                        {
+                            $return_data[]=array(
+                                            'product_name'=>$items['product_name'],
+                                            'pro_id'=>$items['pro_id'],
+                                            'op_blc_pcs'=>$items['op_blc_pcs'],
+                                            'op_blc_gwt'=>$items['op_blc_gwt'],
+                                            'op_blc_nwt'=>$items['op_blc_nwt'],
+                                            'inw_pcs'=>$items['inw_pcs'],
+                                            'inw_gwt'=>$items['inw_gwt'],
+                                            'inw_nwt'=>$items['inw_nwt'],
+                                            'outward_pcs'=>$items['br_out_pcs'],
+                                            'outward_gwt'=>$items['br_out_gwt'],
+                                            'outward_nwt'=>$items['br_out_nwt'],
+                                            'closing_pcs'=>($items['op_blc_pcs']+$items['inw_pcs']-$items['br_out_pcs']),
+                                            'closing_gwt'=>($items['op_blc_gwt']+$items['inw_gwt']-$items['br_out_gwt']),
+                                            'closing_nwt'=>($items['op_blc_nwt']+$items['inw_nwt']-$items['br_out_nwt']),
+                                            );
+                        }
+                        
+                    }
+            }
+           
+        }
+        else if($data['report_type']==3) // OLD METAL
+        {
+            if(($FromDt!=$date) && ($ToDt!=$date))
+            {
+                $sql = $this->db->query("SELECT t.id_old_metal_cat as id_metal_type,s.op_blc_pcs,s.op_blc_gwt,s.op_blc_nwt,s.inw_pcs,
+                s.inw_gwt,s.inw_nwt,s.out_ward_pcs as br_out_pcs,s.outward_gwt as br_out_gwt,s.outward_nwt as br_out_nwt,
+                s.closing_gwt,s.closing_nwt as closing_nwt,t.old_metal_cat as metal_type
+				From ret_purchase_item_stock s 
+				LEFT JOIN ret_old_metal_category t on t.id_old_metal_cat=s.id_old_metal_type
+				where date(s.date) BETWEEN '$FromDt' AND '$ToDt' and s.stock_type=0
+				 ".($data['id_branch']!='' && $data['id_branch']>0 ? " and s.id_branch=".$data['id_branch']."" :'')." ");
+				//print_r($this->db->last_query());exit;
+				$result=$sql->result_array();
+				
+				$return_data=$result;
+            }
+            else
+            {
+                    $sql=$this->db->query("SELECT t.id_old_metal_cat as id_metal_type,t.old_metal_cat as metal_type,
+                    (IFNULL(inw.inw_gwt,0)+IFNULL(adv_inw.inw_gwt,0)) as inw_gwt,(IFNULL(inw.inw_nwt,0)+IFNULL(adv_inw.inw_nwt,0)) as inw_nwt,
+                    IFNULL(op_blc.closing_nwt,0) as op_blc_nwt,IFNULL(op_blc.closing_gwt,0) as op_blc_gwt,
+                    IFNULL(br_out.br_out_gwt,0) as br_out_gwt,IFNULL(br_out.br_out_nwt,0) as br_out_nwt,
+                    IFNULL(retag.br_out_gwt,0) as retag_gwt,IFNULL(retag.br_out_nwt,0) as retag_nwt
+                    FROM ret_old_metal_category t
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(m.closing_gwt),0) as closing_gwt,IFNULL(SUM(m.closing_nwt),0) as closing_nwt,m.id_old_metal_type
+                    FROM ret_purchase_item_stock m 
+                    where (date(m.date) BETWEEN '".date('Y-m-d',strtotime($op_date))."' AND '".date('Y-m-d',strtotime($op_date))."') 
+                    and m.stock_type=0
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and m.id_branch=".$data['id_branch']."" :'')."
+                    GROUP by m.id_old_metal_type) as op_blc ON op_blc.id_old_metal_type=t.id_old_metal_cat
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(s.gross_wt),0) as inw_gwt,IFNULL(SUM(s.net_wt),0) as inw_nwt,e.id_old_metal_category
+                    FROM ret_purchase_items_log l
+                    LEFT JOIN ret_bill_old_metal_sale_details s ON s.old_metal_sale_id=l.old_metal_sale_id
+                    LEFT JOIN ret_estimation_old_metal_sale_details e ON e.old_metal_sale_id=s.esti_old_metal_sale_id
+                    LEFT JOIN ret_billing b ON b.bill_id=s.bill_id
+                    WHERE b.bill_status=1 and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+                    GROUP by e.id_old_metal_category) as inw ON inw.id_old_metal_category=t.id_old_metal_cat
+                    
+                    LEFT JOIN (SELECT IFNULL(SUM(s.gross_wt),0) as inw_gwt,IFNULL(SUM(s.net_wt),0) as inw_nwt,s.id_old_metal_category
+                    FROM ret_purchase_items_log l 
+                    LEFT JOIN ret_issue_receipt i ON i.id_issue_receipt=l.id_issue_receipt
+                    LEFT JOIN ret_adv_receipt_weight w ON w.id_issue_receipt=i.id_issue_receipt
+                    LEFT JOIN ret_estimation_old_metal_sale_details s ON s.old_metal_sale_id=w.est_old_metal_sale_id
+                    WHERE s.purchase_status=3 AND i.bill_status=1 and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+                    GROUP by s.id_old_metal_category) as adv_inw ON adv_inw.id_old_metal_category=t.id_old_metal_cat
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(s.gross_wt),0) as br_out_gwt,IFNULL(SUM(s.net_wt),0) as br_out_nwt,e.id_old_metal_category
+                    FROM ret_purchase_items_log l
+                    LEFT JOIN ret_bill_old_metal_sale_details s ON s.old_metal_sale_id=l.old_metal_sale_id
+                    LEFT JOIN ret_estimation_old_metal_sale_details e ON e.old_metal_sale_id=s.esti_old_metal_sale_id
+                    LEFT JOIN ret_billing b ON b.bill_id=s.bill_id
+                    WHERE b.bill_status=1 and (l.status=2 or l.status=3) and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+                    GROUP by e.id_old_metal_category) as br_out ON br_out.id_old_metal_category=t.id_old_metal_cat
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(s.gross_wt),0) as br_out_gwt,IFNULL(SUM(s.net_wt),0) as br_out_nwt,e.id_old_metal_category
+                    FROM ret_purchase_items_log l
+                    LEFT JOIN ret_bill_old_metal_sale_details s ON s.old_metal_sale_id=l.old_metal_sale_id
+                    LEFT JOIN ret_estimation_old_metal_sale_details e ON e.old_metal_sale_id=s.esti_old_metal_sale_id
+                    WHERE (l.status=4) and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+                    GROUP by e.id_old_metal_category) as retag ON retag.id_old_metal_category=t.id_old_metal_cat
+
+                    GROUP by t.id_old_metal_cat");
+                    //print_r($this->db->last_query());exit;
+                    $result=$sql->result_array();
+                    foreach($result as $items)
+                    {
+                        $closing_gwt=number_format(($items['op_blc_gwt']+$items['inw_gwt']-$items['br_out_gwt']-$items['retag_gwt']),3,'.','');
+                        $closing_nwt=number_format(($items['op_blc_nwt']+$items['inw_nwt']-$items['br_out_nwt']-$items['retag_nwt']),3,'.','');
+                        if($closing_gwt!='' || $closing_nwt!='')
+                        {
+                            $return_data[]=array(
+                                            'metal_type'    =>$items['metal_type'],
+                                            'inw_gwt'       =>$items['inw_gwt'],
+                                            'inw_nwt'       =>$items['inw_nwt'],
+                                            'op_blc_nwt'    =>$items['op_blc_nwt'],
+                                            'op_blc_gwt'    =>$items['op_blc_gwt'],
+                                            'br_out_gwt'    =>$items['br_out_gwt']+$items['retag_gwt'],
+                                            'br_out_nwt'    =>$items['br_out_nwt']+$items['retag_nwt'],
+                                            'closing_gwt'   =>number_format(($items['op_blc_gwt']+$items['inw_gwt']-$items['br_out_gwt']),3,'.',''),
+                                            'closing_nwt'   =>number_format(($items['op_blc_nwt']+$items['inw_nwt']-$items['br_out_nwt']),3,'.',''),
+                                            );
+                        }
+                        
+                    }
+
+            }
+           
+        }
+        else if($data['report_type']==4) // OLD METAL PROCESS
+        {
+            if(($FromDt!=$date) && ($ToDt!=$date))
+            {
+                $sql=$this->db->query("SELECT c.name as metal_type,m.op_blc_nwt,m.op_blc_gwt,
+                m.inw_gwt,m.inw_nwt,m.outward_gwt as br_out_gwt,m.outward_nwt as br_out_nwt,
+                m.closing_gwt,m.closing_nwt
+                FROM ret_purchase_item_stock m 
+                LEFT JOIN ret_category c ON c.id_ret_category=m.id_ret_category
+                WHERE date(m.date) BETWEEN '$FromDt' AND '$ToDt' AND m.stock_type=4 
+                 ".($data['id_branch']!='' && $data['id_branch']>0 ? " and m.id_branch=".$data['id_branch']."" :'')." ");
+                //print_r($this->db->last_query());exit;
+                $result=$sql->result_array();
+                foreach($result as $items)
+                {
+                    if($items['closing_gwt']>0 || $items['closing_nwt']>0)
+                    {
+                        $return_data[]=$items;
+                    }
+                }
+            }
+            else
+            {
+                    $sql=$this->db->query("SELECT c.id_ret_category,c.name as metal_type,
+                    IFNULL(op_blc.closing_gwt,0) as op_blc_gwt,IFNULL(op_blc.closing_nwt,0) as op_blc_nwt,
+                    (IFNULL(process_inw.inw_nwt,0)+IFNULL(testing_process_inw.inw_nwt,0)+IFNULL(refining_process_inw.inw_nwt,0)) as inw_nwt,
+                    (IFNULL(process_out.process_out_wt,0)+IFNULL(refining_out.process_out_wt,0)) as out_ward_nwt
+                    
+                    FROM ret_category c 
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(m.closing_gwt),0) as closing_gwt,IFNULL(SUM(m.closing_nwt),0) as closing_nwt,m.id_ret_category
+                    FROM ret_purchase_item_stock m 
+                    where (date(m.date) BETWEEN '".date('Y-m-d',strtotime($op_date))."' AND '".date('Y-m-d',strtotime($op_date))."') 
+                    and m.stock_type=4  ".($data['id_branch']!='' && $data['id_branch']>0 ? " and m.id_branch=".$data['id_branch']."" :'')." 
+                    GROUP by m.id_ret_category) as op_blc ON op_blc.id_ret_category=c.id_ret_category
+                   
+                    
+                    LEFT JOIN (SELECT IFNULL((d.received_wt),0) as inw_nwt,d.received_category as id_category
+                    FROM ret_purchase_items_log l 
+                    LEFT JOIN ret_old_metal_process p ON p.id_old_metal_process=l.id_old_metal_process
+                    LEFT JOIN ret_old_metal_melting m ON m.id_old_metal_process=p.id_old_metal_process
+                    LEFT JOIN ret_old_metal_melting_recd_details d on d.id_melting=m.id_melting
+                    WHERE l.id_old_metal_process IS NOT NULL AND l.item_type=4 and d.received_category IS NOT NULL
+                    and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+                    GROUP by d.received_category) as process_inw ON process_inw.id_category=c.id_ret_category
+                    
+                    LEFT JOIN (SELECT IFNULL(SUM(t.received_wt),0) as inw_nwt,d.received_category as id_category
+                    FROM ret_purchase_items_log l 
+                    LEFT JOIN ret_old_metal_testing t ON t.id_old_metal_process_receipt=l.id_old_metal_process
+                    LEFT JOIN ret_old_metal_melting_recd_details d on d.id_melting_recd=t.id_melting_recd
+                    LEFT JOIN ret_old_metal_process p ON p.id_old_metal_process=l.id_old_metal_process
+                    WHERE l.id_old_metal_process IS NOT NULL AND l.item_type=4
+                    and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+                    AND l.status=1 AND p.process_for=2
+                    GROUP by d.received_category) as testing_process_inw ON testing_process_inw.id_category=c.id_ret_category
+                    
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(d.received_wt),0) as inw_nwt,d.received_category as id_category
+                    FROM ret_purchase_items_log l 
+                    LEFT JOIN ret_old_metal_refining ref ON ref.id_old_metal_process_receipt=l.id_old_metal_process
+                    LEFT JOIN ret_old_metal_refining_details d ON d.id_metal_refining=ref.id_metal_refining
+                    WHERE l.id_old_metal_process IS NOT NULL AND l.item_type=4 and d.received_category IS NOT NULL
+                    and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+                    GROUP by d.received_category) as refining_process_inw on refining_process_inw.id_category=c.id_ret_category
+                    
+                    
+                    LEFT JOIN (SELECT p.id_old_metal_process,IFNULL(SUM(t.net_wt),0) as process_out_wt,d.received_category as id_category
+                    FROM ret_purchase_items_log l
+                    LEFT JOIN ret_old_metal_testing t ON t.id_old_metal_process=l.id_old_metal_process
+                    LEFT JOIN ret_old_metal_process p ON p.id_old_metal_process=t.id_old_metal_process 
+                    LEFT JOIN ret_old_metal_melting_recd_details d on d.id_melting_recd=t.id_melting_recd
+                    
+                    WHERE l.item_type=5 AND p.process_for=1 and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+                    GROUP by d.received_category) as process_out ON process_out.id_category=c.id_ret_category
+                    
+                    LEFT JOIN (SELECT p.id_old_metal_process,IFNULL(SUM(t.received_wt),0) as process_out_wt,d.received_category as id_category
+                    FROM ret_purchase_items_log l
+                    LEFT JOIN ret_old_metal_refining r ON r.id_old_metal_process=l.id_old_metal_process
+                    LEFT JOIN ret_old_metal_testing t ON t.id_metal_testing=r.id_metal_testing
+                    LEFT JOIN ret_old_metal_melting_recd_details d on d.id_melting_recd=t.id_melting_recd
+                    LEFT JOIN ret_old_metal_melting m ON m.id_melting=d.id_melting
+                    LEFT JOIN ret_old_metal_process p ON p.id_old_metal_process=l.id_old_metal_process
+                    WHERE l.item_type=5 AND d.melting_status=4 AND p.process_for=1 and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+                    GROUP by d.received_category) as refining_out ON refining_out.id_category=c.id_ret_category
+                    ");
+                    //print_r($this->db->last_query());exit;
+                    $result=$sql->result_array();
+                    foreach($result as $items)
+                    {
+                        $closing_gwt=number_format(($items['op_blc_nwt']+$items['inw_nwt']-$items['out_ward_nwt']),3,'.','');
+                        $closing_nwt=number_format(($items['op_blc_nwt']+$items['inw_nwt']-$items['out_ward_nwt']),3,'.','');
+                        if($closing_gwt>0 || $closing_nwt>0 || $items['inw_nwt']>0 || $items['out_ward_nwt']>0)
+                        {
+                            $return_data[]=array(
+                                            'metal_type'    =>$items['metal_type'],
+                                            'inw_gwt'       =>$items['inw_nwt'],
+                                            'inw_nwt'       =>$items['inw_nwt'],
+                                            'op_blc_nwt'    =>$items['op_blc_nwt'],
+                                            'op_blc_gwt'    =>$items['op_blc_nwt'],
+                                            'br_out_gwt'    =>$items['out_ward_nwt'],
+                                            'br_out_nwt'    =>$items['out_ward_nwt'],
+                                            'closing_gwt'   =>number_format(($items['op_blc_nwt']+$items['inw_nwt']-$items['out_ward_nwt']),3,'.',''),
+                                            'closing_nwt'   =>number_format(($items['op_blc_nwt']+$items['inw_nwt']-$items['out_ward_nwt']),3,'.',''),
+                                            );
+                        }
+                        
+                    }
+
+            }
+           
+        }
+        else if($data['report_type']==5) // BULLION PURCHASE
+        {
+            if(($FromDt!=$date) && ($ToDt!=$date))
+            {
+                    $sql = $this->db->query("SELECT p.product_name,p.pro_id,s.op_blc_pcs,s.op_blc_gwt,s.op_blc_nwt,s.inw_pcs,
+                    s.inw_gwt,s.inw_nwt,s.out_ward_pcs as outward_pcs,s.outward_gwt,s.outward_nwt,
+                    s.closing_gwt,s.closing_nwt as closing_nwt,s.closing_pcs
+                    FROM ret_purchase_item_stock s 
+                    LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+                    where (date(s.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($date))."') and (s.stock_type=1)
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and s.id_branch=".$data['id_branch']."" :'')."
+                    GROUP by p.pro_id");
+                    //print_r($this->db->last_query());exit;
+                    $result=$sql->result_array();
+                    
+                    $return_data=$result;
+            }
+            else
+            {
+                    $sql=$this->db->query("SELECT p.product_name,p.pro_id,
+            
+                    IFNULL(op_blc.closing_gwt,0) as op_blc_gwt,IFNULL(op_blc.closing_nwt,0) as op_blc_nwt,IFNULL(op_blc.closing_pcs,0) as op_blc_pcs,
+                    
+                    IFNULL(inw.inw_pcs,0) as inw_pcs,IFNULL(inw.inw_gwt,0) as inw_gwt,IFNULL(inw.inw_nwt,0) as inw_nwt,
+                    
+                    outward.out_pcs as br_out_pcs,IFNULL(outward.out_gwt,0) as br_out_gwt,IFNULL(outward.out_nwt,0) as br_out_nwt
+                    
+                    FROM ret_product_master p 
+                    
+                    LEFT JOIN(SELECT IFNULL(SUM(m.closing_gwt),0) as closing_gwt,IFNULL(SUM(m.closing_pcs),0) as closing_pcs,IFNULL(SUM(m.closing_nwt),0) as closing_nwt,p.pro_id
+                    FROM ret_purchase_item_stock m 
+                    LEFT JOIN ret_product_master p ON p.pro_id=m.id_product
+                    where (date(m.date) BETWEEN '".date('Y-m-d',strtotime($op_date))."' AND '".date('Y-m-d',strtotime($op_date))."') and (m.stock_type=1)
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and m.id_branch=".$data['id_branch']."" :'')."
+                    GROUP by p.pro_id) as op_blc ON op_blc.pro_id=p.pro_id
+                    
+                    LEFT JOIN(
+                    SELECT '0' as inw_pcs,IFNULL(SUM(l.gross_wt),0) as inw_gwt,IFNULL(SUM(l.net_wt),0) as inw_nwt,l.id_product as pro_id
+                    FROM ret_purchase_items_log l 
+                    LEFT JOIN ret_product_master p ON p.pro_id=l.id_product
+                    WHERE l.item_type=6 and l.status=1
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+                    and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+                    GROUP by p.pro_id
+                    ) AS inw ON inw.pro_id=p.pro_id
+                    
+                    LEFT JOIN(
+                    SELECT '0' as out_pcs,IFNULL(SUM(l.gross_wt),0) as out_gwt,IFNULL(SUM(l.net_wt),0) as out_nwt,l.id_product as pro_id
+                    FROM ret_purchase_items_log l 
+                    LEFT JOIN ret_product_master p ON p.pro_id=l.id_product
+                    WHERE l.item_type=6 and l.status=3
+                    ".($data['id_branch']!='' && $data['id_branch']>0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+                    and (date(l.date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+                    GROUP by p.pro_id
+                    ) AS outward ON outward.pro_id=p.pro_id
+                                    
+                    WHERE p.pro_id is NOT NULL order by p.pro_id ASC");
+                    //print_r($this->db->last_query());exit;
+                    
+                    $result=$sql->result_array();
+                    foreach($result as $items)
+                    {
+                        $closing_gwt=($items['op_blc_gwt']+$items['inw_gwt']-$items['br_out_gwt']);
+                        $closing_nwt=($items['op_blc_nwt']+$items['inw_nwt']-$items['br_out_nwt']);
+                        if($closing_gwt!=0 || $closing_nwt!=0)
+                        {
+                            $return_data[]=array(
+                                            'product_name'=>$items['product_name'],
+                                            'pro_id'=>$items['pro_id'],
+                                            'op_blc_pcs'=>$items['op_blc_pcs'],
+                                            'op_blc_gwt'=>$items['op_blc_gwt'],
+                                            'op_blc_nwt'=>$items['op_blc_nwt'],
+                                            'inw_pcs'=>$items['inw_pcs'],
+                                            'inw_gwt'=>$items['inw_gwt'],
+                                            'inw_nwt'=>$items['inw_nwt'],
+                                            'outward_pcs'=>$items['br_out_pcs'],
+                                            'outward_gwt'=>$items['br_out_gwt'],
+                                            'outward_nwt'=>$items['br_out_nwt'],
+                                            'closing_pcs'=>($items['op_blc_pcs']+$items['inw_pcs']-$items['br_out_pcs']),
+                                            'closing_gwt'=>number_format($closing_gwt,3,'.',''),
+                                            'closing_nwt'=>number_format($closing_nwt,3,'.',''),
+                                            );
+                        }
+                        
+                    }
+            }
+           
+        }
+        
+        
+       
+        return $return_data;
+    }
+    
+    
+    
+    //Metal Stock Details
+    
+    //Purchase bills report start here 
+    
+    function get_purchasebills_details($data)
+    {
+        $d1     = date_create($data['from_date']);
+        $d2     = date_create($data['to_date']);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt   = date_format($d2,"Y-m-d");
+        $type   = !empty($data['type']) ? $data['type'] : 0;
+        $karigar= !empty($data['karigar']) ? $data['karigar'] : 0;
+        
+        $sql    = $this->db->query("SELECT p.po_id,p.po_ref_no,date_format(p.po_date,'%d-%m-%Y') as po_date, k.firstname as karigar, p.ewaybillno,
+	    if(p.po_type=1,'Oranments',if(p.po_type=2,'Metal','Stone')) as po_type, ord.gross_wt, ord.tot_pcs, ord.tot_lwt, ord.tot_nwt,
+	    c.name as category_name,pur.purity 
+        FROM ret_purchase_order p 
+        LEFT JOIN ret_karigar k ON k.id_karigar=p.po_karigar_id 
+        LEFT JOIN ret_category c on c.id_ret_category=p.id_category 
+        LEFT JOIN ret_purity pur on pur.id_purity=p.id_purity 
+        LEFT JOIN (SELECT d.po_item_po_id,IFNULL(SUM(d.gross_wt),0) as gross_wt,IFNULL(SUM(d.no_of_pcs),0) as tot_pcs,IFNULL(SUM(d.less_wt),0) as tot_lwt,IFNULL(SUM(d.net_wt),0) as tot_nwt
+        FROM ret_purchase_order_items d 
+        GROUP by d.po_item_po_id) as ord ON ord.po_item_po_id = p.po_id
+        WHERE (date(p.po_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+        ".($type !='' ? " and p.po_type =".$type."" :'')." 
+        ".($karigar !='' ? " and p.po_karigar_id =".$karigar."" :'')."
+        ".($data['id_category'] != '' && $data['id_category'] != 0 ? " and p.id_category =".$data['id_category']."" :'')." 
+        ");
+        $response_data = $sql->result_array();
+        foreach($response_data as $key => $val){
+            $response_data[$key]['billitems'] =   $this->get_purchase_billsitem_details($val['po_id']);  
+        }
+        return $response_data;
+        
+    }
+    
+    function get_purchase_billsitem_details($po_id)
+	{
+	    $sql=$this->db->query("SELECT i.po_item_id,p.po_id,cat.name as category_name,pro.product_name,d.design_name,s.sub_design_name,
+        i.no_of_pcs,i.gross_wt,i.mc_type,i.net_wt,IFNULL(i.mc_value,0) as mc_value,IFNULL(i.item_wastage,0) as item_wastage,IFNULL(i.less_wt,0) as less_wt,
+        p.po_ref_no 
+        FROM ret_purchase_order p 
+        LEFT JOIN ret_purchase_order_items i ON i.po_item_po_id=p.po_id 
+        LEFT JOIN ret_product_master pro ON pro.pro_id=i.po_item_po_id 
+        LEFT JOIN ret_design_master d ON d.design_no=i.po_item_des_id 
+        LEFT JOIN ret_sub_design_master s ON s.id_sub_design=i.po_item_sub_des_id 
+        LEFT JOIN ret_category cat ON cat.id_ret_category=pro.cat_id 
+        WHERE p.po_id='".$po_id."'");
+        return $sql->result_array();
+	}
+    
+    //Purchase bills report end here 
+    
+    
+    //Purchase bills QC report start here
+    function get_purchasebillsqc_details($data)
+    {
+        $d1     = date_create($data['from_date']);
+        $d2     = date_create($data['to_date']);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt   = date_format($d2,"Y-m-d");
+        
+        $sql=$this->db->query("SELECT SUM(p.no_of_pcs) as total_pcs,IFNULL(SUM(p.gross_wt),0) as gross_wt,IFNULL(SUM(p.less_wt),0) as less_wt,IFNULL(SUM(p.net_wt),0) as net_wt,
+        emp.firstname as emp_name,date_format(i.created_at,'%d-%m-%Y') as date_add,ord.po_ref_no,if(d.status=0,'Issued','Completed') as qc_status,pro.product_name,des.design_name,s.sub_design_name,
+        p.qc_passed_pcs,p.qc_passed_gwt,p.qc_passed_lwt,p.qc_passed_nwt,d.status
+        FROM ret_purchase_order_items p 
+        LEFT JOIN ret_po_qc_issue_details d ON d.po_item_id=p.po_item_id
+        LEFT JOIN ret_purchase_order ord ON ord.po_id=p.po_item_po_id
+        LEFT JOIN ret_po_qc_issue_process i ON i.qc_process_id=d.qc_process_id
+        LEFT JOIN employee emp ON emp.id_employee=i.qc_id_vendor
+        LEFT JOIN ret_product_master pro ON pro.pro_id=p.po_item_pro_id
+        LEFT JOIN ret_design_master des ON des.design_no=p.po_item_des_id
+        LEFT JOIN ret_sub_design_master s ON s.id_sub_design=p.po_item_sub_des_id
+        WHERE d.po_item_id IS NOT NULL AND 
+        (date(i.created_at) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+        GROUP by d.po_item_id");
+        return $sql->result_array();
+    }
+    //Purchase bills QC report end here
+    
+    //Purchase bills HM report start here
+    function get_purchasebillshm_details($data)
+    {
+        $d1     = date_create($data['from_date']);
+        $d2     = date_create($data['to_date']);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt   = date_format($d2,"Y-m-d");
+        
+        $sql=$this->db->query("SELECT h.hm_ref_no,h.hm_process_pcs,h.hm_process_pcs,IFNULL(h.hm_process_gwt,0) as hm_process_gwt,IFNULL(h.hm_process_lwt,0) as hm_process_lwt,
+	    IFNULL(h.hm_process_nwt,0) as hm_process_nwt,
+	    k.firstname as karigar_name,date_format(h.hm_process_created_at,'%d-%m-%Y') as issue_date,
+	    if(h.status=1,'Issued','Completed') as hm_status,h.status,IFNULL(h.total_hm_charges,0) as total_hm_charges
+        FROM ret_po_halmark_process h 
+        LEFT JOIN ret_karigar k ON k.id_karigar=h.hm_vendor_id 
+        WHERE  (date(h.hm_process_created_at) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') ");
+        return $sql->result_array();
+    }
+    //Purchase bills HM report end here
+    
+    //Purchase Vs Sales wastage profit report
+    function get_wastagewisepandlreport($post)
+    {
+        if($_POST['dt_range'] != ''){
+            $dateRange = explode('-',$_POST['dt_range']);
+            $from = str_replace('/','-',$dateRange[0]);
+            $to = str_replace('/','-',$dateRange[1]);  
+            $d1 = date_create($from);
+            $d2 = date_create($to);
+            $FromDt = date_format($d1,"Y-m-d");
+            $ToDt = date_format($d2,"Y-m-d");
+        }
+        $sql = $this->db->query("SELECT tag.tag_code, billdet.bill_type, b.bill_type,b.bill_cus_id,b.pan_no,b.bill_no,
+		billdet.wastage_percent as salewastage, billdet.piece,  
+        billdet.gross_wt as salegrosswt, billdet.net_wt as salenetwt,
+        billdet.rate_per_grm as rate_per_grm,
+        round((billdet.net_wt * (billdet.wastage_percent / 100)),4) as wastagewt, 
+        round((billdet.net_wt * (ifnull(puritm.item_wastage, 0) / 100)),4) as purwastagewt,
+        (round((billdet.net_wt * (billdet.wastage_percent / 100)),4) - round((billdet.net_wt * (ifnull(puritm.item_wastage, 0) / 100)),4)) as wastageprofit,
+        round((billdet.wastage_percent - ifnull(puritm.item_wastage, 0)),4) as profitwastper,
+        billdet.mc_type, billdet.mc_value, 
+        if(billdet.mc_type = 1, round(billdet.piece*billdet.mc_value), round(billdet.gross_wt*billdet.mc_value)) as mcval,
+		b.bill_id,b.bill_date,concat(c.mobile,'-',c.firstname) as cus_name,
+		b.id_branch,b.tot_bill_amount,date_format(b.bill_date,'%d-%m-%y') as bill_date,
+		b.ref_bill_id as ref_bill_id,IFNULL(b.tot_discount,0) as tot_discount,
+        c.firstname as customer_name,c.mobile,
+		br.name as branch_name,b.tot_amt_received,
+		IFNULL(billdet.item_cost,0) as tot_ret_amt, 
+        ifnull(puritm.item_wastage, 0) as purwastage,
+        ifnull(sup.firstname,'-') as karigar,
+        pro.product_name as product_name, des.design_name as design_name, 
+        subDes.sub_design_name,IFNULL(tag.tag_purchase_cost,0) as tag_purchase_cost,IFNULL(billdet.item_cost,0) as item_cost,
+        IFNULL(IFNULL(billdet.item_cost,0)-IFNULL(tag.tag_purchase_cost,0),0) as profitamt
+		FROM ret_bill_details as billdet  
+		LEFT JOIN ret_billing as b ON b.bill_id = billdet.bill_id 
+		LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+		LEFT JOIN address a on a.id_customer=c.id_customer
+		LEFT JOIN state s on s.id_state=a.id_state
+		LEFT JOIN branch br on br.id_branch=b.id_branch 
+        LEFT JOIN ret_taging as tag ON tag.tag_id = billdet.tag_id 
+        LEFT JOIN ret_product_master as pro ON pro.pro_id = tag.product_id  
+		LEFT JOIN ret_design_master as des ON des.design_no =  tag.design_id
+		LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=tag.id_sub_design 
+        LEFT JOIN ret_lot_inwards_detail as inwd ON inwd.id_lot_inward_detail = tag.id_lot_inward_detail 
+        LEFT JOIN ret_purchase_order_items as puritm ON puritm.lot_no = inwd.lot_no AND puritm.po_item_sub_des_id = tag.id_sub_design 
+        LEFT JOIN ret_purchase_order as pur ON pur.po_id = puritm.po_item_po_id 
+        LEFT JOIN ret_karigar as sup ON sup.id_karigar = pur.po_karigar_id
+		where b.bill_status=1 AND billdet.tag_id IS NOT NULL 
+		 ".($post['dt_range'] != '' ? 'and date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'"' : '')."
+		".($post['id_branch']!='' && $post['id_branch']>0 ? " and b.id_branch=".$post['id_branch']."" :''));
+		$bill_details = $sql->result_array();
+		//print_r($this->db->last_query());exit;
+		$return_data = array();
+		foreach ($bill_details as $value ) {
+            $return_data[$value['karigar']][] = $value;
+        }
+		
+		return $return_data;
+    }
+    
+    function get_popaymentreport($data){
+        $d1     = date_create($data['from_date']);
+        $d2     = date_create($data['to_date']);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt   = date_format($d2,"Y-m-d");
+        $karigar= !empty($data['karigar']) ? $data['karigar'] : 0;
+        
+        $sql    = $this->db->query("SELECT po.po_id, po.po_ref_no, k.firstname as karigar, podet.no_of_pcs as receivedpcs, 
+                            podet.gross_wt as received_gwt, podet.qc_passed_gwt, podet.qc_passed_pcs as passedpcs, podet.item_cost as item_cost ,
+                            ifnull(payment.pay_amt, 0) paidamt 
+                            FROM ret_purchase_order as po 
+                            LEFT JOIN
+                            (SELECT po_item_po_id as poitem_id, sum(no_of_pcs) as no_of_pcs, sum(gross_wt) as gross_wt,
+                            sum(less_wt) as less_wt, sum(net_wt) as net_wt, sum(qc_failed_pcs) as qc_failed_pcs,
+                            sum(qc_failed_gwt) as qc_failed_gwt, sum(qc_failed_nwt) as qc_failed_nwt,
+                            sum(qc_failed_lwt) as qc_failed_lwt,
+                            sum(qc_passed_gwt) as qc_passed_gwt,
+                            sum(qc_passed_lwt) as qc_passed_lwt,
+                            sum(qc_passed_pcs) as qc_passed_pcs,
+                            sum(qc_passed_nwt) as qc_passed_nwt,
+                            sum(po_returned_pcs) as po_returned_pcs,
+                            sum(po_returned_wt) as po_returned_wt ,
+                             sum(item_cost) as item_cost
+                             FROM ret_purchase_order_items as puitm
+                             GROUP BY po_item_po_id
+                            ) as podet ON podet.poitem_id = po.po_id 
+                            LEFT JOIN (SELECT pay_po_id,
+                            sum(pay_amt) as pay_amt
+                             FROM ret_po_payment as paymet
+                             GROUP BY pay_po_id) as payment ON payment.pay_po_id = po.po_id
+                            LEFT JOIN ret_karigar k ON k.id_karigar=po.po_karigar_id 
+                            WHERE (date(po.po_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+                            ".($karigar !='' ? " and po.po_karigar_id =".$karigar."" :'')."
+                 ");
+        $response_data = $sql->result_array();
+        /*foreach($response_data as $key => $val){
+            $response_data[$key]['billitems'] =   $this->get_purchase_billsitem_details($val['po_id']);  
+        }*/
+        return $response_data;
+    }
+    
+    function getCustomerLedger()
+    {
+        $sql = $this->db->query("Select cusId, cusName, sum(round(Debit)) as Debit, sum(round(Credit)) as Credit, 
+                                concat(round(abs(sum(Debit) - sum(Credit))), if(sum(Debit) - sum(Credit) > 0 , ' Cr', ' Dr')) as balance  
+                                FROM ret_view_customer_ledger t group by cusId");
+        $response_data = $sql->result_array();
+        foreach($response_data as $key => $val){
+            $response_data[$key]['statements']    =   $this->get_customer_ledger_statement_details($val['cusId']);
+            //$response_data[$key]['statements']      =   [];
+        }
+        return $response_data;
+    }
+    
+    function get_customer_ledger_statement_details($cusId)
+    {
+         $sql = $this->db->query("select s.*, @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 2) RunningBalance , 
+                                concat(round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Cr', ' Dr')) as balance 
+                                from (select date_format(t.billDate, '%d-%m-%Y') as billDate, t.refNo, t.accType,  t.cusName, round(Debit) as Debit, 
+                                round(Credit) as Credit from ret_view_customer_ledger t where t.cusID = '".$cusId."' order by date(t.billDate) ) s, 
+                                (Select @RunningBalance:=0) rb ");
+        return $sql->result_array();
+    }
+    
+    function getCustomerLedgerTransaction($cusId)
+    {
+        $sql = $this->db->query("select s.*, @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 2) RunningBalance , 
+                                concat(round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Cr', ' Dr')) as balance 
+                                from (select date_format(t.billDate, '%d-%m-%Y') as billDate, t.refNo, t.accType,  t.cusName, round(Debit) as Debit, 
+                                round(Credit) as Credit from ret_view_customer_ledger t where t.cusID = '".$cusId."' order by date(t.billDate) ) s, 
+                                (Select @RunningBalance:=0) rb ");
+        return $sql->result_array();
+    }
+    
+    
+    //Supplier ledger  report
+    
+    function getSupplierLedger($requestData)
+    {
+        $ledger_type    = $requestData['ledgerType'];
+        $party_id       = $requestData['partyId'];
+        if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+        }
+           
+        if(!empty($party_id)){ // For Particular user
+            if($ledger_type == 1){ // Amount ledger
+                /*$sql = $this->db->query("SELECT s.*, @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 2) RunningBalance , 
+                                concat('RS: ', round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Dr', ' Cr')) as balance 
+                                from (SELECT date_format(spl.transdate, '%d-%m-%Y') as transdate, spl.ref_no, spl.accType,  spl.sup_name, round(debit) as Debit, 
+                                round(credit) as Credit from ret_view_supplier_amount_ledger spl where spl.sup_id = '".$party_id."' order by date(spl.transdate) ) s, 
+                                (Select @RunningBalance:=0) rb");*/
+                
+                $sql = $this->db->query("SELECT ifnull(date_format(s.transdate, '%d-%m-%Y'), '-')  as transdate, ifnull(s.ref_no, '-') as ref_no, 
+                                        ifnull(s.accType, '-') as accType, ifnull(s.Debit, '0') as Debit, ifnull(s.Credit, 0) as Credit, 
+                                        @OpeningBalance:=(SELECT ifnull(sum(ospl.debit) - sum(ospl.credit) ,0) as opening 
+                                            FROM ret_view_supplier_amount_ledger ospl where date(ospl.transdate) <  date(s.transdate) ) as opening, 
+                                        concat('RS: ', round(abs(round(@OpeningBalance,2))), if(@OpeningBalance > 0, ' Dr', ' Cr')) as openingbalance ,
+                                        @RunningBalance:= round(if(@FirstRow = 0, @OpeningBalance + (@RunningBalance + s.Debit) - s.Credit, ((@RunningBalance + s.Debit) - s.Credit)), 2) RunningBalance , 
+                                        concat('RS: ', round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Dr', ' Cr')) as balance , 
+                                        @FirstRow:= @FirstRow + 1 as currow 
+                                        from (SELECT spl.transdate as transdate, spl.ref_no, spl.accType,  
+                                            round(sum(debit)) as Debit, round(sum(credit)) as Credit from ret_view_supplier_amount_ledger spl 
+                                            where spl.sup_id = '".$party_id."' AND date(spl.transdate) between  '".$FromDt."' AND '".$ToDt."' 
+                                            GROUP BY date(spl.transdate) order by date(spl.transdate) desc) s, 
+                                        (Select @RunningBalance:=0) rb , 
+                                        (Select @OpeningBalance:=0) op, 
+                                        (Select @FirstRow:=0) fr ORDER BY s.transdate ASC");
+                if($sql->num_rows() == 0){ //If no row found will send opening balance and closing balance alone
+                     $sql = $this->db->query("SELECT ifnull(date_format(s.transdate, '%d-%m-%Y'), '-')  as transdate, ifnull(s.ref_no, '-') as ref_no, 
+                                            ifnull(s.accType, '-') as accType, ifnull(s.Debit, '0') as Debit, ifnull(s.Credit, 0) as Credit, 
+                                            @OpeningBalance:=(SELECT ifnull(sum(ospl.debit) - sum(ospl.credit) ,0) as opening 
+                                                FROM ret_view_supplier_amount_ledger ospl where date(ospl.transdate) <  '".$FromDt."' ) as opening, 
+                                            concat('RS: ', round(abs(round(@OpeningBalance,2))), if(@OpeningBalance > 0, ' Dr', ' Cr')) as openingbalance ,
+                                            @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 2) RunningBalance , 
+                                            concat('RS: ', round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Dr', ' Cr')) as balance ,
+                                            @FirstRow:= @FirstRow + 1 as currow 
+                                            from (SELECT spl.transdate as transdate, spl.ref_no, spl.accType, 
+                                            round(sum(debit)) as Debit, round(sum(credit)) as Credit from ret_view_supplier_amount_ledger spl 
+                                            where spl.sup_id = '".$party_id."' AND date(spl.transdate) < '".$FromDt."' ) s, 
+                                            (Select @RunningBalance:=0) rb ,
+                                            (Select @OpeningBalance:=0) op");
+                }
+                                
+                //echo $this->db->last_query();
+                return $sql->result_array();
+                
+            }else if($ledger_type == 2){ // Metal Ledger
+                /*$sql = $this->db->query("SELECT s.*, @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 2) RunningBalance , 
+                                concat('Grms: ', round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Cr', ' Dr')) as balance 
+                                from (SELECT date_format(spl.transdate, '%d-%m-%Y') as transdate, sum(issue_wt) as issue_wt, group_concat(distinct(ifnull(purity, '91.600'))) as purity, spl.ref_no, spl.accType,  spl.sup_name, spl.metal, round(sum(debit)) as Debit, 
+                                round(sum(credit)) as Credit from ret_view_supplier_metal_ledger spl where spl.sup_id = '".$party_id."' GROUP BY ref_no, metid order by date(spl.transdate) ) s, 
+                                (Select @RunningBalance:=0) rb");*/
+                                
+                                
+                $sql = $this->db->query("SELECT date_format(s.transdate, '%d-%m-%Y') as transdate, s.issue_wt as issue_wt, s.purity as purity, s.ref_no, s.accType,  s.metal, round(s.debit, 3) as Debit,
+                                        round(s.credit, 3) as Credit, 
+                                        @OpeningBalance:=(SELECT ifnull(sum(ospl.debit) - sum(ospl.credit) ,0) as opening FROM ret_view_supplier_metal_ledger ospl 
+                                            where ospl.metid = s.metid AND date(ospl.transdate) <  date(s.transdate) ) as opening, 
+                                        concat('Grms: ', round(abs(round(@OpeningBalance,3)), 3), if(@OpeningBalance > 0, ' Dr', ' Cr')) as openingbalance ,  
+                                        @RunningBalance:= round(if(@FirstRow = 0, ((@OpeningBalance + @RunningBalance + s.Debit) - s.Credit) , (@RunningBalance + s.Debit) - s.Credit), 3) RunningBalance , 
+                                        concat('Grms: ', round(abs(round(@RunningBalance,3)), 3), if(@RunningBalance > 0, ' Cr', ' Dr')) as balance , 
+                                        @FirstRow:= @FirstRow + 1 as currow 
+                                        from (SELECT spl.transdate as transdate, sum(issue_wt) as issue_wt, group_concat(distinct(ifnull(purity, '91.600'))) as purity, spl.metid, spl.ref_no, spl.accType,  
+                                        spl.sup_name, spl.metal, round(sum(debit), 3) as Debit, 
+                                        round(sum(credit), 3) as Credit from ret_view_supplier_metal_ledger spl 
+                                        where spl.sup_id = '".$party_id."' AND date(spl.transdate) between  '".$FromDt."' AND '".$ToDt."'  
+                                       GROUP BY date(spl.transdate), metid order by date(spl.transdate) ASC) s, 
+                                       (Select @RunningBalance:=0) rb,  
+                                       (Select @OpeningBalance:=0) op,
+                                       (Select @FirstRow:=0) fr ORDER BY s.transdate ASC");  
+                if($sql->num_rows() == 0){
+                    $sql = $this->db->query("SELECT date_format(s.transdate, '%d-%m-%Y') as transdate, s.issue_wt as issue_wt, s.purity as purity, '-' as ref_no, 'Opening Of ' accType,  
+                                        s.metal, round(0, 3) as Debit,
+                                        round(0, 3) as Credit, 
+                                        @OpeningBalance:=(SELECT ifnull(sum(ospl.debit) - sum(ospl.credit) ,0) as opening FROM ret_view_supplier_metal_ledger ospl 
+                                            where ospl.metid = s.metid AND date(ospl.transdate) <  '".$FromDt."' ) as opening, 
+                                        concat('Grms: ', round(abs(round(@OpeningBalance,3)), 3), if(@OpeningBalance > 0, ' Dr', ' Cr')) as openingbalance ,  
+                                        @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 3) RunningBalance , 
+                                        concat('Grms: ', round(abs(round(@RunningBalance,3)), 3), if(@RunningBalance > 0, ' Cr', ' Dr')) as balance 
+                                        from (SELECT spl.transdate as transdate, sum(issue_wt) as issue_wt, group_concat(distinct(ifnull(purity, '91.600'))) as purity, spl.metid, spl.ref_no, spl.accType,  
+                                        spl.sup_name, spl.metal, round(sum(debit), 3) as Debit, 
+                                        round(sum(credit), 3) as Credit from ret_view_supplier_metal_ledger spl 
+                                        where spl.sup_id = '".$party_id."' AND date(spl.transdate) < '".$FromDt."' GROUP BY metid) s, 
+                                       (Select @RunningBalance:=0) rb,  
+                                       (Select @OpeningBalance:=0) op");  
+                }
+                //echo $this->db->last_query();
+                return $sql->result_array();
+            }
+        }else{//For All user transaction
+            if($ledger_type == 1){
+                $sql = $this->db->query("SELECT ifnull(date_format(s.transdate, '%d-%m-%Y'), '-')  as transdate, ifnull(s.ref_no, '-') as ref_no, 
+                                        ifnull(s.accType, '-') as accType, ifnull(s.Debit, '0') as Debit, ifnull(s.Credit, 0) as Credit, 
+                                        @OpeningBalance:=(SELECT ifnull(sum(ospl.debit) - sum(ospl.credit) ,0) as opening 
+                                            FROM ret_view_supplier_amount_ledger ospl where date(ospl.transdate) <  date(s.transdate) ) as opening, 
+                                        concat('RS: ', round(abs(round(@OpeningBalance,2))), if(@OpeningBalance > 0, ' Dr', ' Cr')) as openingbalance ,
+                                        @RunningBalance:= round(if(@FirstRow = 0, @OpeningBalance + (@RunningBalance + s.Debit) - s.Credit, ((@RunningBalance + s.Debit) - s.Credit)), 2) RunningBalance , 
+                                        concat('RS: ', round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Dr', ' Cr')) as balance , 
+                                        @FirstRow:= @FirstRow + 1 as currow 
+                                        from (SELECT spl.transdate as transdate, spl.ref_no, spl.accType,  
+                                            round(sum(debit)) as Debit, round(sum(credit)) as Credit from ret_view_supplier_amount_ledger spl 
+                                            where date(spl.transdate) between  '".$FromDt."' AND '".$ToDt."' 
+                                            GROUP BY date(spl.transdate) order by date(spl.transdate) desc) s, 
+                                        (Select @RunningBalance:=0) rb , 
+                                        (Select @OpeningBalance:=0) op, 
+                                        (Select @FirstRow:=0) fr ORDER BY s.transdate ASC");
+                if($sql->num_rows() == 0){
+                    $sql = $this->db->query("SELECT ifnull(date_format(s.transdate, '%d-%m-%Y'), '-')  as transdate, ifnull(s.ref_no, '-') as ref_no, 
+                                            ifnull(s.accType, '-') as accType, 0 as Debit, 0 as Credit, 
+                                            @OpeningBalance:=(SELECT ifnull(sum(ospl.debit) - sum(ospl.credit) ,0) as opening 
+                                                FROM ret_view_supplier_amount_ledger ospl where date(ospl.transdate) <  '".$FromDt."' ) as opening,
+                                            concat('RS: ', round(abs(round(@OpeningBalance,2))), if(@OpeningBalance > 0, ' Dr', ' Cr')) as openingbalance ,    
+                                            @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 2) RunningBalance , 
+                                            concat('RS: ', round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Dr', ' Cr')) as balance ,
+                                            @FirstRow:= @FirstRow + 1 as currow 
+                                            from (SELECT spl.transdate as transdate, spl.ref_no, spl.accType, 
+                                            round(sum(debit)) as Debit, round(sum(credit)) as Credit from ret_view_supplier_amount_ledger spl 
+                                            where date(spl.transdate) < '".$FromDt."' ) s, 
+                                            (Select @RunningBalance:=0) rb ,
+                                            (Select @OpeningBalance:=0) op");
+                }
+                return $sql->result_array();
+            }else{
+                 $sql = $this->db->query("SELECT date_format(s.transdate, '%d-%m-%Y') as transdate, s.issue_wt as issue_wt, s.purity as purity, s.ref_no, s.accType,  s.metal, round(s.debit, 3) as Debit,
+                                        round(s.credit, 3) as Credit, 
+                                        @OpeningBalance:=(SELECT ifnull(sum(ospl.debit) - sum(ospl.credit) ,0) as opening FROM ret_view_supplier_metal_ledger ospl 
+                                            where ospl.metid = s.metid AND date(ospl.transdate) <  date(s.transdate) ) as opening, 
+                                        concat('Grms: ', round(abs(round(@OpeningBalance,3)), 3), if(@OpeningBalance > 0, ' Dr', ' Cr')) as openingbalance ,  
+                                        @RunningBalance:= round(if(@FirstRow = 0, ((@OpeningBalance + @RunningBalance + s.Debit) - s.Credit) , (@RunningBalance + s.Debit) - s.Credit), 3) RunningBalance , 
+                                        concat('Grms: ', round(abs(round(@RunningBalance,3)), 3), if(@RunningBalance > 0, ' Cr', ' Dr')) as balance , 
+                                        @FirstRow:= @FirstRow + 1 as currow 
+                                        from (SELECT spl.transdate as transdate, sum(issue_wt) as issue_wt, group_concat(distinct(ifnull(purity, '91.600'))) as purity, spl.metid, spl.ref_no, spl.accType,  
+                                        spl.sup_name, spl.metal, round(sum(debit), 3) as Debit, 
+                                        round(sum(credit), 3) as Credit from ret_view_supplier_metal_ledger spl 
+                                        where date(spl.transdate) between  '".$FromDt."' AND '".$ToDt."'  
+                                       GROUP BY date(spl.transdate), metid order by date(spl.transdate) ASC) s, 
+                                       (Select @RunningBalance:=0) rb,  
+                                       (Select @OpeningBalance:=0) op,
+                                       (Select @FirstRow:=0) fr ORDER BY s.transdate ASC");  
+                if($sql->num_rows() == 0){
+                    $sql = $this->db->query("SELECT date_format(s.transdate, '%d-%m-%Y') as transdate, s.issue_wt as issue_wt, s.purity as purity, '-' as ref_no, 'Opening Of ' accType,  
+                                        s.metal, round(0, 3) as Debit,
+                                        round(0, 3) as Credit, 
+                                        @OpeningBalance:=(SELECT ifnull(sum(ospl.debit) - sum(ospl.credit) ,0) as opening FROM ret_view_supplier_metal_ledger ospl 
+                                            where ospl.metid = s.metid AND date(ospl.transdate) <  '".$FromDt."' ) as opening, 
+                                        concat('Grms: ', round(abs(round(@OpeningBalance,3)), 3), if(@OpeningBalance > 0, ' Dr', ' Cr')) as openingbalance ,  
+                                        @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 3) RunningBalance , 
+                                        concat('Grms: ', round(abs(round(@RunningBalance,3)), 3), if(@RunningBalance > 0, ' Cr', ' Dr')) as balance 
+                                        from (SELECT spl.transdate as transdate, sum(issue_wt) as issue_wt, group_concat(distinct(ifnull(purity, '91.600'))) as purity, spl.metid, spl.ref_no, spl.accType,  
+                                        spl.sup_name, spl.metal, round(sum(debit), 3) as Debit, 
+                                        round(sum(credit), 3) as Credit from ret_view_supplier_metal_ledger spl 
+                                        where  date(spl.transdate) < '".$FromDt."' GROUP BY metid) s, 
+                                       (Select @RunningBalance:=0) rb,  
+                                       (Select @OpeningBalance:=0) op");  
+                }
+                //echo $this->db->last_query();
+                return $sql->result_array();
+            }
+        }
+    }
+    
+    function getSupplierAmountClosingBalance($partyId)
+    {
+        $sql = $this->db->query("SELECT @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 2) RunningBalance , 
+                            concat('RS: ', round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Dr', ' Cr')) as balance 
+                            from (SELECT round(sum(debit)) as Debit, 
+                            round(sum(credit)) as Credit from ret_view_supplier_amount_ledger spl where spl.sup_id = '".$party_id."' group by spl.sup_id) s, 
+                            (Select @RunningBalance:=0) rb");
+        return $sql->result_row();
+    }
+    
+    function getSupplierMetalClosingBalance($partyId)
+    {
+        $sql = $this->db->query("SELECT @RunningBalance:= round((@RunningBalance + s.Debit) - s.Credit, 2) RunningBalance , 
+                            concat('Grms: ', round(abs(round(@RunningBalance,2))), if(@RunningBalance > 0, ' Cr', ' Dr')) as balance 
+                            from (SELECT round(sum(debit)) as Debit, round(sum(credit)) as Credit from ret_view_supplier_metal_ledger spl where spl.sup_id = '".$party_id."' 
+                            GROUP BY spl.sup_id) s, 
+                            (Select @RunningBalance:=0) rb");
+        return $sql->result_row();
+    }
+    
+    //Supplier ledger report
+    
+    //old tag import
+    function old_updateData($update_data,$condtion_data,$table)
+	{
+			$this->db->where($condtion_data);
+			$add_flag= $this->db->update($table,$update_data);
+			return $add_flag;
+	}
+    function check_old_tag_code($old_tag_code){
+        $sql=$this->db->query("SELECT import_tag_code from ret_old_tag_import where import_tag_code = '".$old_tag_code."'");
+		//print_r($this->db->last_query());
+        return $sql->num_rows();
+    }
+	function check_old_tag_code_mismatched($old_tag_code){
+        $sql=$this->db->query("SELECT remarks as old_tag_id from ret_taging where tag_status = '0' and remarks = '".$old_tag_code."'");
+		//print_r($this->db->last_query());
+        return $sql->num_rows();
+    }
+    function get_old_sale_report_report($data){
+		
+		$data['from_date'] = date('Y-m-d',strtotime($data['from_date']));
+        $data['to_date'] = date('Y-m-d',strtotime($data['to_date']));
+		
+		$sql=$this->db->query("select count(i.import_tag_code) as total, ifnull(upt_tag.updat_tag,0) as upt_tag,ifnull(mismatch.mis_tag,0) mis_tag,b.name,e.firstname,CAST(i.import_date AS DATE) import_date from ret_old_tag_import i
+		left join branch b on b.id_branch=i.import_branch
+		left join employee e on e.id_employee=i.import_by
+		left join (SELECT count(import_tag_code) updat_tag,import_branch, CAST(import_date AS DATE) import_date from ret_old_tag_import where import_tag_status=1 and date(CAST(import_date AS DATE)) BETWEEN '".$data['from_date']."' and '".$data['to_date']."' GROUP by import_branch,cast(import_date as date)) upt_tag on upt_tag.import_branch=i.import_branch and CAST(upt_tag.import_date as date)=CAST(i.import_date as date)
+		left join (SELECT count(import_tag_code) mis_tag,import_branch, CAST(import_date AS DATE) import_date from ret_old_tag_import where import_tag_status=2 and date(CAST(import_date AS DATE)) between '".$data['from_date']."' and '".$data['to_date']."' GROUP by import_branch,cast(import_date as date)) mismatch on mismatch.import_branch=i.import_branch and cast(mismatch.import_date as date)=cast(i.import_date as date)
+		where date(CAST(i.import_date AS DATE)) between '".$data['from_date']."' and '".$data['to_date']."'
+		GROUP by CAST(i.import_date AS DATE), i.import_branch");
+				//print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    function get_current_branch($old_tag_code){
+        $sql=$this->db->query("SELECT current_branch from ret_taging where remarks = '".$old_tag_code."'");
+        return $sql->row()->current_branch;
+    }
+	function get_our_tag_code($old_tag_code){
+        $sql=$this->db->query("SELECT tag_id from ret_taging where remarks = '".$old_tag_code."'");
+        return $sql->row()->tag_id;
+    }
+	function get_day_close_date($id_branch){
+        $sql=$this->db->query("SELECT entry_date from ret_day_closing where id_branch = '".$id_branch."'");
+        return $sql->row()->entry_date;
+    }
+
+    function get_new_tag_current_branch($old_tag_code){
+        $sql=$this->db->query("SELECT current_branch from ret_taging where tag_code = '".$old_tag_code."'");
+        return $sql->row()->current_branch;
+    }
+	function get_our_new_tag_code($old_tag_code){
+        $sql=$this->db->query("SELECT tag_id from ret_taging where tag_code = '".$old_tag_code."'");
+        return $sql->row()->tag_id;
+    }
+    //old tag import
+    
+    
+    
+    
+    //Available Metal Stock Details
+    function get_available_metal_stock_details($data)
+    {
+        $return_Data=[];
+        
+       
+            $sql=$this->db->query("SELECT IFNULL(SUM(s.gross_wt),0) as gross_wt,IFNULL(SUM(s.net_wt),0) as net_wt,
+            IFNULL(SUM(s.rate),0) as amount,if(s.metal_type=1,'Old Metal Gold','Old Metal Silver') as type,c.old_metal_cat,e.id_old_metal_category
+            FROM ret_bill_old_metal_sale_details s 
+            LEFT JOIN ret_estimation_old_metal_sale_details e ON e.old_metal_sale_id=s.esti_old_metal_sale_id
+            LEFT JOIN ret_old_metal_category c ON c.id_old_metal_cat=e.id_old_metal_category
+            LEFT JOIN ret_billing b ON b.bill_id=s.bill_id
+            WHERE s.is_pocketed=0  AND b.bill_status=1 AND s.old_metal_sale_id IS NOT NULL
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and s.current_branch=".$data['id_branch']."" :'')."
+            group by e.id_old_metal_category");
+            //print_r($this->db->last_query());exit;
+            $result=$sql->result_array();
+            foreach($result as $items)
+            {
+                $return_Data[]=array(
+                'item_type'         =>0,
+                'type'              =>'OLD METAL',
+                'gross_wt'			=>$items['gross_wt'],
+                'rate'	            =>$items['amount'],
+                'net_wt'			=>$items['net_wt'],
+                'purity'			=>'-',
+                'product_name'		=>$items['old_metal_cat'],
+                'item_details'      =>$this->getOldMetalCatDetails($items['id_old_metal_category'],$data['id_branch']),
+                );
+            }
+            
+            
+            $sales_return=$this->db->query("SELECT IFNULL(SUM(tag.gross_wt),0) as gross_wt,IFNULL(SUM(tag.net_wt),0) as net_wt,p.product_name,tag.product_id,mt.metal as metal_name,
+            cat.id_metal
+            FROM ret_taging tag
+            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id 
+            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+            LEFT JOIN metal mt on mt.id_metal=cat.id_metal
+            LEFT JOIN ret_design_master des ON des.design_no=tag.design_id 
+            LEFT JOIN ret_purity pur ON pur.id_purity=tag.purity 
+            LEFT JOIN ret_bill_details d ON d.tag_id=tag.tag_id 
+            LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+            WHERE tag.tag_status=6 AND tag.tag_process=0
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and tag.current_branch=".$data['id_branch']."" :'' )."
+            group by cat.id_metal");
+           // print_r($this->db->last_query());exit;
+            $sales_ret_result= $sales_return->result_array();
+            
+            foreach($sales_ret_result as $items)
+            {
+                $return_Data[]=array(
+                'item_type'         =>0,
+                'type'              =>'SALES RETURN',
+                'gross_wt'			=>$items['gross_wt'],
+                'rate'	            =>'-',
+                'net_wt'			=>$items['net_wt'],
+                'purity'			=>'-',
+                'product_name'		=>$items['metal_name'],
+                'item_details'      =>$this->get_sales_return_details($items['id_metal'],$data['id_branch']),
+                );
+            }
+            
+            $partlySale=$this->db->query("SELECT IFNULL(SUM(tag.gross_wt),0) as gross_wt,iFNULL(SUM(tag.net_wt),0) as net_wt,(IFNULL(SUM(tag.gross_wt),0)-IFNULL(sld.sold_gwt,0)) as blc_gwt,(IFNULL(SUM(tag.net_wt),0)-IFNULL(sld.sold_net_wt,0)) as blc_nwt,
+            mt.metal as metal_name,cat.id_metal
+            FROM ret_taging tag 
+            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id 
+            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+            LEFT JOIN metal mt on mt.id_metal=cat.id_metal
+            LEFT JOIN ret_design_master des ON des.design_no=tag.design_id
+            left join ret_sub_design_master s on s.id_sub_design=tag.id_sub_design
+            LEFT JOIN(
+            
+            SELECT SUM(s.sold_gross_wt) as sold_gwt,IFNULL(SUM(s.sold_net_wt),0) as sold_net_wt,cat.id_metal
+                FROM ret_partlysold s
+                LEFT JOIN ret_taging t ON t.tag_id=s.tag_id
+                LEFT JOIN ret_product_master p ON p.pro_id=t.product_id 
+                LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                LEFT JOIN metal mt on mt.id_metal=cat.id_metal
+                LEFT JOIN ret_bill_details d ON d.bill_det_id=s.sold_bill_det_id
+                LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+                WHERE b.bill_status=1 AND t.is_partial=1 AND d.is_partial_sale=1 and (t.tag_process = 0)  ".($data['id_branch']!='' && $data['id_branch']>0 ? " and t.current_branch=".$data['id_branch']."" :'' )."
+            group by cat.id_metal
+            
+            ) as sld ON sld.id_metal=cat.id_metal
+            
+            WHERE tag.is_partial=1 and (tag.tag_process = 0) 
+            ".($data['id_branch']!='' && $data['id_branch']>0 ? " and tag.current_branch=".$data['id_branch']."" :'' )."
+            group by cat.id_metal ");
+            $partly_sale_result= $partlySale->result_array();
+            //print_r($this->db->last_query());exit;
+            foreach($partly_sale_result as $items)
+            {
+                $return_Data[]=array(
+                'item_type'         =>1,
+                'type'              =>'PARTLY SALE',
+                'gross_wt'			=>$items['blc_gwt'],
+                'rate'	            =>'-',
+                'net_wt'			=>$items['blc_nwt'],
+                'purity'			=>'-',
+                'product_name'		=>$items['metal_name'],
+                'item_details'      =>$this->get_partly_sale_details($items['id_metal'],$data['id_branch']),
+                );
+            }
+       
+            $sql1=$this->db->query("SELECT  s.id_stock_summary,IFNULL(SUM(s.gross_wt),0) as gross_wt,IFNULL(SUM(s.net_wt),0) as net_wt,c.name as category_name,p.product_name,s.purity
+            FROM ret_purchase_item_stock_summary s 
+            LEFT JOIN ret_category c ON c.id_ret_category=s.id_ret_category
+            LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+            WHERE s.id_ret_category IS NOT NULL 
+             ".($data['id_branch']!='' && $data['id_branch']>0  ? " and s.id_branch=".$data['id_branch']."" :'')."
+            GROUP by s.id_ret_category,s.id_product,s.purity");
+            $result= $sql1->result_array();
+            
+            foreach($result as $items)
+            {
+                $return_Data[]=array(
+                'item_type'         =>2,
+                'id_stock_summary'  =>$items['id_stock_summary'],
+                'type'              =>$items['category_name'],
+                'gross_wt'			=>$items['gross_wt'],
+                'rate'	            =>'-',
+                'net_wt'			=>$items['net_wt'],
+                'purity'			=>$items['purity'],
+                'product_name'		=>$items['product_name'],
+                'item_details'      =>[],
+                );
+            }
+            
+            
+            
+            
+       
+       
+           return $return_Data;
+        
+    }
+    
+    function getOldMetalCatDetails($id_old_metal_category,$id_branch)
+    {
+        $sql=$this->db->query("SELECT IFNULL((s.gross_wt),0) as gross_wt,IFNULL((s.net_wt),0) as net_wt,
+        IFNULL((s.rate),0) as amount,if(s.metal_type=1,'Old Metal Gold','Old Metal Silver') as type,c.old_metal_cat,cus.mobile,cus.firstname as cus_name,date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_no,b.bill_id,br.name as bill_from,
+        s.purity
+        FROM ret_bill_old_metal_sale_details s 
+        LEFT JOIN ret_estimation_old_metal_sale_details e ON e.old_metal_sale_id=s.esti_old_metal_sale_id
+        LEFT JOIN ret_old_metal_category c ON c.id_old_metal_cat=e.id_old_metal_category
+        LEFT JOIN ret_billing b ON b.bill_id=s.bill_id
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        LEFT JOIN branch br ON br.id_branch=b.id_branch
+        WHERE s.is_pocketed=0  AND b.bill_status=1 AND s.old_metal_sale_id IS NOT NULL
+        ".($id_old_metal_category!='' ? " and e.id_old_metal_category=".$id_old_metal_category."" : " and  e.id_old_metal_category IS NULL")."
+        ".($id_branch!='' && $id_branch>0 ? " and s.current_branch=".$id_branch."" :'')."");
+        //print_r($this->db->last_query());exit;
+        $result=$sql->result_array();
+        return $result;
+    }
+    
+    function get_sales_return_details($id_metal,$id_branch)
+    {
+        $sql=$this->db->query("SELECT tag.tag_id,tag.tag_code,tag.tag_type,tag.product_id,tag.design_id,tag.design_for,tag.purity,tag.size,tag.gross_wt,IFNULL(tag.net_wt,0) as net_wt,des.design_name,pur.purity,date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_no,b.bill_id,tag.sales_value, p.product_short_code,p.product_name,
+        IFNULL(tag.	retail_max_wastage_percent,'') as retail_max_wastage_percent,tag.tag_mc_type,IFNULL(tag.tag_mc_value,0) as tag_mc_value,tag.id_sub_design,IFNULL(tag.sales_value,0) as sales_value,IFNULL(tag.sell_rate,0) as sell_rate,
+        br.name as bill_from,cus.mobile,cus.firstname as cus_name
+        FROM ret_taging tag
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+        LEFT JOIN metal mt on mt.id_metal=cat.id_metal
+        LEFT JOIN ret_design_master des ON des.design_no=tag.design_id 
+        LEFT JOIN ret_purity pur ON pur.id_purity=tag.purity 
+        LEFT JOIN ret_bill_details d ON d.tag_id=tag.tag_id 
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN branch br ON br.id_branch=b.id_branch
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        WHERE tag.tag_status=6 AND tag.tag_process=0
+        ".($id_branch!='' && $id_branch>0 ? " and tag.current_branch=".$id_branch."" :'' )."
+        ".($id_metal!='' && $id_metal>0 ? " and mt.id_metal=".$id_metal."" :'' )."
+        group by tag.tag_id");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    function get_partly_sale_details($id_metal,$id_branch)
+    {
+        $sql=$this->db->query("SELECT IFNULL(SUM(tag.gross_wt),0) as gross_wt,iFNULL(SUM(tag.net_wt),0) as net_wt,(IFNULL(SUM(tag.gross_wt),0)-IFNULL(sld.sold_gwt,0)) as blc_gwt,(IFNULL(SUM(tag.net_wt),0)-IFNULL(sld.sold_net_wt,0)) as blc_nwt,
+            mt.metal as metal_name,cat.id_metal,tag.tag_code,IFNULL(sld.sold_gwt,0) as sold_gwt,IFNULL(SUM(sld.sold_net_wt),0) as sold_nwt
+            FROM ret_taging tag 
+            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id 
+            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+            LEFT JOIN metal mt on mt.id_metal=cat.id_metal
+            LEFT JOIN ret_design_master des ON des.design_no=tag.design_id
+            left join ret_sub_design_master s on s.id_sub_design=tag.id_sub_design
+            LEFT JOIN(SELECT SUM(s.sold_gross_wt) as sold_gwt,IFNULL(SUM(s.sold_net_wt),0) as sold_net_wt,s.tag_id
+                FROM ret_partlysold s
+                LEFT JOIN ret_taging t ON t.tag_id=s.tag_id
+                LEFT JOIN ret_product_master p ON p.pro_id=t.product_id 
+                LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                LEFT JOIN metal mt on mt.id_metal=cat.id_metal
+                LEFT JOIN ret_bill_details d ON d.bill_det_id=s.sold_bill_det_id
+                LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+                WHERE b.bill_status=1 AND t.is_partial=1
+            group by t.tag_id) as sld ON sld.tag_id=tag.tag_id
+            WHERE tag.is_partial=1 and (tag.tag_process = 0) 
+            ".($id_metal!='' && $id_metal>0 ? " and cat.id_metal=".$id_metal."" :'' )."
+            ".($id_branch!='' && $id_branch>0 ? " and tag.current_branch=".$id_branch."" :'' )."
+            group by tag.tag_id");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    
+    //Available Metal Stock Details
+    
+    
+    
+    //Advance Details Report
+    
+    function customerAdvanceReport($data)
+    {
+        $returnData=array();
+        
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+		
+        $sql=$this->db->query("SELECT cus.firstname as cus_name,cus.mobile,br.name as branch_name,cus.id_customer,
+        IFNULL(adv.advance_amount,0) as advance_amount,(IFNULL(utilized.amount,0) + IFNULL(chit_adj.chit_utilized_amount,0)) as utilized_amount,IFNULL(refund.refund_amount,0) as refund_amount,
+        (IFNULL(adv.advance_amount,0)-IFNULL(utilized.amount,0)-IFNULL(chit_adj.chit_utilized_amount,0)-IFNULL(refund.refund_amount,0)) as balance_amount
+        FROM customer cus 
+        LEFT JOIN branch br ON br.id_branch=cus.id_branch
+        
+        LEFT JOIN (SELECT ir.id_customer,IFNULL(SUM(ir.amount),0) as advance_amount
+                  FROM ret_issue_receipt ir 
+                  WHERE ir.bill_status=1 AND (ir.receipt_type=2 OR ir.receipt_type=3 OR ir.receipt_type=4)
+                  ".($branch!='' && $branch !='0' ? " and ir.id_branch in (".$branch.") " :'' )."
+                  AND (date(ir.bill_date)  BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+                  GROUP by ir.id_customer) as adv ON adv.id_customer=cus.id_customer
+        
+        left join (select sum(u.utilized_amt) as amount,ir.id_issue_receipt,ir.id_customer 
+                            from ret_issue_receipt as ir 
+                            left JOIN ret_advance_utilized as u on u.id_issue_receipt=ir.id_issue_receipt 
+                            LEFT JOIN ret_billing bill on bill.bill_id=u.bill_id
+                            where bill.bill_status=1 and u.adjusted_for = 1
+                            ".($branch!='' && $branch !='0' ? " and ir.id_branch in (".$branch.") " :'' )."
+                            AND (date(bill.bill_date)  BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+                            GROUP by ir.id_customer) as utilized on utilized.id_customer=cus.id_customer
+                            
+        left join (select sum(u.utilized_amt) as chit_utilized_amount,sa.id_customer 
+                    from ret_issue_receipt as ir 
+                    left JOIN ret_advance_utilized as u on u.id_issue_receipt=ir.id_issue_receipt 
+                    LEFT JOIN payment p on p.id_payment=u.id_payment
+                    LEFT JOIN scheme_account sa on sa.id_scheme_account = p.id_scheme_account
+                    where p.payment_status=1 ".($branch!='' && $branch !='0' ? " and ir.id_branch in (".$branch.") " :'' )."
+                    AND (date(ir.bill_date)  BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+                    GROUP by sa.id_customer) as chit_adj on chit_adj.id_customer=cus.id_customer
+                
+        LEFT JOIN (select a.refund_receipt,IFNULL(SUM(a.refund_amount),0) as refund_amount,r.id_customer
+        		   From ret_advance_refund a
+        		   LEFT JOIN ret_issue_receipt r on r.id_issue_receipt=a.id_issue_receipt
+        		   Where r.bill_status=1
+        		   ".($branch!='' && $branch !='0' ? " and r.id_branch in (".$branch.") " :'' )."
+        		   AND (date(r.bill_date)  BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+        		   GROUP by r.id_customer) as refund on refund.id_customer=cus.id_customer
+         
+        WHERE cus.id_customer IS NOT NULL
+        ".($data['customer_id']!='' ? " and cus.id_customer = ".$data['customer_id']." " :'')."
+        HAVING advance_amount>0");
+        //print_r($this->db->last_query());exit();
+        $result=$sql->result_array();
+        
+        foreach($result as $items)
+        {
+            $advance_details= $this->get_customer_advance_details($items['id_customer'],$data['from_date'],$data['to_date'],$data['id_branch']);
+            $utilized_details= $this->get_customer_advance_utilized_details($items['id_customer'],$data['from_date'],$data['to_date'],$data['id_branch']);
+            $refund_details= $this->get_customer_advance_refund_details($items['id_customer'],$data['from_date'],$data['to_date'],$data['id_branch']);
+            $returnData[]=array(
+                               'cus_name'       =>$items['cus_name'],
+                               'mobile'         =>$items['mobile'],
+                               'advance_amount' =>$items['advance_amount'],
+                               'utilized_amount'=>$items['utilized_amount'],
+                               'refund_amount'  =>$items['refund_amount'],
+                               'balance_amount' =>$items['balance_amount'],
+                               'advance_details'=>array_merge($advance_details,$utilized_details,$refund_details),
+                               );
+        }
+        
+        return $returnData;
+    }
+    
+    
+    function get_customer_advance_details($id_customer,$from_date,$to_date,$id_branch)
+    {
+        $multiple_id_branch = implode(' , ', $id_branch);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $id_branch;
+		}
+        $sql=$this->db->query("select bill.bill_id,IFNULL(u.utilized_amt,0) as amount,ir.id_customer,bill.bill_no,'Utilized' as type,date_format(bill.bill_date,'%d-%m-%Y') as bill_date
+                            from ret_issue_receipt as ir 
+                            left JOIN ret_advance_utilized as u on u.id_issue_receipt=ir.id_issue_receipt 
+                            LEFT JOIN ret_billing bill on bill.bill_id=u.bill_id
+                            where bill.bill_status=1 and ir.id_customer=".$id_customer."
+                            ".($branch!='' && $branch !='0' ? " and ir.id_branch in (".$branch.") " :'' )." 
+                            AND (date(bill.bill_date)  BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."')
+                            ");
+        //print_r($this->db->last_query());exit();
+        return $sql->result_array();
+    }
+    
+    function get_customer_advance_utilized_details($id_customer,$from_date,$to_date,$id_branch)
+    {
+        
+        $multiple_id_branch = implode(' , ', $id_branch);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $id_branch;
+		}
+		
+        $sql1=$this->db->query("SELECT ir.id_issue_receipt,ir.id_customer,IFNULL((ir.amount),0) as amount,'Advance' as type,ir.bill_no,date_format(ir.bill_date,'%d-%m-%Y') as bill_date
+        FROM ret_issue_receipt ir 
+        WHERE ir.bill_status=1 AND (ir.receipt_type=2 OR ir.receipt_type=3 OR ir.receipt_type=4)
+        and ir.id_customer=".$id_customer."
+        ".($branch!='' && $branch !='0' ? " and ir.id_branch in (".$branch.") " :'' )." AND 
+        (date(ir.bill_date)  BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."') 
+        ");
+        $result1 = $sql1->result_array();
+        
+        $sql2 = $this->db->query("SELECT IFNULL(SUM(a.utilized_amt),0) as amount,date_format(p.date_payment,'%d-%m-%Y') as bill_date,p.id_payment,'CHIT' as type,p.receipt_no as bill_no,p.id_payment,
+        p.id_scheme_account
+        FROM ret_advance_utilized a 
+        LEFT JOIN payment p ON p.id_payment = a.id_payment
+        LEFT JOIN scheme_account sa ON sa.id_scheme_account = p.id_scheme_account
+        WHERE p.payment_status = 1 AND sa.id_customer = ".$id_customer."
+        AND (date(p.date_payment)  BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."') 
+        GROUP by p.id_payment ");
+        //print_r($this->db->last_query());exit();
+        $result2 = $sql2->result_array();
+        
+       
+        return array_merge($result1,$result2);
+    }
+    
+    
+    function get_customer_advance_refund_details($id_customer,$from_date,$to_date,$id_branch)
+    {
+        
+        $multiple_id_branch = implode(' , ', $id_branch);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $id_branch;
+		}
+		
+        $sql=$this->db->query("select r.id_issue_receipt,r.bill_no,a.refund_receipt,IFNULL((a.refund_amount),0) as amount,'Refund' as type,r.id_customer,date_format(r.bill_date,'%d-%m-%Y') as bill_date
+        From ret_advance_refund a
+        LEFT JOIN ret_issue_receipt r on r.id_issue_receipt=a.id_issue_receipt
+        Where r.bill_status=1 and r.id_customer=".$id_customer."
+        ".($branch!='' && $branch !='0' ? " and r.id_branch in (".$branch.") " :'' )." AND 
+        (date(r.bill_date)  BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."') 
+        ");
+        
+        return $sql->result_array();
+    }
+    
+    function get_advance_total($customer_id)
+    {
+        $sql=$this->db->query("select w.id_customer,ifnull(w.amount,0) as amount,c.firstname,w.id_ret_wallet,c.mobile 
+        from ret_wallet w
+        left join customer c on (c.id_customer=w.id_customer)
+        ".($customer_id!='' ? " where c.id_customer=".$customer_id."" :''));
+        // print_r($this->db->last_query());exit();
+        $data=$sql->result_array();
+        
+        foreach($data as $items) 
+        {
+            $advance=$this->get_receipteddetails($items['id_ret_wallet']);
+            $adv_amt=0;
+            foreach($advance as $a)
+            {
+                $adv_amt+=$a['amount'];
+                $branch=$a['branch_name'];
+            }
+            
+            $utilized=$this->get_utilizeddetails($items['id_ret_wallet']);
+            $uti_amt=0;
+            foreach($utilized as $u)
+            {
+                $uti_amt+=$u['amount'];
+            }
+            $details=array_merge($advance,$utilized);
+            $wallet_data[]=array(
+            'id_customer'   =>$items['id_customer'],
+            'amount'        =>$items['amount'],
+            'firstname'     =>$items['firstname'],
+            'id_ret_wallet' =>$items['id_ret_wallet'],
+            'mobile'        =>$items['mobile'],
+            'branch'        =>$branch,
+            'advance_amt'   =>$adv_amt,
+            'utilized_amt'  =>$uti_amt,
+            'details'       =>$details,
+            'advance'       =>$this->get_receipteddetails($items['id_ret_wallet']),
+            'utilized'      =>$this->get_utilizeddetails($items['id_ret_wallet']),
+            );
+        }
+        return $wallet_data;
+    }
+
+    function get_receipteddetails($id_wallet)
+    {
+        $sql=$this->db->query("SELECT w.id_customer,c.firstname,c.mobile,
+        r.bill_no ,r.id_issue_receipt, 
+        DATE_FORMAT(r.bill_date,'%d-%m-%Y') bill_date,r.amount as amount,
+        IF(wt.id_issue_receipt IS NULL, IF(transaction_type = 0, 'ADVANCED', 'UTILIZED'), IF(transaction_type = 0, 'Receipt', 'Issue')) as type,
+        b.name as branch_name, IFNULL(r.refno, '-') as refno 
+        from ret_wallet w 
+        left join customer c on c.id_customer = w.id_customer 
+        left join ret_wallet_transcation wt on wt.id_ret_wallet = w.id_ret_wallet 
+        left join ret_issue_receipt r on r.id_issue_receipt = wt.id_issue_receipt
+        LEFT JOIN branch b on b.id_branch = r.id_branch
+        where w.id_ret_wallet = ".$id_wallet  );
+        return $sql->result_array();
+    }
+
+
+    function get_utilizeddetails($id_wallet)
+    {
+        $sql=$this->db->query("SELECT c.id_customer,c.firstname ,c.mobile,
+        b.bill_id,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') bill_date,
+        au.utilized_amt as amount,w.id_ret_wallet,
+        br.name as branch_name, '' as refno
+        from ret_billing as b
+        left join ret_advance_utilized au on au.bill_id=b.bill_id
+        LEFT join customer c ON c.id_customer=b.bill_cus_id
+        left join ret_wallet w on w.id_customer=c.id_customer
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        where b.bill_status=1 and b.bill_id is not null and au.utilized_amt is not null
+        and w.id_ret_wallet=".$id_wallet);
+        return $sql->result_array();
+    }
+
+
+    function get_mobileNumber($mob_no)
+    {
+        $sql=$this->db->query("SELECT concat(mobile,'-',firstname) as label,id_customer as value from customer 
+        where mobile like '%".$mob_no."%'");
+        return $sql->result_array();
+    }
+    //Advance Details Report
+    
+    //Sales Return Report
+    function get_sales_return($data)
+    {
+        if($_POST['dt_range'] != '')
+        {
+            $dateRange = explode('-',$_POST['dt_range']);
+            $from = str_replace('/','-',$dateRange[0]);
+            $to = str_replace('/','-',$dateRange[1]);  
+            $d1 = date_create($from);
+            $d2 = date_create($to);
+            $FromDt = date_format($d1,"Y-m-d");
+            $ToDt = date_format($d2,"Y-m-d");
+        }
+        $sales_return=$this->db->query("SELECT p.product_name,d.net_wt as net_wt,d.gross_wt as gross_wt,d.item_cost as item_cost,d.item_total_tax as item_total_tax,
+        d.bill_discount as bill_discount,cat.name as category_name,d.piece as piece,d.rate_per_grm as sales_rate,p.sales_mode,b.bill_no,b.bill_id,
+        date_format(b.bill_date,'%d-%m-%Y') as bill_date,d.calculation_based_on,d.wastage_percent,c.firstname as customer,emp.firstname as emp_name,
+        tag.tag_code,if(tag.tag_process=0,'-',if(tag.tag_process=1,'Retagged',if(tag.tag_process=2,'Other Issue',if(tag.tag_process=3,'Stock Adj',if(tag.tag_process=4,'Added to Non Tag',if(tag.tag_process=5,'Added to Accounts Stock','')))))) as tag_process,
+        IFNULL(des.design_name,'') as design_name,IFNULL(s.sub_design_name,'') as sub_design_name,br.name as branch_name,
+        emp.firstname as emp_name,emp.emp_code, concat(br.short_name, '-SR-' , m.metal_code, '-', b.s_ret_refno) as s_ret_refno
+        FROM ret_billing b
+        LEFT JOIN ret_bill_return_details r ON r.bill_id=b.bill_id
+        LEFT JOIN ret_bill_details d ON d.bill_det_id=r.ret_bill_det_id
+        LEFT JOIN ret_taging tag ON tag.tag_id=d.tag_id
+        LEFT JOIN branch br ON br.id_branch=b.id_branch
+        LEFT JOIN metal m on m.id_metal=b.metal_type
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_design_master des ON des.design_no=d.design_id
+        left join ret_sub_design_master s on s.id_sub_design=tag.id_sub_design
+        LEFT JOIN ret_estimation_items est_itms on est_itms.est_item_id=d.esti_item_id
+        Left join ret_estimation est on est.estimation_id=est_itms.esti_id
+        LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+        LEFT JOIN customer c on c.id_customer=b.bill_cus_id
+        LEFT JOIN employee emp on emp.id_employee=ifnull(est.created_by, b.created_by)
+        WHERE d.bill_det_id IS NOT null and b.bill_status=1 And (b.bill_type=3 or b.bill_type=7)
+        ".($data['id_branch'] != '' && $data['id_branch'] >0 ? ' and b.id_branch='.$data['id_branch']: '')." 
+        ".($data['metal'] != '' ? ' and b.metal_type ='.$data['metal']: '')." 
+        ".($FromDt!= '' && $ToDt!='' ? 'and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')."");
+        //print_r($this->db->last_query());exit;
+        return $sales_return->result_array();
+    }
+    //Sales Return Report
+    
+    function dashboard_btList($from_date,$to_date,$type,$id_branch,$id_product)
+    {
+        switch($type)
+        {
+            case '1':
+                $sql1=$this->db->query("SELECT pro.product_name,fb.name as from_branch_name,tb.name as to_branch_name,IFNULL((tag.piece),0) as tot_pcs,IFNULL((tag.gross_wt),0) as tot_gwt,
+                IFNULL((tag.gross_wt),0) as tot_nwt,b.status
+                FROM ret_branch_transfer b 
+                LEFT JOIN ret_brch_transfer_tag_items t ON t.transfer_id=b.branch_transfer_id
+                LEFT JOIN ret_taging tag ON tag.tag_id=t.tag_id
+                LEFT JOIN ret_product_master pro ON pro.pro_id=tag.product_id
+                LEFT JOIN branch fb ON fb.id_branch=b.transfer_from_branch
+                LEFT JOIN branch tb ON tb.id_branch=b.transfer_to_branch
+                WHERE b.status=1 AND tag.product_id IS NOT NULL
+                ".($id_branch!='' && $id_branch>0 ?" and b.transfer_from_branch=".$id_branch."":'')."
+                ".($id_product!='' ? " and tag.product_id=".$id_product."" :'')."");
+                //print_r($this->db->last_query());exit;
+                return $sql1->result_array();  
+            break;
+            case '2':
+                $sql2=$this->db->query("SELECT pro.product_name,fb.name as from_branch_name,tb.name as to_branch_name,IFNULL((tag.piece),0) as tot_pcs,IFNULL((tag.gross_wt),0) as tot_gwt,
+                IFNULL((tag.gross_wt),0) as tot_nwt,b.status
+                FROM ret_branch_transfer b 
+                LEFT JOIN ret_brch_transfer_tag_items t ON t.transfer_id=b.branch_transfer_id
+                LEFT JOIN ret_taging tag ON tag.tag_id=t.tag_id
+                LEFT JOIN ret_product_master pro ON pro.pro_id=tag.product_id
+                LEFT JOIN branch fb ON fb.id_branch=b.transfer_from_branch
+                LEFT JOIN branch tb ON tb.id_branch=b.transfer_to_branch
+                WHERE b.status=2 AND tag.product_id IS NOT NULL
+                ".($id_branch!='' && $id_branch>0 ?" and b.transfer_from_branch=".$id_branch."":'')."
+                ".($id_product!='' ? " and tag.product_id=".$id_product."" :'')."");
+                return $sql2->result_array();
+            break;
+        }
+    }
+    
+    function get_tagged_stone($data)
+    {
+        $tag_stone=$this->db->query("SELECT s.tag_stone_id,s.tag_id, st.stone_name,s.stone_cal_type, uom.uom_name, pieces, wt, rate_per_gram, amount,s.stone_id,is_apply_in_lwt, 
+        t.product_id,t.design_id,t.id_sub_design,IFNULL(t.gross_wt,0) as gross_wt,IFNULL(t.net_wt,0) as net_wt,ifnull(t.tag_lot_id,'-') as lotno,DATE_FORMAT(t.tag_datetime,'%d-%m-%Y') as tag_date,t.tag_code, 
+        ifnull(kar.firstname,'-') as karigarname,p.product_name,cat.name as catname,d.design_name,sd.sub_design_name,b.name as branchname 
+        FROM ret_taging_stone as s 
+        LEFT JOIN ret_stone as st ON st.stone_id = s.stone_id 
+        LEFT JOIN ret_uom as uom ON uom.uom_id = s.uom_id 
+        LEFT JOIN ret_taging t on t.tag_id = s.tag_id 
+        LEFT JOIN ret_lot_inwards lot on lot.lot_no=t.tag_lot_id 
+        LEFT JOIN ret_karigar kar on kar.id_karigar=lot.gold_smith 
+        LEFT JOIN ret_product_master p on p.pro_id=t.product_id 
+        LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id 
+        LEFT JOIN metal m on m.id_metal=cat.id_metal 
+        LEFT JOIN ret_design_master d on d.design_no=t.design_id 
+        LEFT JOIN ret_sub_design_master sd on sd.id_sub_design=t.id_sub_design 
+        LEFT JOIN branch b on b.id_branch=t.current_branch
+        WHERE  t.tag_status = 0 
+        ".($data['id_branch']!='' && $data['id_branch']>0 ? " and t.current_branch=".$data['id_branch']."":'')." 
+        ".($data['id_category'] != '' && $data['id_category'] != 0 ? " and p.cat_id =".$data['id_category']."" :'')." 
+        ".($data['id_metal'] !='' && $data['id_metal'] !=0 ? " and m.id_metal=".$data['id_metal']."":'')."
+        ".($data['id_design']!='' ? " and t.design_id=".$data['id_design']."" :'')."
+        ".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')."
+        ".($data['from_weight']!='' ?" and t.gross_wt>=".$data['from_weight']."" :'')."
+        ".($data['to_weight']!='' ?" and t.gross_wt<=".$data['to_weight']."" :'')."
+        ".($data['id_size']!='' ? " and t.size=".$data['id_size']."" :'')."");
+        //print_r($this->db->last_query());exit;
+        return $tag_stone->result_array();
+    }
+    
+    function get_tagcategory($data)
+    {
+        $sql = $this->db->query("SELECT id_ret_category,name,description,id_metal,image FROM `ret_category` WHERE status = 1
+        ".($data['id_metal'] !='' && $data['id_metal'] !=0 ? " and id_metal=".$data['id_metal']."":'')."");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    
+    function get_acc_stock_details($data)
+    {
+        $sql=$this->db->query("SELECT if(l.transcation_type=0,'Credit','Debit') as trans_type,l.credit_type,l.ref_no,l.piece,if(l.transcation_type=1,concat('-','',l.gross_wt),l.gross_wt) as gross_wt,if(l.transcation_type=1,concat('-','',l.net_wt),l.net_wt)  as net_wt,l.transcation_type,
+        p.product_name,l.debit_type,l.remarks,date_format(l.date_add,'%d-%m-%Y') as date_add
+        FROM ret_purchase_item_stock_summary s 
+        LEFT JOIN ret_purchase_item_stock_summary_log l ON l.id_stock_summary=s.id_stock_summary
+        LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+        WHERE s.id_stock_summary=".$data['id_stock_summary']."");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    
+    //Area Wise Analysis Report
+    function product_analysis_details($data)
+    {
+        $return_data=array();
+        $sql=$this->db->query("SELECT p.product_name,des.design_name,IFNULL(SUM(d.gross_wt),0) as tot_gwt,IFNULL(SUM(d.net_wt),0) as tot_nwt,IFNULL(SUM(tag.piece),0) as tot_pcs,
+        IFNULL(SUM(d.item_cost),0) as tot_item_cost
+        FROM ret_bill_details d 
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_category c ON c.id_ret_category=p.cat_id
+        LEFT JOIN ret_taging tag ON tag.tag_id=d.tag_id
+        LEFT JOIN ret_design_master des ON des.design_no=tag.design_id
+        LEFT JOIN metal m ON m.id_metal=c.id_metal
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        WHERE tag.tag_status=1 AND b.bill_status=1 and d.status=1
+        ".($data['id_village']!='' ? " and cus.id_village=".$data['id_village']."" :'')."
+        ".($data['id_metal']!='' && $data['sales_mode']==2 ? " and c.id_metal=".$data['id_metal']."" :'')."
+        ".($data['sales_mode']==1 ? " and p.sales_mode=".$data['sales_mode']."" :'')."
+        ".($data['id_branch']!=''  && $data['id_branch']!=null && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+        ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        GROUP by tag.product_id,tag.design_id
+        order by pro_id ASC");
+        //print_r($this->db->last_query());exit;
+        $result= $sql->result_array();
+        foreach($result as $r){
+			$return_data[$r['product_name']][] = $r; 
+		}
+        return $return_data;
+    }
+    
+    function get_crm_analysis_details($data)
+    {
+        $sql=$this->db->query("SELECT sa.id_scheme_account,sa.id_scheme,concat(s.code,' ',sa.scheme_acc_number) as acc_num,concat(cus.firstname,'',IFNULL(cus.lastname,'')) as cus_name,cus.mobile,
+        s.scheme_name,if(sa.is_closed=1,'Closed','Active') as acc_status,pay.paid_installments,s.total_installments,v.village_name,pay.last_paid_date
+        FROM scheme_account sa 
+        LEFT JOIN customer cus ON cus.id_customer=sa.id_customer
+        LEFT JOIN village v ON v.id_village=cus.id_village
+        LEFT JOIN scheme s ON s.id_scheme=sa.id_scheme
+        LEFT JOIN (select s.total_installments,s.scheme_type,s.id_scheme,s.firstPayDisc_value,sa.id_scheme_account,IFNULL(IF(sa.is_opening=1,IFNULL(sa.paid_installments,0)+ IFNULL(if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues)),0), if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues))) ,0)as paid_installments,
+        Date_Format(max(p.date_payment),'%d-%m-%Y') as last_paid_date
+        FROM payment p
+        left join scheme_account sa on sa.id_scheme_account=p.id_scheme_account
+        left join scheme s on s.id_scheme=sa.id_scheme
+        where p.payment_status=1 group by sa.id_scheme_account) as pay on pay.id_scheme_account=sa.id_scheme_account
+        where sa.id_scheme_account is NOT NULL
+        and sa.is_closed=".$data['acc_type']."
+        ".($data['id_village']!='' ? " and cus.id_village=".$data['id_village']."" :'')."
+        ".($data['id_branch']!='' && $data['acc_type']==0 ? " and sa.id_branch=".$data['id_branch']."" :'')."
+        ".($data['id_branch']!='' && $data['acc_type']==1 ? " and sa.Closing_id_branch=".$data['id_branch']."" :'')."
+        ".($data['from_date'] != '' && $data['to_date']!='' && $data['acc_type']==0 ?  ' and date(sa.date_add) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ".($data['from_date'] != '' && $data['to_date']!='' && $data['acc_type']==1 ?  ' and date(sa.closing_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        
+        ");
+        //print_r($this->db->last_query());exit;
+        $result= $sql->result_array();
+        return $result;
+    }
+    
+    function get_sales_analysis_details($data)
+    {
+        $return_data=array();
+        $sql=$this->db->query("SELECT c.mobile,c.id_customer,concat(c.firstname,'',IFNULL(c.lastname,'')) as cus_name,
+            IFNULL(g.tot_nwt,0) as tot_gold_wt,IFNULL(s.tot_nwt,0) as tot_silver_wt,IFNULL(mrp.tot_amt,0) as tot_amt,
+            IFNULL(acc.tot_acc,0) as active_acc,IFNULL(closed.tot_acc,0) as closed_acc,IFNULL(bill.last_billdate,'') as last_billdate
+            FROM customer c 
+            LEFT JOIN village v ON v.id_village=c.id_village
+            
+            LEFT JOIN(
+                    SELECT DATE_FORMAT(max(b.bill_date),'%d-%m-%Y') as last_billdate,c.id_customer
+                    FROM ret_billing b 
+                    LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+                    AND c.id_village=".$data['id_village']."
+                    GROUP by c.id_customer) as bill on bill.id_customer=c.id_customer
+            
+            LEFT JOIN (
+                SELECT SUM(d.net_wt) as tot_nwt,c.id_customer
+                FROM customer c 
+                LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+                LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+                WHERE b.bill_status=1 AND p.sales_mode=2 AND cat.id_metal=1 AND d.bill_det_id is NOT null and d.status=1
+                AND c.id_village=".$data['id_village']."
+                GROUP by c.id_customer) as g ON g.id_customer=c.id_customer
+        
+        LEFT JOIN (SELECT SUM(d.net_wt) as tot_nwt,c.id_customer
+                  FROM customer c 
+                  LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+                  LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                  LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                  LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+                  WHERE b.bill_status=1 AND p.sales_mode=2 AND cat.id_metal=2 AND d.bill_det_id is NOT null and d.status=1
+                  AND c.id_village=".$data['id_village']."
+                  GROUP by b.bill_cus_id) as s ON s.id_customer=c.id_customer
+                  
+                
+        LEFT JOIN (SELECT SUM(d.item_cost) as tot_amt,c.id_customer
+                  FROM customer c 
+                  LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+                  LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                  LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                  LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+                  WHERE b.bill_status=1 AND p.sales_mode=1 AND d.bill_det_id is NOT null and d.status=1
+                  AND c.id_village=".$data['id_village']."
+                  GROUP by c.id_customer) as mrp ON mrp.id_customer=c.id_customer
+                  
+        LEFT JOIN (SELECT COUNT(sa.id_scheme_account) as tot_acc,c.id_customer
+                  FROM customer c 
+                  LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+                  WHERE sa.is_closed=0 and sa.active=1 and sa.scheme_acc_number is not null
+                  AND c.id_village=".$data['id_village']."
+                  GROUP by c.id_customer) as acc ON acc.id_customer=c.id_customer
+                  
+        LEFT JOIN (SELECT COUNT(sa.id_scheme_account) as tot_acc,c.id_customer
+                  FROM customer c 
+                  LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+                  WHERE sa.is_closed=1 and sa.active=0
+                  AND c.id_village=".$data['id_village']."
+                  GROUP by c.id_customer) as closed ON closed.id_customer=c.id_customer
+                  
+            WHERE c.id_village=".$data['id_village']." and c.id_village is not null
+             ".($data['id_branch']!='' && $data['id_branch']>0 && $data['cus_type']==2 ? " and c.id_branch=".$data['id_branch']."" :'')."
+             ".($data['from_date'] != '' && $data['to_date']!='' && $data['cus_type']==2 ? ' and date(c.date_add) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+            GROUP by c.id_customer"); 
+         //print_r($this->db->last_query());exit;
+        $result= $sql->result_array();
+   
+        return $result;
+    }
+    
+    
+    function get_customer_without_acc($data)
+    {
+        $sql=$this->db->query("SELECT (c.id_customer) as tot_cus,c.id_village,COUNT(sa.id_scheme_account) as tot_acc,c.firstname as cus_name,c.mobile,
+        v.village_name,concat(s.code,' ',sa.scheme_acc_number) as acc_num,sa.id_scheme_account,date_format(sa.closing_date,'%d-%m-%Y') as closed_date
+        FROM customer c 
+        LEFT JOIN village v on v.id_village=c.id_village
+        LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+        LEFT JOIN scheme s on s.id_scheme=sa.id_scheme
+        WHERE sa.is_closed=1 and c.id_village is not null AND c.id_customer NOT IN(SELECT acc.id_customer
+        FROM scheme_account acc 
+        WHERE acc.is_closed=0)
+        ".($data['id_village']!='' ? " and c.id_village=".$data['id_village']."" :'')."
+        GROUP by sa.id_scheme_account");
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+		return $result;
+    }
+    
+    
+    function sales_analysis_other_city($data)
+    {
+        $return_data=array();
+      
+        $sql=$this->db->query("SELECT v.village_name,v.id_village,IFNULL(cus.tot_cus,0) as tot_cus,IFNULL(without_acc.tot_cus,0) as without_acc,IFNULL(newcus.tot_cus,0) as totnew_cus,
+        IFNULL(g.tot_nwt,0) as tot_gold_wt,IFNULL(s.tot_nwt,0) as tot_silver_wt,IFNULL(mrp.tot_amt,0) as tot_amt,
+        IFNULL(acc.tot_acc,0) as active_acc,IFNULL(closed.tot_acc,0) as closed_acc,IFNULL(b.name,'') as branch_name
+        FROM village v 
+        LEFT JOIN village_zone z ON z.id_zone=v.id_zone
+        LEFT JOIN branch b on b.id_branch=z.id_branch
+        LEFT JOIN (SELECT COUNT(c.id_customer) as tot_cus,c.id_village
+                  FROM customer c 
+                  where c.id_village is not null
+                  GROUP by c.id_village) as cus ON cus.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT COUNT(c.id_customer) as tot_cus,c.id_village
+        FROM customer c 
+        LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+        WHERE sa.is_closed=1 and c.id_village is not null AND c.id_customer NOT IN(SELECT acc.id_customer
+        FROM scheme_account acc 
+        WHERE acc.is_closed=0)
+        GROUP by c.id_village) as without_acc ON without_acc.id_village=v.id_village
+                  
+        
+        LEFT JOIN (SELECT COUNT(c.id_customer) as tot_cus,c.id_village
+                  FROM customer c 
+                  where c.id_village is not null
+                  and date(c.date_add) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."'
+                   ".($data['id_branch']!='' && $data['id_branch']>0 ? " and c.id_branch=".$data['id_branch']."" :'')."
+                  GROUP by c.id_village) as newcus ON newcus.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT SUM(d.net_wt) as tot_nwt,c.id_village
+                  FROM customer c 
+                  LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+                  LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                  LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                  LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+                  WHERE b.bill_status=1 AND p.sales_mode=2 AND cat.id_metal=1 AND d.bill_det_id is NOT null and d.status=1
+                   ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+                   ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village) as g ON g.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT SUM(d.net_wt) as tot_nwt,c.id_village
+                  FROM customer c 
+                  LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+                  LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                  LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                  LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+                  WHERE b.bill_status=1 AND p.sales_mode=2 AND cat.id_metal=2 AND d.bill_det_id is NOT null and d.status=1
+                  ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+                  ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village) as s ON s.id_village=v.id_village
+                  
+         LEFT JOIN (SELECT SUM(d.item_cost) as tot_amt,c.id_village
+                  FROM customer c 
+                  LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+                  LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                  LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                  LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+                  WHERE b.bill_status=1 AND p.sales_mode=1 AND d.bill_det_id is NOT null and d.status=1
+                  ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+                  ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village) as mrp ON mrp.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT COUNT(sa.id_scheme_account) as tot_acc,c.id_village,pay.paid_installments
+                  FROM customer c 
+                  LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+                LEFT JOIN (select s.total_installments,s.scheme_type,s.id_scheme,s.firstPayDisc_value,sa.id_scheme_account,IFNULL(IF(sa.is_opening=1,IFNULL(sa.paid_installments,0)+ IFNULL(if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues)),0), if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues))) ,0)as paid_installments,
+                Date_Format(max(p.date_payment),'%d-%m-%Y') as last_paid_date
+                FROM payment p
+                left join scheme_account sa on sa.id_scheme_account=p.id_scheme_account
+                left join scheme s on s.id_scheme=sa.id_scheme
+                where p.payment_status=1 group by sa.id_scheme_account) as pay on pay.id_scheme_account=sa.id_scheme_account
+                  WHERE sa.is_closed=0 and sa.active=1 and sa.scheme_acc_number is not null 
+                   ".($data['id_branch']!='' && $data['id_branch']>0 ? " and sa.id_branch=".$data['id_branch']."" :'')."
+                   ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(sa.date_add) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village
+                  having pay.paid_installments>0) as acc ON acc.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT COUNT(sa.id_scheme_account) as tot_acc,c.id_village
+                  FROM customer c 
+                  LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+                  WHERE sa.is_closed=1 and sa.active=0 and c.id_village is not null
+                  ".($data['id_branch']!='' && $data['id_branch']>0 ? " and sa.Closing_id_branch=".$data['id_branch']."" :'')."
+                  ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(sa.closing_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village) as closed ON closed.id_village=v.id_village
+        where v.status=1
+         ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch!=".$data['id_branch']."" :'')."
+        order by v.id_village ASC");
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        
+        foreach($result as $items)
+        {
+            $return_data[]=array(
+                                'active_acc'    =>$items['active_acc'],
+                                'branch_name'   =>$items['branch_name'],
+                                'closed_acc'    =>$items['closed_acc'],
+                                'id_village'    =>$items['id_village'],
+                                'tot_amt'       =>$items['tot_amt'],
+                                'tot_cus'       =>$items['tot_cus'],
+                                'tot_gold_wt'   =>$items['tot_gold_wt'],
+                                'tot_silver_wt' =>$items['tot_silver_wt'],
+                                'totnew_cus'    =>$items['totnew_cus'],
+                                'village_name'  =>$items['village_name'],
+                                'without_acc'   =>$items['without_acc'],
+                                //'branch_details'=>$this->sales_analysis_branchwise($items['id_village'],$data),
+                                );
+        }
+        
+		return $return_data;
+    }
+    
+    function sales_analysis_report($data)
+    {
+        $return_data=array();
+      
+        $sql=$this->db->query("SELECT v.village_name,v.id_village,IFNULL(cus.tot_cus,0) as tot_cus,IFNULL(without_acc.tot_cus,0) as without_acc,IFNULL(newcus.tot_cus,0) as totnew_cus,
+        IFNULL(g.tot_nwt,0) as tot_gold_wt,IFNULL(s.tot_nwt,0) as tot_silver_wt,IFNULL(mrp.tot_amt,0) as tot_amt,
+        IFNULL(acc.tot_acc,0) as active_acc,IFNULL(closed.tot_acc,0) as closed_acc,IFNULL(b.name,'') as branch_name
+        FROM village v 
+        LEFT JOIN village_zone z ON z.id_zone=v.id_zone
+        LEFT JOIN branch b on b.id_branch=z.id_branch
+        LEFT JOIN (SELECT COUNT(c.id_customer) as tot_cus,c.id_village
+                  FROM customer c 
+                  where c.id_village is not null
+                  GROUP by c.id_village) as cus ON cus.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT COUNT(c.id_customer) as tot_cus,c.id_village
+        FROM customer c 
+        LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+        WHERE sa.is_closed=1 and c.id_village is not null AND c.id_customer NOT IN(SELECT acc.id_customer
+        FROM scheme_account acc 
+        WHERE acc.is_closed=0)
+        GROUP by c.id_village) as without_acc ON without_acc.id_village=v.id_village
+                  
+        
+        LEFT JOIN (SELECT COUNT(c.id_customer) as tot_cus,c.id_village
+                  FROM customer c 
+                  where c.id_village is not null
+                  and date(c.date_add) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."'
+                   ".($data['id_branch']!='' && $data['id_branch']>0 ? " and c.id_branch=".$data['id_branch']."" :'')."
+                  GROUP by c.id_village) as newcus ON newcus.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT SUM(d.net_wt) as tot_nwt,c.id_village
+                  FROM customer c 
+                  LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+                  LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                  LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                  LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+                  WHERE b.bill_status=1 AND p.sales_mode=2 AND cat.id_metal=1 AND d.bill_det_id is NOT null and d.status=1
+                   ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+                   ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village) as g ON g.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT SUM(d.net_wt) as tot_nwt,c.id_village
+                  FROM customer c 
+                  LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+                  LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                  LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                  LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+                  WHERE b.bill_status=1 AND p.sales_mode=2 AND cat.id_metal=2 AND d.bill_det_id is NOT null and d.status=1
+                  ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+                  ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village) as s ON s.id_village=v.id_village
+                  
+         LEFT JOIN (SELECT SUM(d.item_cost) as tot_amt,c.id_village
+                  FROM customer c 
+                  LEFT JOIN ret_billing b ON b.bill_cus_id=c.id_customer
+                  LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                  LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+                  LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                  LEFT JOIN ret_category cat ON cat.id_ret_category=p.cat_id
+                  WHERE b.bill_status=1 AND p.sales_mode=1 AND d.bill_det_id is NOT null and d.status=1
+                  ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+                  ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village) as mrp ON mrp.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT COUNT(sa.id_scheme_account) as tot_acc,c.id_village,pay.paid_installments
+                  FROM customer c 
+                  LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+                LEFT JOIN (select s.total_installments,s.scheme_type,s.id_scheme,s.firstPayDisc_value,sa.id_scheme_account,IFNULL(IF(sa.is_opening=1,IFNULL(sa.paid_installments,0)+ IFNULL(if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues)),0), if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues))) ,0)as paid_installments,
+                Date_Format(max(p.date_payment),'%d-%m-%Y') as last_paid_date
+                FROM payment p
+                left join scheme_account sa on sa.id_scheme_account=p.id_scheme_account
+                left join scheme s on s.id_scheme=sa.id_scheme
+                where p.payment_status=1 group by sa.id_scheme_account) as pay on pay.id_scheme_account=sa.id_scheme_account
+                  WHERE sa.is_closed=0 and sa.active=1 and sa.scheme_acc_number is not null 
+                   ".($data['id_branch']!='' && $data['id_branch']>0 ? " and sa.id_branch=".$data['id_branch']."" :'')."
+                   ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(sa.date_add) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village
+                  having pay.paid_installments>0) as acc ON acc.id_village=v.id_village
+                  
+        LEFT JOIN (SELECT COUNT(sa.id_scheme_account) as tot_acc,c.id_village
+                  FROM customer c 
+                  LEFT JOIN scheme_account sa ON sa.id_customer=c.id_customer
+                  WHERE sa.is_closed=1 and sa.active=0 and c.id_village is not null
+                  ".($data['id_branch']!='' && $data['id_branch']>0 ? " and sa.Closing_id_branch=".$data['id_branch']."" :'')."
+                  ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(sa.closing_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+                  GROUP by c.id_village) as closed ON closed.id_village=v.id_village
+        where v.status=1
+         ".($data['id_branch']!='' && $data['id_branch']>0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+        order by v.id_village ASC");
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        
+        foreach($result as $items)
+        {
+            $return_data[]=array(
+                                'active_acc'    =>$items['active_acc'],
+                                'branch_name'   =>$items['branch_name'],
+                                'closed_acc'    =>$items['closed_acc'],
+                                'id_village'    =>$items['id_village'],
+                                'tot_amt'       =>$items['tot_amt'],
+                                'tot_cus'       =>$items['tot_cus'],
+                                'tot_gold_wt'   =>$items['tot_gold_wt'],
+                                'tot_silver_wt' =>$items['tot_silver_wt'],
+                                'totnew_cus'    =>$items['totnew_cus'],
+                                'village_name'  =>$items['village_name'],
+                                'without_acc'   =>$items['without_acc'],
+                                //'branch_details'=>$this->sales_analysis_branchwise($items['id_village'],$data),
+                                );
+        }
+        
+		return $return_data;
+    }
+    
+    
+    //Area Wise Analysis Report
+    
+    
+    //retag report details
+    function get_retag_report_details($data)
+    {
+        $return_data=array();
+        if($data['retag_report_type']==4)
+        {
+            $returnData = array();
+            $sql=$this->db->query("SELECT p.id_process,b.name as branch_name,if(p.type=1,'Sales Return',if(p.type=3,'Partly Sale',if(p.type=4,'Old Metal',''))) as type,
+            if(p.process_for=1,'Re-Tag',if(p.process_for=4,'Non Tag',if(p.process_for=3,'Other Issue',if(p.process_for=5,'Accounts Stock','')))) as process_for,date_format(p.date_add,'%d-%m-%Y') as date_add,
+            IFNULL(pro.product_name,'') as product_name,IFNULL(des.design_name,'') as design_name,IFNULL(subDes.sub_design_name,'') as sub_design_name,
+            IFNULL(cat.name,'') as cat_name,p.type as process_type,p.process_for as retag_process
+            FROM ret_acc_stock_process p 
+            LEFT JOIN branch b ON b.id_branch=p.id_branch
+            LEFT JOIN ret_product_master pro ON pro.pro_id=p.id_ret_product
+            LEFT JOIN ret_category cat ON cat.id_ret_category=p.id_ret_category
+            LEFT JOIN ret_design_master des ON des.design_no=p.id_design
+            LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=p.id_sub_design
+            where ".($data['from_date'] != '' && $data['to_date']!='' ? ' date(p.date_add) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+            ".($data['retag_report_type']!='' ? " and p.type=".$data['retag_report_type']."" :'')."
+            ORDER by p.id_process DESC");
+            $result = $sql->result_array();
+            foreach($result as $items)
+            {
+                $total_gross_weight=0;
+                $total_net_weight=0;
+                $old_metal_details=$this->getOldMetalItemDetails($data['from_date'],$data['to_date'],$items['id_process']);
+                foreach($old_metal_details as $val)
+                {
+                    $total_gross_weight+=$val['gross_wt'];
+                    $total_net_weight+=$val['net_wt'];
+                }
+                $items['weight']     = number_format($total_gross_weight,3,'.','');
+                $items['net_weight'] = number_format($total_net_weight,3,'.','');
+                $returnData[]=$items;
+            }
+        }
+        else if($data['retag_report_type']==3)
+        {
+            $returnData = array();
+            
+            $sql=$this->db->query("SELECT p.id_process,b.name as branch_name,if(p.type=1,'Sales Return',if(p.type=3,'Partly Sale',if(p.type=4,'Old Metal',''))) as type,
+            if(p.process_for=1,'Re-Tag',if(p.process_for=4,'Non Tag',if(p.process_for=3,'Other Issue',if(p.process_for=5,'Accounts Stock','')))) as process_for,date_format(p.date_add,'%d-%m-%Y') as date_add,
+            IFNULL(pro.product_name,'') as product_name,IFNULL(des.design_name,'') as design_name,IFNULL(subDes.sub_design_name,'') as sub_design_name,
+            IFNULL(cat.name,'') as cat_name,p.type as process_type,p.process_for as retag_process,IFNULL(d.gross_wt,0) as weight,IFNULL(d.net_wt,0) as net_weight,t.tag_code
+            FROM ret_acc_stock_process_details d 
+            LEFT JOIN ret_acc_stock_process p ON p.id_process = d.id_process
+            LEFT JOIN ret_taging t ON t.tag_id =d.ref_no
+            LEFT JOIN branch b ON b.id_branch=p.id_branch
+            LEFT JOIN ret_product_master pro ON pro.pro_id=p.id_ret_product
+            LEFT JOIN ret_category cat ON cat.id_ret_category=p.id_ret_category
+            LEFT JOIN ret_design_master des ON des.design_no=p.id_design
+            LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=p.id_sub_design
+            where  ".($data['from_date'] != '' && $data['to_date']!='' ? ' date(p.date_add) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')."  
+            ".($data['retag_report_type']!='' ? " and p.type=".$data['retag_report_type']."" :'')."
+            ORDER by p.id_process DESC");
+         
+            $returnData = $sql->result_array();
+            
+        }
+        else if($data['retag_report_type']==1)
+        {
+            $sql=$this->db->query("SELECT p.id_process,date_format(p.date_add,'%d-%m-%Y') as date_add,IFNULL((tag.gross_wt),0) as gross_wt,IFNULL((tag.net_wt),0) as net_wt,
+            pro.product_name as product,tag.tag_code as new_tag,ifnull(t.tag_code,'') as tag_no,
+            ifnull(sr.bill_no,'') as bill_no,ifnull(sr.bill_id,'') as bill_id,ifnull(sr.branch,'') as branch,
+            sr.bill_date as bill_date,if(p.type=1,'Sales Return',if(p.type=3,'Partly Sale',if(p.type=4,'Old Metal',''))) as type,
+            if(p.process_for=1,'Re-Tag',if(p.process_for=4,'Non Tag',if(p.process_for=3,'Other Issue',if(p.process_for=5,'Accounts Stock','')))) as process_for
+            FROM ret_acc_stock_process_details d 
+            LEFT JOIN ret_acc_stock_process p ON p.id_process=d.id_process
+            LEFT JOIN ret_taging tag ON tag.ref_tag_id=d.ref_no
+            LEFT JOIN ret_product_master pro ON pro.pro_id=tag.product_id
+            LEFT JOIN ret_taging t on t.tag_id=d.ref_no
+            Left join (SELECT r.bill_id,bill.s_ret_refno as bill_no,date_format(bill.bill_date,'%d-%m-%Y') as bill_date,br.name as branch,d.tag_id
+            FROM ret_bill_details d 
+            LEFT JOIN ret_billing b ON b.bill_id = d.bill_id
+            LEFT JOIN ret_bill_return_details r ON r.ret_bill_det_id = d.bill_det_id
+            LEFT JOIN ret_billing bill ON bill.bill_id = r.bill_id
+            LEFT JOIN branch br ON br.id_branch = bill.id_branch
+            WHERE b.bill_status = 1 AND d.status = 2 AND r.ret_bill_det_id IS NOT NULL) as sr on sr.tag_id = d.ref_no
+            WHERE p.type=1
+            ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(p.date_add) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." ");
+            //print_r($this->db->last_query());exit;
+            $returnData = $sql->result_array();
+        }
+        
+        return $returnData;
+        /*$sql=$this->db->query("SELECT p.id_process,b.name as branch_name,if(p.type=1,'Sales Return',if(p.type=3,'Partly Sale',if(p.type=4,'Old Metal',''))) as type,
+        if(p.process_for=1,'Re-Tag',if(p.process_for=4,'Non Tag',if(p.process_for=3,'Other Issue',if(p.process_for=5,'Accounts Stock','')))) as process_for,date_format(p.date_add,'%d-%m-%Y') as date_add,
+        IFNULL(pro.product_name,'') as product_name,IFNULL(des.design_name,'') as design_name,IFNULL(subDes.sub_design_name,'') as sub_design_name,
+        IFNULL(cat.name,'') as cat_name,p.type as process_type,p.process_for as retag_process
+        FROM ret_acc_stock_process p 
+        LEFT JOIN branch b ON b.id_branch=p.id_branch
+        LEFT JOIN ret_product_master pro ON pro.pro_id=p.id_ret_product
+        LEFT JOIN ret_category cat ON cat.id_ret_category=p.id_ret_category
+        LEFT JOIN ret_design_master des ON des.design_no=p.id_design
+        LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=p.id_sub_design
+        where ".($data['from_date'] != '' && $data['to_date']!='' ? ' date(p.date_add) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ".($data['retag_report_type']!='' ? " and p.type=".$data['retag_report_type']."" :'')."
+        ORDER by p.id_process DESC");
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $total_gross_weight=0;
+            $total_net_weight=0;
+            if($items['process_type']==4)
+            {
+                $old_metal_details=$this->getOldMetalItemDetails($data['from_date'],$data['to_date'],$items['id_process']);
+                foreach($old_metal_details as $val)
+                {
+                    $total_gross_weight+=$val['gross_wt'];
+                    $total_net_weight+=$val['net_wt'];
+                }
+            }
+            else if($items['process_type']==3)
+            {
+                $partly_sale_details=$this->getPartlySaleDetails($data['from_date'],$data['to_date'],$items['id_process']);
+                foreach($partly_sale_details as $val)
+                {
+                    $total_gross_weight+=$val['blc_gross_wt'];
+                    $total_net_weight+=$val['blc_net_wt'];
+                }
+            }
+            else if($items['process_type']==1)
+            {
+                $salesRetDetails=$this->getSalesReturnRetag($data['from_date'],$data['to_date'],$items['id_process']);
+                foreach($salesRetDetails as $val)
+                {
+                    $total_gross_weight+=$val['gross_wt'];
+                    $total_net_weight+=$val['net_wt'];
+                    
+                     $sr_product = $val['product'];
+                     $sr_tag_no     = $val['tag_no'];
+                     $sr_newtag     = $val['new_tagno'];
+                     $sr_bill_no   = $val['bill_no'];
+                     $sr_bill_id   = $val['bill_id'];
+                     $sr_branch    = $val['branch'];
+                     $sr_bill_date    = $val['bill_date'];
+ 
+                }
+            }
+            $return_data[]=array(
+                                'id_process'        =>$items['id_process'],
+                                'branch_name'       =>$items['branch_name'],
+                                'type'              =>$items['type'],
+                                'process_for'       =>$items['process_for'],
+                                'date_add'          =>$items['date_add'],
+                                'product_name'      =>$items['product_name'],
+                                'design_name'       =>$items['design_name'],
+                                'sub_design_name'   =>$items['sub_design_name'],
+                                'cat_name'          =>$items['cat_name'],
+                                'weight'            =>number_format($total_gross_weight,3,'.',''),
+                                'net_weight'        =>number_format($total_net_weight,3,'.',''),
+                                'product'           =>($items['retag_process']==4 ?$items['product_name'] :$sr_product),
+                                'tag_no'            =>$sr_tag_no,
+                                'new_tag'           =>$sr_newtag,
+                                'bill_no'           =>$sr_bill_no,
+                                'bill_id'           =>$sr_bill_id,
+                                'branch'            =>$sr_branch,
+                                'bill_date'         =>$sr_bill_date,
+
+                                );
+        }
+        
+        
+         return $return_data;*/
+    }
+    
+    /*function getSalesReturnRetag($from_date,$to_date,$id_process)
+    {
+        $sql=$this->db->query("SELECT IFNULL((tag.gross_wt),0) as gross_wt,IFNULL((tag.net_wt),0) as net_wt
+        FROM ret_acc_stock_process_details d 
+        LEFT JOIN ret_acc_stock_process p ON p.id_process=d.id_process
+        LEFT JOIN ret_taging tag ON tag.tag_id=d.ref_no
+        LEFT JOIN ret_product_master pro ON pro.pro_id=tag.product_id
+        WHERE d.id_process=".$id_process." and p.type=1
+        ".($from_date != '' && $to_date!='' ? ' and date(p.date_add) BETWEEN "'.date('Y-m-d',strtotime($from_date)).'" AND "'.date('Y-m-d',strtotime($to_date)).'"' : '')." ");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }*/
+    
+    
+    function getSalesReturnRetag($from_date,$to_date,$id_process)
+    {
+        $sql=$this->db->query("SELECT IFNULL((tag.gross_wt),0) as gross_wt,IFNULL((tag.net_wt),0) as net_wt,
+        pro.product_name as product,tag.tag_code as new_tagno,ifnull(t.tag_code,'') as tag_no,
+        ifnull(sr.bill_no,'') as bill_no,ifnull(sr.bill_id,'') as bill_id,ifnull(sr.branch,'') as branch,
+        sr.bill_date as bill_date       
+        FROM ret_acc_stock_process_details d 
+         LEFT JOIN ret_acc_stock_process p ON p.id_process=d.id_process
+         LEFT JOIN ret_taging tag ON tag.ref_tag_id=d.ref_no
+         LEFT JOIN ret_product_master pro ON pro.pro_id=tag.product_id
+         LEFT JOIN ret_taging t on t.tag_id=d.ref_no
+         Left join (SELECT r.bill_id,bill.s_ret_refno as bill_no,date_format(bill.bill_date,'%d-%m-%Y') as bill_date,br.name as branch,d.tag_id
+        FROM ret_bill_details d 
+        LEFT JOIN ret_billing b ON b.bill_id = d.bill_id
+        
+        LEFT JOIN ret_bill_return_details r ON r.ret_bill_det_id = d.bill_det_id
+        LEFT JOIN ret_billing bill ON bill.bill_id = r.bill_id
+        LEFT JOIN branch br ON br.id_branch = bill.id_branch
+        WHERE b.bill_status = 1 AND d.status = 2 AND r.ret_bill_det_id IS NOT NULL) as sr on sr.tag_id = d.ref_no
+                    
+         WHERE p.type=1
+        
+        ".($from_date != '' && $to_date!='' ? ' and date(p.date_add) BETWEEN "'.date('Y-m-d',strtotime($from_date)).'" AND "'.date('Y-m-d',strtotime($to_date)).'"' : '')." ");
+        print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    
+    function getOldMetalItemDetails($from_date,$to_date,$id_process)
+    {
+        $sql=$this->db->query("SELECT s.old_metal_sale_id,s.gross_wt,s.net_wt,date_format(p.date_add,'%d-%m-%Y') as date_add,
+        b.bill_no,br.name as branch_name
+        FROM ret_bill_old_metal_sale_details s 
+        LEFT JOIN ret_acc_stock_process_details d ON d.ref_no=s.old_metal_sale_id
+        LEFT JOIN ret_acc_stock_process p ON p.id_process=d.id_process
+        LEFT JOIN ret_billing b ON b.bill_id=s.bill_id
+        LEFT JOIN branch br ON br.id_branch=b.id_branch
+        WHERE p.type=4 AND s.old_metal_sale_id IS NOT NULL and p.id_process=".$id_process."
+        ".($from_date != '' && $to_date!='' ? ' and date(p.date_add) BETWEEN "'.date('Y-m-d',strtotime($from_date)).'" AND "'.date('Y-m-d',strtotime($to_date)).'"' : '')." 
+        ");
+        return $sql->result_array();
+    }
+    
+    function getPartlySaleDetails($from_date,$to_date,$id_process)
+    {
+        $sql=$this->db->query("SELECT tag.gross_wt,IFNULL(sld.sold_gwt,0) as sold_gwt,(tag.gross_wt-IFNULL(sld.sold_gwt,0)) as blc_gross_wt,tag.tag_id,tag.tag_code,
+        p.product_name,IFNULL(s.sub_design_name,'-') as sub_design_name,des.design_name,sld.branch_name,
+        (tag.net_wt-IFNULL(sld.sold_net_wt,0)) as blc_net_wt
+        FROM ret_acc_stock_process_details a
+        LEFT JOIN ret_acc_stock_process pr ON pr.id_process=a.id_process
+        LEFT JOIN ret_taging tag ON tag.tag_id=a.ref_no
+        LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+        LEFT JOIN ret_design_master des ON des.design_no=tag.design_id
+        left join ret_sub_design_master s on s.id_sub_design=tag.id_sub_design
+        LEFT JOIN(SELECT SUM(s.sold_gross_wt) as sold_gwt,IFNULL(SUM(s.sold_net_wt),0) as sold_net_wt,s.tag_id,br.name as branch_name
+        FROM ret_partlysold s
+        LEFT JOIN ret_taging t ON t.tag_id=s.tag_id
+        LEFT JOIN ret_bill_details d ON d.bill_det_id=s.sold_bill_det_id
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN branch br ON br.id_branch=b.id_branch
+        WHERE b.bill_status=1 AND t.is_partial=1
+        GROUP by s.tag_id) as sld ON sld.tag_id=tag.tag_id
+        WHERE tag.is_partial=1 AND pr.type=3 and pr.id_process=".$id_process."
+        ".($from_date != '' && $to_date!='' ? ' and date(pr.date_add) BETWEEN "'.date('Y-m-d',strtotime($from_date)).'" AND "'.date('Y-m-d',strtotime($to_date)).'"' : '')." 
+        ");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    //retag report details
+    
+    
+    //PO ITEM WISE REPORT
+    function get_PurchaseItemwise($data)
+    {
+        $returnData=array();
+        $sql=$this->db->query("SELECT p.po_ref_no,pro.product_name,IFNULL(des.design_name,'') as design_name,
+        IFNULL(subDes.sub_design_name,'') as sub_design_name,date_format(p.po_date,'%d-%m-%Y') as po_date,ord.gross_wt,IFNULL(ord.less_wt,0) as less_wt,IFNULL(ord.net_wt,0) as net_wt,
+        IFNULL(ord.item_wastage,'')as item_wastage,IFNULL(ord.no_of_pcs,'0') as no_of_pcs,
+        IFNULL(ord.mc_value,0) as mc_value,if(ord.mc_type=1,'Per Gram','Per Piece') as mc_type,IFNULL(ord.fix_rate_per_grm,'') as fix_rate_per_grm,
+        ord.item_cost,IFNULL(st.po_stn_wt,0) as po_stn_wt,IFNULL(st.po_stone_amount,0) as po_stone_amount,ord.po_item_id
+        FROM ret_purchase_order p 
+        LEFT JOIN ret_purchase_order_items ord ON ord.po_item_po_id=p.po_id
+        LEFT JOIN ret_product_master pro ON pro.pro_id=ord.po_item_pro_id
+        LEFT JOIN ret_design_master des ON des.design_no=ord.po_item_des_id
+        LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=ord.po_item_sub_des_id
+        LEFT JOIN(SELECT IFNULL(SUM(s.po_stone_wt),0) as po_stn_wt,s.po_item_id,IFNULL(SUM(s.po_stone_amount),0) as po_stone_amount
+        FROM ret_po_stone_items s 
+        LEFT JOIN ret_purchase_order_items i ON i.po_item_id=s.po_item_id
+        GROUP by s.po_item_id) as st ON st.po_item_id=ord.po_item_id
+                 
+        WHERE ord.po_item_id IS NOT NULL
+        ".($data['id_karigar']!='' && $data['id_karigar']!=0 ? " and p.po_karigar_id=".$data['id_karigar']."" :'')."
+        ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(p.po_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ".($data['id_product']!='' && $data['id_product']!=0 ? " and ord.po_item_pro_id=".$data['id_product']."" :'')."
+        ".($data['id_design']!='' && $data['id_design']!=0 ? " and ord.po_item_des_id=".$data['id_design']."" :'')."
+        ".($data['id_sub_design']!='' && $data['id_sub_design']!=0 ? " and ord.po_item_sub_des_id=".$data['id_sub_design']."" :'')."
+        ORDER by ord.po_item_id DESC");
+        
+        $result = $sql->result_array();
+		foreach($result as $r){
+		    $r['stone_details']=$this->get_po_stone_details($r['po_item_id']);
+			$returnData[$r['po_ref_no']][] = $r; 
+		}
+		
+		return $returnData;
+    		
+    }
+    
+    function get_po_stone_details($po_item_id)
+    {
+        $sql=$this->db->query("SELECT s.po_item_id,s.po_stone_pcs,s.po_stone_wt,s.po_stone_rate,s.po_stone_amount,st.stone_name
+        FROM ret_po_stone_items s 
+        LEFT JOIN ret_stone st ON st.stone_id=s.po_stone_id
+        WHERE s.po_item_id=".$po_item_id."");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    //PO ITEM WISE REPORT
+    
+    
+    //sales import
+    function get_sales_import($data)
+    {
+        $sql=$this->db->query("SELECT date_format(b.bill_date,'%d-%m-%Y') as INVOICEDATE,SUBSTRING_INDEX(b.sales_ref_no,'/',-2) as INVOICENO,'SA' as VOUCHERTYPE,
+        '' as PARTYCODE,cus.firstname as PARTYNAME,'' as PARTYGROUP,IFNULL(cus.gst_number,'') as GSTNO,
+        IFNULL(del.address1,'') as ADRESS1,IFNULL(del.address2,'') as ADRESS2,IFNULL(del.address3,'') as ADRESS3,
+        cus.mobile as CONTACTNO,cat.cat_code as PRODUCTCODE,cat.name as PRODUCTNAME,
+        d.piece as QTY,d.rate_per_grm as RATE,(d.item_cost-d.item_total_tax) as VALUE,'' as SALESTAX,
+        IFNULL(d.item_total_tax,0) as SALESTAXAMT,d.gross_wt as WEIGHT,d.item_cost as TOTAL,IFNULL(b.remark,'') as REMARKS,IFNULL(d.gross_wt,0) as GROSSWT,IFNULL(d.net_wt,0) as NETWT,
+        '' as SERVICEAMT,'' as PRODUCTGROUP
+        FROM ret_bill_details d 
+        LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+        LEFT JOIN ret_product_master pro ON pro.pro_id=d.product_id
+        LEFT JOIN ret_category cat on cat.id_ret_category=pro.cat_id
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id
+        WHERE b.bill_status=1 and b.sales_ref_no IS NOT NULL
+        ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ".($data['id_branch']!='' && $data['id_branch']!=0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+        ");
+        
+        return $sql->result_array();
+    }
+    //sales import
+    
+    
+    //Purchase import
+    function get_purchase_import_details($data)
+    {
+        $sql=$this->db->query("SELECT date_format(b.bill_date,'%d-%m-%Y') as INVOICEDATE,b.pur_ref_no as INVOICENO,'PURCHASE' as VOUCHERTYPE,
+        '' as PARTYCODE,cus.firstname as PARTYNAME,'' as PARTYGROUP,IFNULL(cus.gst_number,'') as GSTNO,
+        IFNULL(del.address1,'') as ADRESS1,IFNULL(del.address2,'') as ADRESS2,IFNULL(del.address3,'') as ADRESS3,cus.mobile as CONTACTNO,'1' as QTY,IFNULL(s.rate,0) as VALUE,IFNULL(s.rate_per_grm,0) as RATE,
+        '0' as SALESTAX,'0' as SALESTAXAMT,IFNULL(s.net_wt,0) as WEIGHT,IFNULL(s.rate,0) as TOTAL,
+        IFNULL(b.remark,'') as REMARKS,IFNULL(s.gross_wt,0) as GRSWT,IFNULL(s.net_wt,0) as NETWT,
+        IFNULL(cat.metal_type,'') as PRODUCTNAME,'' as PRODUCTGROUP,'' as PRODUCTCODE
+        FROM ret_bill_old_metal_sale_details s 
+        LEFT JOIN ret_estimation_old_metal_sale_details est ON est.old_metal_sale_id=s.esti_old_metal_sale_id
+        LEFT JOIN ret_old_metal_type cat ON cat.id_metal_type=est.id_old_metal_type
+        LEFT JOIN ret_billing b ON b.bill_id=s.bill_id
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id
+        WHERE b.bill_status=1 and b.pur_ref_no IS NOT NULL
+        ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ".($data['id_branch']!='' && $data['id_branch']!=0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+        ");
+        //print_r($this->db->last_query());exit;
+        return $sql->result_array();
+    }
+    //Purchase import
+    
+    
+    
+    //payment mode import
+    function get_payment_mode_import($data)
+    {
+        $sql=$this->db->query("SELECT date_format(b.bill_date,'%d-%m-%Y') as bill_date,cus.firstname as PARTICULAR,
+        b.bill_no as bill_id,IFNULL(bill_det.gross_wt,0) as GRSWT,IFNULL(bill_det.taxable_amt,0) as AMOUNT,
+        IFNULL(bill_det.GST,0) as GST,IFNULL(cash_pay.csh_amt,0) as CASH,IFNULL(card_pay.card_amt,0) as card_amt,
+        IFNULL(chq_pay.cheque_amt,0) as CHEQUE,IFNULL(chit.amount,0) as SCHEME,'0' as SCH_BONUS,'0' as SCH_PRIZE,IFNULL(adv.utilized_amt,0) as ADVANCE,'0' as DISCOUNT,
+        if(b.is_credit=1,(b.tot_bill_amount-b.tot_amt_received),0) as DUE,IFNULL(b.round_off_amt,0) as OTHERS,'0' as sales_return,'0' as gold_pur,'0' as sil_pur,'0' as plat_pur,'0' as dia_pur,'0' as stn_pur
+        FROM ret_billing b 
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        LEFT JOIN (SELECT b.bill_id,IFNULL(SUM(d.gross_wt),0) as gross_wt,IFNULL(SUM(d.item_cost)-SUM(d.item_total_tax),0) as taxable_amt,IFNULL(SUM(d.item_total_tax),0) as GST
+                  FROM ret_bill_details d 
+                  LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+                  WHERE b.bill_status=1
+                  GROUP by d.bill_id) as bill_det ON bill_det.bill_id=b.bill_id
+        LEFT JOIN (SELECT IFNULL(SUM(p.payment_amount),0) as csh_amt,p.bill_id
+                  FROM ret_billing_payment p
+                  LEFT JOIN ret_billing b ON b.bill_id=p.bill_id
+                  WHERE b.bill_status=1 AND p.payment_mode='Cash'
+                  GROUP by p.bill_id) as cash_pay ON cash_pay.bill_id=b.bill_id
+        LEFT JOIN (SELECT IFNULL(SUM(p.payment_amount),0) as card_amt,p.bill_id
+                  FROM ret_billing_payment p
+                  LEFT JOIN ret_billing b ON b.bill_id=p.bill_id
+                  WHERE b.bill_status=1 AND (p.payment_mode='CC' OR p.payment_mode='DC')
+                  GROUP by p.bill_id) as card_pay ON card_pay.bill_id=b.bill_id
+        LEFT JOIN (SELECT IFNULL(SUM(p.payment_amount),0) as cheque_amt,p.bill_id
+                  FROM ret_billing_payment p
+                  LEFT JOIN ret_billing b ON b.bill_id=p.bill_id
+                  WHERE b.bill_status=1 AND (p.payment_mode='CHQ' or p.payment_mode='NB' )
+                  GROUP by p.bill_id) as chq_pay ON chq_pay.bill_id=b.bill_id
+        LEFT JOIN (SELECT IFNULL(SUM(c.utilized_amt),0) as amount,c.bill_id
+                  FROM ret_billing_chit_utilization c 
+                  LEFT JOIN ret_billing b ON b.bill_id=c.bill_id
+                  WHERE b.bill_status=1 GROUP by c.bill_id) as chit ON chit.bill_id=b.bill_id
+        LEFT JOIN(SELECT a.bill_id,IFNULL(SUM(a.utilized_amt),0) as utilized_amt
+                 FROM ret_advance_utilized a 
+                 LEFT JOIN ret_billing b ON b.bill_id=a.bill_id
+                 WHERE b.bill_status=1 GROUP by a.bill_id) as adv ON adv.bill_id=b.bill_id
+        
+        WHERE b.bill_status=1
+        ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ".($data['id_branch']!='' && $data['id_branch']!=0 ? " and b.id_branch=".$data['id_branch']."" :'')."
+        HAVING AMOUNT>0");
+        return $sql->result_array();
+    }
+    //payment mode import
+    
+    
+    //stock rotation
+    
+    function get_stock_rotation_details($data)
+    {
+        $returnData=array();
+        $sql=$this->db->query("SELECT pro.product_name,des.design_name,subDes.sub_design_name,wt.weight_description,IFNULL(wt.from_weight,'') as from_weight,
+        IFNULL(wt.to_weight,'') as to_weight,m.id_product,m.id_design,m.id_sub_design, 
+        (SELECT IFNULL(SUM(d.gross_wt),0) as gross_wt 
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+        WHERE d.tag_id IS NOT NULL AND b.bill_status=1
+        and b.id_branch = '".$data['id_branch']."'
+        and t.product_id = m.id_product 
+        and t.design_id = m.id_design
+        and t.id_sub_design = m.id_sub_design
+        and d.gross_wt BETWEEN wt.from_weight and wt.to_weight 
+        and date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') as gross_wt, 
+        (SELECT IFNULL(SUM(d.piece),0) as piece 
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+        WHERE d.tag_id IS NOT NULL AND b.bill_status=1
+        and b.id_branch = '".$data['id_branch']."'
+        and t.product_id = m.id_product 
+        and t.design_id = m.id_design
+        and t.id_sub_design = m.id_sub_design
+        and d.gross_wt BETWEEN wt.from_weight and wt.to_weight 
+        and date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') as piece 
+        FROM ret_sub_design_mapping m 
+        LEFT JOIN ret_product_master pro ON pro.pro_id=m.id_product
+        LEFT JOIN ret_design_master des ON des.design_no=m.id_design
+        LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=m.id_sub_design
+        LEFT JOIN ret_weight wt ON wt.id_product=m.id_product
+        where pro.pro_id=".$data['id_product']." 
+        GROUP BY m.id_product,m.id_design,m.id_sub_design,wt.weight_description  
+        HAVING (piece > 0 OR gross_wt > 0)");
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $sales_pcs  = $items['piece'];
+            $sales_gwt  = $items['gross_wt'];
+            /*$salesDetails = $this->get_StockRotationSales($items['id_product'],$items['id_design'],$items['id_sub_design'],$items['from_weight'],$items['to_weight'],$data['from_date'],$data['to_date'],$data['id_branch']);
+            foreach($salesDetails as $sales)
+            {
+                $sales_pcs+=$sales['piece'];
+                $sales_gwt+=$sales['gross_wt'];
+            }*/
+            
+            if($sales_gwt>0)
+            {
+                $tot_rotation_stock = $this->get_weightranageStockRotations($items['id_product'],$items['id_design'],$items['id_sub_design'],$items['from_weight'],$items['to_weight'],$data['from_date'],$data['to_date'],$data['id_branch']);
+            
+                $returnData[]=array(
+                               'product_name'       =>$items['product_name'],
+                               'design_name'        =>$items['design_name'],
+                               'sub_design_name'    =>$items['sub_design_name'],
+                               'weight_description' =>$items['weight_description'],
+                               'sales_pcs'          =>$sales_pcs,
+                               'sales_gwt'          =>$sales_gwt,
+                               'avg_stock_wt'       =>$tot_rotation_stock['gwt'],
+                               'avg_stock_pcs'      =>$tot_rotation_stock['pcs'],
+                               'no_of_rotation'     => $tot_rotation_stock['pcs'] > 0 ? number_format(($sales_pcs / $tot_rotation_stock['pcs']), 2, '.', '') : 0,
+                               'no_of_rotation_wt'  => $tot_rotation_stock['gwt'] > 0 ? number_format(($sales_gwt / $tot_rotation_stock['gwt']), 3, '.', '') : 0,
+                            );
+            }
+            
+        }
+        
+        return $returnData;
+    }
+    
+    function get_StockRotationSales($id_product,$id_design,$id_sub_design,$from_weight,$to_weight,$from_date,$to_date,$id_branch)
+    {
+        $sql=$this->db->query("SELECT IFNULL(SUM(d.gross_wt),0) as gross_wt,IFNULL(SUM(d.piece),0) as piece
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+        WHERE d.tag_id IS NOT NULL AND b.bill_status=1
+        ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+        ".($id_product!='' ? " and t.product_id=".$id_product."" :'')."
+        ".($id_design!='' ? " and t.design_id=".$id_design."" :'')."
+        ".($id_sub_design!='' ? " and t.id_sub_design=".$id_sub_design."" :'')."
+        ".($from_weight!='' && $to_weight!='' ? " and d.gross_wt BETWEEN '".$from_weight."' and '".$to_weight."'" :'')."
+        ".($from_date != '' && $to_date!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($from_date)).'" AND "'.date('Y-m-d',strtotime($to_date)).'"' : '')." 
+        ");
+        //print_r($this->db->last_query());exit;
+        return  $sql->result_array();
+    }
+    
+    function get_weightranageStockRotations($id_product,$id_design,$id_sub_design,$from_weight,$to_weight,$from_date,$to_date,$id_branch)
+    {
+        $total_rotataion = 0;
+        $total_rotataion_gwt = 0;
+        $stock_rotate_days = $this->getDateRangeArray($from_date, $to_date);
+        foreach($stock_rotate_days as $skey => $sval){
+            $sql = $this->db->query("SELECT sum(ifnull(tag.gross_wt,0)) as gross_wt,sum(ifnull(tag.piece,0)) as piece 
+                                    FROM ret_taging tag 
+                                    LEFT JOIN (SELECT m1.* FROM ret_taging_status_log m1 
+                                                LEFT JOIN ret_taging_status_log m2 
+                                                ON (m1.tag_id = m2.tag_id AND m1.id_tag_status_log < m2.id_tag_status_log)
+                                            WHERE m2.id_tag_status_log IS NULL) l on l.tag_id = tag.tag_id  
+                                            ".($id_branch!='' && $id_branch!=0 ? " and l.to_branch =".$id_branch."" :'')." and l.status = 0 
+                                    WHERE date(l.date) <= '".$sval."' AND l.status = 0 
+                                    ".($id_product!='' ? " and tag.product_id =".$id_product."" :'')."
+                                    ".($id_design!='' ? " and tag.design_id=".$id_design."" :'')."
+                                    ".($id_sub_design!='' ? " and tag.id_sub_design =".$id_sub_design."" :'')."
+                                    ".($from_weight!='' && $to_weight!='' ? " and tag.gross_wt BETWEEN '".$from_weight."' and '".$to_weight."'" :'')." 
+                                     GROUP by tag.product_id, tag.design_id, tag.id_sub_design");
+            if($sql->num_rows() > 0){
+                $total_rotataion += $sql->row()->piece;
+                $total_rotataion_gwt += $sql->row()->gross_wt;
+            }
+        }
+        
+        return array('pcs' => ($total_rotataion / sizeof($stock_rotate_days)), 'gwt' => $total_rotataion_gwt / sizeof($stock_rotate_days));
+        
+    }
+    
+    function getDateRangeArray($strDateFrom,$strDateTo)
+    {
+        // takes two dates formatted as YYYY-MM-DD and creates an
+        // inclusive array of the dates between the from and to dates.
+    
+        // could test validity of dates here but I'm already doing
+        // that in the main script
+    
+        $aryRange = [];
+    
+        $iDateFrom = mktime(1, 0, 0, substr($strDateFrom, 5, 2), substr($strDateFrom, 8, 2), substr($strDateFrom, 0, 4));
+        $iDateTo = mktime(1, 0, 0, substr($strDateTo, 5, 2), substr($strDateTo, 8, 2), substr($strDateTo, 0, 4));
+    
+        if ($iDateTo >= $iDateFrom) {
+            array_push($aryRange, date('Y-m-d', $iDateFrom)); // first entry
+            while ($iDateFrom<$iDateTo) {
+                $iDateFrom += 86400; // add 24 hours
+                array_push($aryRange, date('Y-m-d', $iDateFrom));
+            }
+        }
+        return $aryRange;
+    }
+    
+    function get_stock_rotation_list($data)
+    {
+        
+        $resutnData=array();
+        
+        $sql=$this->db->query("SELECT t.product_id,t.design_id,t.id_sub_design,p.product_name,des.design_name,subDes.sub_design_name,b.name as branch_name,c.name as category_name,
+        IFNULL(INW.gross_wt,0) as inw_gwt,IFNULL(INW.net_wt,0) as inw_nwt,IFNULL(INW.piece,0) as inw_pcs,
+        
+        IFNULL(inw_det.gross_wt,0) as inw_det_gwt,IFNULL(inw_det.net_wt,0) as inw_det_nwt,IFNULL(inw_det.piece,0) as inw_det_pcs,
+        
+        IFNULL(s.gross_wt,0) as sales_gwt,IFNULL(s.net_wt,0) as sales_nwt,IFNULL(s.piece,0) as sales_pcs,
+        
+        IFNULL(br_out.gross_wt,0) as brout_gross_wt,IFNULL(br_out.net_wt,0) as brout_nwt,IFNULL(br_out.piece,0) as brout_pcs,
+        
+        IFNULL(br_out_det.gross_wt,0) as br_out_det_gross_wt,IFNULL(br_out_det.net_wt,0) as br_out_det,IFNULL(br_out_det.piece,0) as br_out_det_pcs,
+        
+        IFNULL(sales.gross_wt,0) as s_gwt,IFNULL(sales.net_wt,0) as s_nwt,IFNULL(sales.piece,0) as s_pcs
+		
+		
+		FROM ret_taging t
+		LEFT JOIN ret_product_master p on p.pro_id=t.product_id
+		LEFT JOIN ret_design_master des ON des.design_no=t.design_id
+        LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design=t.id_sub_design
+		LEFT JOIN branch b on b.id_branch=t.current_branch
+		left join ret_category c on c.id_ret_category=p.cat_id
+		left join metal m on m.id_metal=c.id_metal
+			
+		LEFT JOIN (SELECT tag.tag_id,tag.product_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece,tag.design_id,tag.id_sub_design
+        FROM ret_taging tag
+        LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id  and l.status=0 and l.to_branch=".$data['id_branch']."
+        LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+        WHERE  ".($data['from_date'] != ''? " date(l.date)<'".date('Y-m-d',strtotime($data['from_date']))."'" : '')."  And l.status=0 
+        ".($data['id_branch']!='' && $data['id_branch']!=0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+        GROUP by tag.product_id,tag.design_id,tag.id_sub_design) INW on (INW.product_id=t.product_id AND INW.design_id=t.design_id AND INW.id_sub_design=t.id_sub_design)
+		
+		LEFT JOIN (SELECT b.tag_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece,b.product_id,
+		tag.design_id,tag.id_sub_design
+		FROM ret_taging tag
+		LEFT JOIN ret_bill_details b on b.tag_id=tag.tag_id
+		lEFT JOIN ret_billing bill on bill.bill_id=b.bill_id
+		LEFT JOIN ret_product_master prod on prod.pro_id=b.product_id
+		WHERE  bill.bill_status=1 
+	    ".($data['from_date'] != ''? " and date(bill.bill_date)<'".date('Y-m-d',strtotime($data['from_date']))."'" : '')." 
+		 ".($data['id_branch']!='' && $data['id_branch']!=0 ? " and bill.id_branch=".$data['id_branch']."" :'')."
+		GROUP by b.product_id,tag.design_id,tag.id_sub_design) s ON (s.product_id=t.product_id AND s.design_id=t.design_id AND s.id_sub_design=t.id_sub_design)
+		
+		
+        LEFT JOIN (SELECT b.tag_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece,b.product_id,
+        tag.design_id,tag.id_sub_design
+        FROM ret_taging tag
+        LEFT JOIN ret_bill_details b on b.tag_id=tag.tag_id
+        lEFT JOIN ret_billing bill on bill.bill_id=b.bill_id
+        LEFT JOIN ret_product_master prod on prod.pro_id=b.product_id
+        WHERE  bill.bill_status=1 
+        ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(bill.bill_date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+         ".($data['id_branch']!='' && $data['id_branch']!=0 ? " and bill.id_branch=".$data['id_branch']."" :'')."
+        GROUP by b.product_id,tag.design_id,tag.id_sub_design) sales ON (sales.product_id=t.product_id AND sales.design_id=t.design_id AND sales.id_sub_design=t.id_sub_design)
+		
+		
+		LEFT JOIN (SELECT tag.tag_id,tag.product_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece,tag.design_id,tag.id_sub_design
+        FROM ret_taging tag
+        LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id  and l.status=0 and l.to_branch=".$data['id_branch']."
+        LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+        WHERE  l.status=0 ".($data['from_date'] != '' && $data['to_date']!='' ? ' and date(l.date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        ".($data['id_branch']!='' && $data['id_branch']!=0 ? " and l.to_branch=".$data['id_branch']."" :'')."
+        GROUP by tag.product_id,tag.design_id,tag.id_sub_design) inw_det on (inw_det.product_id=t.product_id AND inw_det.design_id=t.design_id AND inw_det.id_sub_design=t.id_sub_design)
+	
+		
+		LEFT JOIN (
+		SELECT tag.tag_id,tag.product_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece,
+		tag.design_id,tag.id_sub_design
+        FROM ret_taging tag
+        LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=7 or l.status=8 or l.status=9) and l.from_branch=".$data['id_branch']."
+        LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+        WHERE ".($data['from_date'] != '' && $data['to_date']!='' ? ' date(l.date) BETWEEN "'.date('Y-m-d',strtotime($data['from_date'])).'" AND "'.date('Y-m-d',strtotime($data['to_date'])).'"' : '')." 
+        and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=7 or l.status=8 or l.status=9) 
+        ".($data['id_branch']!='' && $data['id_branch']!=0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+        GROUP by tag.product_id,tag.design_id,tag.id_sub_design
+		) br_out_det on (br_out_det.product_id=t.product_id AND br_out_det.design_id=t.design_id AND br_out_det.id_sub_design=t.id_sub_design)
+		
+		LEFT JOIN (
+		SELECT tag.tag_id,tag.product_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece,
+		tag.design_id,tag.id_sub_design
+        FROM ret_taging tag
+        LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=7 or l.status=8 or l.status=9) and l.from_branch=".$data['id_branch']."
+        LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+        WHERE ".($data['from_date'] != ''? " date(l.date)<'".date('Y-m-d',strtotime($data['from_date']))."'" : '')." 
+        and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=7 or l.status=8 or l.status=9) 
+        ".($data['id_branch']!='' && $data['id_branch']!=0 ? " and l.from_branch=".$data['id_branch']."" :'')."
+        GROUP by tag.product_id,tag.design_id,tag.id_sub_design
+		) br_out on (br_out.product_id=t.product_id AND br_out.design_id=t.design_id AND br_out.id_sub_design=t.id_sub_design)
+		
+        
+
+		where t.tag_id is not null 
+		".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')."
+        GROUP BY t.product_id,t.design_id,t.id_sub_design
+        
+        ORDER BY t.product_id ASC");
+        
+        //print_r($this->db->last_query());exit;
+        
+        $result =  $sql->result_array();
+        
+        $from_date = strtotime($data['from_date']);
+        $to_date = strtotime($data['to_date']);
+        $datediff = $to_date - $from_date;
+        $num_of_days    = round($datediff / (60 * 60 * 24));
+
+        foreach($result as $items)
+        {
+            $avg_stock = 0;
+            
+            $total_closing_pcs=0;
+            
+            $total_sales    =0;
+            
+            $opening_blc_pcs = ($items['inw_pcs']-$items['sales_pcs']-$items['brout_pcs']);
+            $op_blc_gwt      = number_format(($items['inw_gwt']-$items['sales_gwt']-$items['brout_gross_wt']),3,'.','');
+            
+            $closing_pcs    = ($opening_blc_pcs+$items['inw_det_pcs']-$items['s_pcs']-$items['br_out_det_pcs']);
+            $closing_gwt    = number_format(($op_blc_gwt+$items['inw_det_gwt']-$items['s_gwt']-$items['br_out_det_gross_wt']),3,'.','');
+            
+            $total_closing_pcs+= ($opening_blc_pcs+$items['inw_det_pcs']-$items['s_pcs']-$items['br_out_det_pcs']);
+            
+            $avg_stock      = ($total_closing_pcs/$num_of_days);
+            
+            $resutnData[]=array(
+                               'branch_name'        =>$items['branch_name'],
+                               'category_name'      =>$items['category_name'],
+                               'design_id'          =>$items['design_id'],
+                               'design_name'        =>$items['design_name'],
+                               'id_sub_design'      =>$items['id_sub_design'],
+                               'inw_pcs'            =>$items['inw_det_pcs'],
+                               'inw_gwt'            =>$items['inw_det_gwt'],
+                               'product_id'         =>$items['product_id'],
+                               'product_name'       =>$items['product_name'],
+                               'sales_gwt'          =>number_format($items['s_gwt']+$items['br_out_det_gross_wt'],3,'.',''),
+                               'sales_pcs'          =>$items['s_pcs']+$items['br_out_det_pcs'],
+                               'sub_design_name'    =>$items['sub_design_name'],
+                               'op_blc_pcs'         =>$opening_blc_pcs,
+                               'op_blc_gwt'         =>$op_blc_gwt,
+                               'closing_pcs'        =>$closing_pcs,
+                               'closing_gwt'        =>$closing_gwt,
+                               'stock_rotation'     =>($closing_pcs!=0 ?(number_format($items['s_pcs']/$avg_stock)) :0),
+                               
+                               );
+        }
+        
+        return $resutnData;
+    }
+    //stock rotation 
+    
+    
+        //ACCOUNTS REPORTS
+    
+    //gst abstract
+    /*function get_gst_abstract_details($data,$billing_for)
+    {
+        
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+		
+        $return_data=array();
+        if($data['report']==1)
+        {
+            $sql=$this->db->query("SELECT d.bill_id,sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount,
+            IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,
+            IFNULL(ROUND(sum(b.round_off_amt),2), 0) as round_off,b.sales_ref_no
+            FROM ret_billing b 
+            LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+            LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+            LEFT JOIN branch br on br.id_branch=b.id_branch
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+            WHERE b.bill_status=1 AND d.bill_id is not null and d.item_cost>0
+            and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+            ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+            ".($billing_for!=''  && $billing_for>0 ? " and b.billing_for=".$billing_for."" :'')."
+            ".($data['gst_filter']>0 ? ($data['gst_filter']==1 ? " and d.total_igst>0 and d.item_total_tax != 0 " : " and d.total_sgst>0 and d.item_total_tax != 0  " ) :'and d.item_total_tax != 0 ')."
+            group by p.cat_id ");
+        }
+        else
+        {
+            $sql=$this->db->query("SELECT c.name as category_name,p.cat_id, b.sales_ref_no,b.bill_no,b.bill_id,
+            sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount, IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,
+            p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,
+            IFNULL(ROUND(sum(b.round_off_amt),2), 0) as round_off
+            FROM ret_billing b 
+            LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id 
+            LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+            LEFT JOIN branch br on br.id_branch=b.id_branch
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id 
+            Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' and b.bill_status=1 and d.item_cost>0 
+            and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+            ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+            ".($billing_for!=''  && $billing_for>0 ? " and b.billing_for=".$billing_for."" :'')."
+            and d.item_total_tax = 0
+            group by b.bill_id ORDER BY `category_name` ASC");
+        }
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $return_data[]=array(
+                                'bill_id'       =>$items['bill_id'],
+                                'branch_name'   =>$items['branch_name'],
+                                'category_name' =>$items['category_name'],
+                                'piece'         =>$items['piece'],
+                                'gross_wt'      =>$items['gross_wt'],
+                                'net_wt'        =>$items['net_wt'],
+                                'taxable_amt'   =>$items['taxable_amt'],
+                                'total_sgst'    =>$items['total_sgst'],
+                                'total_cgst'    =>$items['total_cgst'],
+                                'total_igst'    =>$items['total_igst'],
+                                'tax_amt'       =>$items['tax_amt'],
+                                'total_amount'  =>$items['total_amount'],
+                                'round_off'     =>$items['round_off'],
+                                'sales_ref_no'  =>$items['sales_ref_no'],
+                                'starting_bill' =>$this->getminMaxBills($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'ASC',$billing_for,$data['gst_filter']),
+                                'ending_bill'   =>$this->getminMaxBills($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'DESC',$billing_for,$data['gst_filter']),
+                               );
+        }
+        return $return_data;
+    }*/
+    
+    
+    /*function get_gst_abstract_details($data,$billing_for)
+    {
+        
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+
+       
+		
+        $return_data=array();
+        if($data['report']==1)
+        {
+        $sql=$this->db->query("SELECT d.bill_id,sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount,
+        IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,
+        IFNULL(ROUND(sum(b.round_off_amt),2), 0) as round_off, b.sales_ref_no,ifnull(stn.stn_wt,0) as less_wt,
+        concat(cus.firstname,' ',IFNULL(cus.lastname,'')) as cus_name,m.metal_code,
+        date_format(b.bill_date,'%d-%m-%Y') as bill_date
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+        LEFT JOIN metal m on m.id_metal=c.id_metal
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,p.cat_id
+            FROM ret_billing_item_stones st
+            LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+            LEFT JOIN ret_product_master p ON p.pro_id=dt.product_id
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+            LEFT JOIN ret_billing b ON b.bill_id=dt.bill_id
+            LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+            LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+            WHERE b.bill_status=1 AND uom.uom_short_code='CT'
+            and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+            	".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+            GROUP by p.cat_id)  as stn ON stn.cat_id=p.cat_id
+       
+        WHERE b.bill_status=1 AND d.bill_id is not null and d.item_cost>0
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+        ".($billing_for!=''  && $billing_for>0 ? " and b.billing_for=".$billing_for."" :'')."
+        ".($data['gst_filter']>0 ? ($data['gst_filter']==1 ? " and d.total_igst>0 and d.item_total_tax != 0 " : " and d.total_sgst>0 and d.item_total_tax != 0  " ) :'and d.item_total_tax != 0 ')."
+        group by p.cat_id ");
+        //print_r($this->db->last_query());exit;
+        }
+        else
+         {
+        $sql=$this->db->query("SELECT c.name as category_name,p.cat_id, b.sales_ref_no,b.bill_no,b.bill_id,
+        sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount, IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,IFNULL(sum(b.round_off_amt), 0) as round_off,
+        p.product_name,br.name as branch_name,b.id_branch,ifnull(stn.stn_wt,0) as less_wt,
+        concat(cus.firstname,' ',IFNULL(cus.lastname,'')) as cus_name,m.metal_code,
+        date_format(b.bill_date,'%d-%m-%Y') as bill_date
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id 
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        LEFT JOIN ret_category c on c.id_ret_category=p.cat_id 
+        LEFT JOIN metal m on m.id_metal=c.id_metal
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+            LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,p.cat_id,dt.bill_id
+            FROM ret_billing_item_stones st
+            LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+            LEFT JOIN ret_product_master p ON p.pro_id=dt.product_id
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+            LEFT JOIN ret_billing bill ON bill.bill_id=dt.bill_id
+            LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+            LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+            WHERE bill.bill_status=1 AND uom.uom_short_code='CT'
+            and (date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+            	".($id_branch!='' && $id_branch!=0 ? " and bill.id_branch=".$id_branch."" :'')."
+            GROUP by bill.bill_id)  as stn ON stn.bill_id=d.bill_id
+            
+        Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' and b.bill_status=1  AND d.bill_id is not null and d.item_cost>0 
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+        ".($billing_for!=''  && $billing_for>0 ? " and b.billing_for=".$billing_for."" :'')."
+        ".($data['gst_filter']>0 ? ($data['gst_filter']==1 ? " and d.total_igst>0 and d.item_total_tax != 0 " : " and d.total_sgst>0 and d.item_total_tax != 0  " ) :'and d.item_total_tax != 0 ')."
+        group by b.bill_id  ORDER BY `category_name` ASC ,b.sales_ref_no");
+       // print_r($this->db->last_query());exit;
+         }
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $return_data[$items['category_name']][]=array(
+                                'bill_id'       =>$items['bill_id'],
+                                'branch_name'   =>$items['branch_name'],
+                                'category_name' =>$items['category_name'],
+                                'piece'         =>$items['piece'],
+                                'gross_wt'      =>$items['gross_wt'],
+                                'net_wt'        =>$items['net_wt'],
+                                'less_wt'        =>$items['less_wt'],
+                                'taxable_amt'   =>$items['taxable_amt'],
+                                'total_sgst'    =>$items['total_sgst'],
+                                'total_cgst'    =>$items['total_cgst'],
+                                'total_igst'    =>$items['total_igst'],
+                                'tax_amt'       =>$items['tax_amt'],
+                                'total_amount'  =>$items['total_amount'],
+                                'round_off'     =>$items['round_off'],
+                                'sales_ref_no'  =>$items['sales_ref_no'],
+                                'metal_code'    =>$items['metal_code'],
+                                'cus_name'      =>$items['cus_name'],
+                                'bill_date'      =>$items['bill_date'],
+                                'starting_bill' =>$this->getminMaxBills($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'ASC',$billing_for,$data['gst_filter']),
+                                'ending_bill'   =>$this->getminMaxBills($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'DESC',$billing_for,$data['gst_filter']),
+                            );
+        }
+        return $return_data;
+
+    }*/
+    
+    
+    function get_gst_abstract_details($data,$billing_for)
+    {
+        
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+
+       
+		
+        $return_data=array();
+        if($data['report']==1)
+        {
+            $sql=$this->db->query("SELECT d.bill_id,sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,
+                            IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(ifnull(d.total_sgst,0) + ifnull(d.total_cgst,0) + ifnull(d.total_igst,0)) as tax_amt,
+                            sum(d.item_cost) as total_amount,
+                            IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,
+                            IFNULL(sum(d.total_igst),0) as total_igst,p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,
+                            IFNULL(ROUND(sum(b.round_off_amt),2), 0) as round_off, b.sales_ref_no,ifnull(stn.stn_wt,0) as less_wt,
+                            concat(cus.firstname,' ',IFNULL(cus.lastname,'')) as cus_name,m.metal_code, 
+                            IFNULL(cus.gst_number,'') as gst_number,cus.mobile, 
+                            IFNULL(b.pan_no, ifnull(cus.pan, '')) as pan,
+                            date_format(b.bill_date,'%d-%m-%Y') as bill_date, st.name as statename, br.short_name  
+                            FROM ret_billing b 
+                            LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+                            LEFT JOIN branch br on br.id_branch=b.id_branch
+                            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+                            LEFT JOIN metal m on m.id_metal=c.id_metal
+                            LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                            LEFT JOIN address as adr ON adr.id_customer = cus.id_customer 
+                            LEFT JOIN state as st ON st.id_state = adr.id_state 
+                            
+                            LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,p.cat_id
+                                FROM ret_billing_item_stones st
+                                LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+                                LEFT JOIN ret_product_master p ON p.pro_id=dt.product_id
+                                LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+                                LEFT JOIN ret_billing b ON b.bill_id=dt.bill_id
+                                LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+                                LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+                                WHERE b.bill_status=1 AND uom.uom_short_code='CT'
+                                and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+                            ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+                            GROUP by p.cat_id)  as stn ON stn.cat_id=p.cat_id
+                           
+                            WHERE b.bill_status=1 AND d.bill_id is not null and d.item_cost>0
+                            and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+                            ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+                            ".($billing_for!=''  && $billing_for>0 ? " and b.billing_for=".$billing_for."" :'')."
+                            ".($data['gst_filter']>0 ? ($data['gst_filter']==1 ? " and d.total_igst>0 and d.item_total_tax != 0 " : " and d.total_sgst>0 and d.item_total_tax != 0  " ) :'and d.item_total_tax != 0 ')." 
+                            ".($data['id_category'] != '' && $data['id_category'] >0 ? ' and p.cat_id ='.$data['id_category']: '')." 
+                    
+                            group by p.cat_id ");
+                    //print_r($this->db->last_query());exit;
+        }
+        else
+         {
+        $sql=$this->db->query("SELECT c.name as category_name,p.cat_id, b.sales_ref_no,b.bill_no,b.bill_id,
+                    sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,
+                    sum(ifnull(d.total_sgst,0) + ifnull(d.total_cgst,0) + ifnull(d.total_igst,0)) as tax_amt,
+                    sum(d.item_cost) as total_amount, IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,IFNULL(sum(b.round_off_amt), 0) as round_off,
+                    p.product_name,br.name as branch_name,b.id_branch,ifnull(stn.stn_wt,0) as less_wt,concat(cus.firstname,' ',IFNULL(cus.lastname,'')) as cus_name,m.metal_code,
+                     IFNULL(cus.gst_number,'') as gst_number,cus.mobile, 
+                    IFNULL(b.pan_no, ifnull(cus.pan, '')) as pan,
+                    date_format(b.bill_date,'%d-%m-%Y') as bill_date, st.name as statename, br.short_name 
+                    FROM ret_billing b 
+                    LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id 
+                    LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+                    LEFT JOIN branch br on br.id_branch=b.id_branch
+                    LEFT JOIN ret_category c on c.id_ret_category=p.cat_id 
+                    LEFT JOIN metal m on m.id_metal=c.id_metal
+                    LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                    LEFT JOIN address as adr ON adr.id_customer = cus.id_customer 
+                    LEFT JOIN state as st ON st.id_state = adr.id_state 
+            
+            
+                        LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,p.cat_id,dt.bill_det_id
+                        FROM ret_billing_item_stones st
+                        LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+                        LEFT JOIN ret_product_master p ON p.pro_id=dt.product_id
+                        LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+                        LEFT JOIN ret_billing bill ON bill.bill_id=dt.bill_id
+                        LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+                        LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+                        WHERE bill.bill_status=1 AND uom.uom_short_code='CT'
+                        and (date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+                         ".($branch!='' && $branch !='0' ? " and bill.id_branch in (".$branch.") " :'' )."
+                        GROUP by bill.bill_id)  as stn ON stn.bill_det_id=d.bill_det_id
+                        
+                    Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' and b.bill_status=1  AND d.bill_id is not null and d.item_cost>0 
+                    and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+                    ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+                    ".($billing_for!=''  && $billing_for>0 ? " and b.billing_for=".$billing_for."" :'')."
+                    ".($data['gst_filter']>0 ? ($data['gst_filter']==1 ? " and d.total_igst>0 and d.item_total_tax != 0 " : " and d.total_sgst>0 and d.item_total_tax != 0  " ) :'and d.item_total_tax != 0 ')." 
+                    ".($data['id_category'] != '' && $data['id_category'] >0 ? ' and p.cat_id ='.$data['id_category']: '')." 
+                    group by b.bill_id,p.cat_id  ORDER BY `category_name` ASC ,b.sales_ref_no");
+                    //print_r($this->db->last_query());exit;
+         }
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $return_data[$items['category_name']][]=array(
+                                'bill_id'       =>$items['bill_id'],
+                                'bill_date'    =>$items['bill_date'],
+                                'branch_name'   =>$items['branch_name'],
+                                'metal_code'   =>$items['metal_code'],
+                                'cus_name'      =>$items['cus_name'],
+                                'gst_number'      =>$items['gst_number'],
+                                'pan'           =>$items['pan'],
+                                'category_name' =>$items['category_name'],
+                                'piece'         =>$items['piece'],
+                                'gross_wt'      =>$items['gross_wt'],
+                                'net_wt'        =>$items['net_wt'],
+                                'less_wt'        =>$items['less_wt'],
+                                'taxable_amt'   =>$items['taxable_amt'],
+                                'total_sgst'    =>$items['total_sgst'],
+                                'total_cgst'    =>$items['total_cgst'],
+                                'total_igst'    =>$items['total_igst'],
+                                'tax_amt'       =>$items['tax_amt'],
+                                'total_amount'  =>$items['total_amount'],
+                                'round_off'     =>$items['round_off'],
+                                'sales_ref_no'  =>$items['sales_ref_no'],
+                                'statename'     => $items['statename'],
+                                'short_name'     => $items['short_name'],
+                                'starting_bill' =>$this->getminMaxBills($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'ASC',$billing_for,$data['gst_filter']),
+                                'ending_bill'   =>$this->getminMaxBills($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'DESC',$billing_for,$data['gst_filter']),
+                                
+                            );
+        }
+        return $return_data;
+
+    }
+
+
+    
+    
+    function getminMaxBills($branch,$FromDt,$ToDt,$id_category,$type,$billing_for,$gst_filter)
+	{
+	    $sql=$this->db->query("SELECT b.sales_ref_no,b.bill_no
+        FROM ret_billing b
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' and b.bill_status=1 and d.item_cost>0
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+        ".($branch!='' && $branch>0 ? " and b.id_branch in (".$branch.") ":'')." 
+        ".($id_category!='' ? " and p.cat_id=".$id_category."" :'')."
+        ".($billing_for!='' ? " and b.billing_for=".$billing_for."" :'')."
+        ".($gst_filter>0 ? ($gst_filter==1 ? " and d.total_igst>0 and d.item_total_tax != 0 " : " and d.total_sgst>0 and d.item_total_tax != 0 " ) :' and d.item_total_tax != 0')."
+        ORDER by b.bill_id ".$type." LIMIT 1");
+        //print_r($this->db->last_query());exit;
+        return $sql->row()->sales_ref_no;
+	}
+	
+	
+    /*function get_gst_abstract_overseas_details($data)
+	{
+	    
+	    $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+		
+		$return_data=array();
+		if($data['report']==1)
+		{
+		    $sql=$this->db->query("SELECT d.bill_id,IFNULL(sum(b.round_off_amt), 0) as round_off,sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount,
+            IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,
+            IFNULL(sum(b.round_off_amt), 0) as round_off,b.sales_ref_no
+            FROM ret_billing b 
+            LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+            LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+            LEFT JOIN branch br on br.id_branch=b.id_branch
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+            WHERE b.bill_status=1 AND d.item_total_tax = 0 AND d.bill_id is not null and d.item_cost>0
+            and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+            ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."	
+            group by p.cat_id ");
+		}
+        else
+        {
+            $sql=$this->db->query("SELECT c.name as category_name,p.cat_id, b.sales_ref_no,b.bill_no,b.bill_id,
+            sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount, IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,
+            p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,
+            IFNULL(ROUND(sum(b.round_off_amt),2), 0) as round_off
+            FROM ret_billing b 
+            LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id 
+            LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id 
+            LEFT JOIN branch br on br.id_branch=b.id_branch
+            Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' and b.bill_status=1 and d.item_cost>0 
+            and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+            ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+            ".($billing_for!=''  && $billing_for>0 ? " and b.billing_for=".$billing_for."" :'')."
+            and d.item_total_tax = 0
+            group by b.bill_id ORDER BY `category_name` ASC");
+        }
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $return_data[]=array(
+                                'bill_id'       =>$items['bill_id'],
+                                'branch_name'   =>$items['branch_name'],
+                                'category_name' =>$items['category_name'],
+                                'piece'         =>$items['piece'],
+                                'gross_wt'      =>$items['gross_wt'],
+                                'net_wt'        =>$items['net_wt'],
+                                'taxable_amt'   =>$items['taxable_amt'],
+                                'total_sgst'    =>$items['total_sgst'],
+                                'total_cgst'    =>$items['total_cgst'],
+                                'total_igst'    =>$items['total_igst'],
+                                'tax_amt'       =>$items['tax_amt'],
+								'round_off'   	=>$items['round_off'],
+                                'total_amount'  =>$items['total_amount'],
+                                'sales_ref_no'  =>$items['sales_ref_no'], 
+                                'starting_bill' =>$this->getminMaxBillsOverSeas($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'ASC',$billing_for,$data['gst_filter']),
+                                'ending_bill'   =>$this->getminMaxBillsOverSeas($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'DESC',$billing_for,$data['gst_filter']),
+                               );
+        }
+        return $return_data;
+	}*/
+	
+	
+	/*function get_gst_abstract_overseas_details($data)
+	{
+	    
+	    $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+
+       
+		$return_data=array();
+        if($data['report']==1)
+        {
+        $sql=$this->db->query("SELECT d.bill_id,IFNULL(sum(b.round_off_amt), 0) as round_off,sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount,
+        IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,
+        IFNULL(sum(b.round_off_amt), 0) as round_off,b.sales_ref_no,ifnull(stn.stn_wt,0) as less_wt,
+        concat(cus.firstname,' ',IFNULL(cus.lastname,'')) as cus_name,m.metal_code,
+        date_format(b.bill_date,'%d-%m-%Y') as bill_date
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+        LEFT JOIN metal m on m.id_metal=c.id_metal
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,p.cat_id
+            FROM ret_billing_item_stones st
+            LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+            LEFT JOIN ret_product_master p ON p.pro_id=dt.product_id
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+            LEFT JOIN ret_billing b ON b.bill_id=dt.bill_id
+            LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+            LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+            WHERE b.bill_status=1 AND uom.uom_short_code='CT'
+            and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+            	".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+            GROUP by p.cat_id)  as stn ON stn.cat_id=p.cat_id
+
+        WHERE b.bill_status=1 AND d.item_total_tax = 0 AND d.bill_id is not null and d.item_cost>0
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."	
+        group by p.cat_id ");
+        }
+        else
+        {
+        $sql=$this->db->query("SELECT c.name as category_name,p.cat_id, b.sales_ref_no,b.bill_no,b.bill_id,
+        sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount, IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,
+        p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,IFNULL(sum(b.round_off_amt), 0) as round_off,ifnull(stn.stn_wt,0) as less_wt,
+        concat(cus.firstname,' ',IFNULL(cus.lastname,'')) as cus_name,m.metal_code,
+        date_format(b.bill_date,'%d-%m-%Y') as bill_date
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id 
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        LEFT JOIN ret_category c on c.id_ret_category=p.cat_id 
+        LEFT JOIN metal m on m.id_metal=c.id_metal
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,p.cat_id,dt.bill_id
+            FROM ret_billing_item_stones st
+            LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+            LEFT JOIN ret_product_master p ON p.pro_id=dt.product_id
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+            LEFT JOIN ret_billing bill ON bill.bill_id=dt.bill_id
+            LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+            LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+            WHERE bill.bill_status=1 AND uom.uom_short_code='CT'
+            and (date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+            	".($id_branch!='' && $id_branch!=0 ? " and bill.id_branch=".$id_branch."" :'')."
+            GROUP by bill.bill_id)  as stn ON stn.bill_id=d.bill_id
+
+        Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' and b.bill_status=1 and d.item_cost>0 
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+        ".($billing_for!=''  && $billing_for>0 ? " and b.billing_for=".$billing_for."" :'')."
+        and d.item_total_tax = 0
+        group by b.bill_id ORDER BY `category_name` ASC ,b.sales_ref_no");
+        //print_r($this->db->last_query());exit;
+        }
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $return_data[$items['category_name']][]=array(
+                                'bill_id'       =>$items['bill_id'],
+                                'branch_name'   =>$items['branch_name'],
+                                'category_name' =>$items['category_name'],
+                                'piece'         =>$items['piece'],
+                                'gross_wt'      =>$items['gross_wt'],
+                                'net_wt'        =>$items['net_wt'],
+                                'less_wt'        =>$items['less_wt'],
+                                'taxable_amt'   =>$items['taxable_amt'],
+                                'total_sgst'    =>$items['total_sgst'],
+                                'total_cgst'    =>$items['total_cgst'],
+                                'total_igst'    =>$items['total_igst'],
+                                'tax_amt'       =>$items['tax_amt'],
+								'round_off'   	=>$items['round_off'],
+                                'total_amount'  =>$items['total_amount'],
+                                'round_off'   	=>$items['round_off'], 
+                                'sales_ref_no'  =>$items['sales_ref_no'], 
+                                'metal_code'    =>$items['metal_code'],
+                                'cus_name'      =>$items['cus_name'],
+                                'bill_date'      =>$items['bill_date'],
+                                'starting_bill' =>$this->getminMaxBillsOverSeas($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'ASC',$billing_for,$data['gst_filter']),
+                                'ending_bill'   =>$this->getminMaxBillsOverSeas($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'DESC',$billing_for,$data['gst_filter']),
+                               );
+        }
+        return $return_data;
+    
+
+	}*/
+	
+	
+	function get_gst_abstract_overseas_details($data)
+	{
+	    
+	    $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+
+       
+		$return_data=array();
+        if($data['report']==1)
+        {
+        $sql=$this->db->query("SELECT d.bill_id,IFNULL(sum(b.round_off_amt), 0) as round_off,sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount,
+        IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,
+        IFNULL(sum(b.round_off_amt), 0) as round_off,b.sales_ref_no,ifnull(stn.stn_wt,0) as less_wt,concat(cus.firstname,' ',IFNULL(cus.lastname,'')) as cus_name,m.metal_code,
+        date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_id, st.name as statename,
+        IFNULL(b.pan_no, ifnull(cus.pan, '')) as pan, IFNULL(cus.gst_number,'') as gst_number 
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+        LEFT JOIN metal m on m.id_metal=c.id_metal
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        LEFT JOIN address as adr ON adr.id_customer = cus.id_customer 
+        LEFT JOIN state as st ON st.id_state = adr.id_state 
+
+        LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,p.cat_id
+            FROM ret_billing_item_stones st
+            LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+            LEFT JOIN ret_product_master p ON p.pro_id=dt.product_id
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+            LEFT JOIN ret_billing b ON b.bill_id=dt.bill_id
+            LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+            LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+            WHERE b.bill_status=1 AND uom.uom_short_code='CT'
+            and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+            ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."	
+            GROUP by p.cat_id)  as stn ON stn.cat_id=p.cat_id
+
+        WHERE b.bill_status=1 AND d.item_total_tax = 0 AND d.bill_id is not null and d.item_cost>0
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."	
+        group by p.cat_id ");
+        }
+        else
+        {
+        $sql=$this->db->query("SELECT c.name as category_name,p.cat_id, b.sales_ref_no,b.bill_no,b.bill_id,
+        sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,sum(d.item_cost) as total_amount, IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,
+        p.product_name,br.name as branch_name,b.id_branch,c.name as category_name,p.cat_id,IFNULL(sum(b.round_off_amt), 0) as round_off,ifnull(stn.stn_wt,0) as less_wt,
+        concat(cus.firstname,' ',IFNULL(cus.lastname,'')) as cus_name,m.metal_code,
+        date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_id, st.name as statename,
+        IFNULL(b.pan_no, ifnull(cus.pan, '')) as pan, IFNULL(cus.gst_number,'') as gst_number 
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id 
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id 
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+        LEFT JOIN metal m on m.id_metal=c.id_metal
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+        LEFT JOIN address as adr ON adr.id_customer = cus.id_customer 
+        LEFT JOIN state as st ON st.id_state = adr.id_state 
+
+        LEFT join(SELECT IFNULL(SUM(st.wt),0) as stn_wt,p.cat_id,dt.bill_det_id
+            FROM ret_billing_item_stones st
+            LEFT JOIN ret_bill_details dt ON dt.bill_det_id=st.bill_det_id
+            LEFT JOIN ret_product_master p ON p.pro_id=dt.product_id
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id
+            LEFT JOIN ret_billing bill ON bill.bill_id=dt.bill_id
+            LEFT JOIN ret_stone s ON s.stone_id=st.stone_id
+            LEFT JOIN ret_uom uom ON uom.uom_id=s.uom_id
+            WHERE bill.bill_status=1 AND uom.uom_short_code='CT'
+            and (date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+             ".($branch!='' && $branch !='0' ? " and bill.id_branch in (".$branch.") " :'' )."	
+            GROUP by bill.bill_id)  as stn ON stn.bill_det_id=d.bill_det_id
+
+        Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' and b.bill_status=1 and d.item_cost>0 
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+        ".($billing_for!=''  && $billing_for>0 ? " and b.billing_for=".$billing_for."" :'')."
+        and d.item_total_tax = 0
+        group by b.bill_id,p.cat_id ORDER BY `category_name` ASC ,b.sales_ref_no");
+        //print_r($this->db->last_query());exit;
+        }
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $return_data[$items['category_name']][]=array(
+                                'bill_id'       =>$items['bill_id'],
+                                'bill_date'     =>$items['bill_date'],
+                                'cus_name'      =>$items['cus_name'],
+                                'branch_name'   =>$items['branch_name'],
+                                'metal_code'   =>$items['metal_code'],
+                                'category_name' =>$items['category_name'],
+                                'piece'         =>$items['piece'],
+                                'gross_wt'      =>$items['gross_wt'],
+                                'net_wt'        =>$items['net_wt'],
+                                'less_wt'        =>$items['less_wt'],
+                                'taxable_amt'   =>$items['taxable_amt'],
+                                'total_sgst'    =>$items['total_sgst'],
+                                'total_cgst'    =>$items['total_cgst'],
+                                'total_igst'    =>$items['total_igst'],
+                                'tax_amt'       =>$items['tax_amt'],
+								'round_off'   	=>$items['round_off'],
+                                'total_amount'  =>$items['total_amount'],
+                                'round_off'   	=>$items['round_off'], 
+                                'sales_ref_no'  =>$items['sales_ref_no'], 
+                                'gst_number'    =>$items['gst_number'],
+                                'pan'           =>$items['pan'],
+                                'statename'     => $items['statename'],
+                                'starting_bill' =>$this->getminMaxBillsOverSeas($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'ASC',$billing_for,$data['gst_filter']),
+                                'ending_bill'   =>$this->getminMaxBillsOverSeas($branch,$data['from_date'],$data['to_date'],$items['cat_id'],'DESC',$billing_for,$data['gst_filter']),
+                               );
+        }
+        return $return_data;
+    
+
+	}
+	
+	function getminMaxBillsOverSeas($branch,$FromDt,$ToDt,$id_category,$type,$billing_for,$gst_filter)
+	{
+		// print_r($billing_for);exit;
+	    $sql=$this->db->query("SELECT b.sales_ref_no,b.bill_no
+        FROM ret_billing b
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        Where b.sales_ref_no IS NOT NULL AND b.sales_ref_no!='' and b.bill_status=1 and d.item_cost>0
+        and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."') 
+        ".($branch!='' && $branch>0 ? " and b.id_branch in (".$branch.") ":'')." 
+        ".($id_category!='' ? " and p.cat_id=".$id_category."" :'')."
+        ".($billing_for!='' ? " and b.billing_for=".$billing_for."" :'')."
+		and d.item_total_tax = 0 ORDER by b.bill_id ".$type." LIMIT 1");
+        // print_r($this->db->last_query());exit;
+        return $sql->row()->sales_ref_no;
+	}
+	
+	
+	/*function getRepairCharges($data)
+	{
+		$return_data=[];
+		$d1 = date_create($data['from_date']);
+        $d2 = date_create($data['to_date']);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+        if($data['report']==1)
+        {
+            $sql=$this->db->query("SELECT b.bill_no,IFNULL(SUM(c.rate),0) as amount,IFNULL(SUM(c.weight),0) as weight,
+            IFNULL(SUM(c.totalitems),0) as pcs ,cat.name , IFNULL(sum(c.total_sgst),0) as tot_sgst, IFNULL(sum(c.total_cgst),0) as tot_cgst, IFNULL(sum(c.total_igst),0) as tot_igst,
+            IFNULL(sum(c.repair_tot_tax),0) as tot_tax, IFNULL(sum(c.rate),0) - IFNULL(sum(c.repair_tot_tax),0) as tot_taxable , pro.cat_id,
+            IFNULL(sum(b.round_off_amt), 0) as round_off
+            from ret_billing b
+            LEFT JOIN customerorderdetails c ON c.bill_id=b.bill_id
+            LEFT JOIN ret_product_master as pro ON pro.pro_id = c.id_product
+            LEFT JOIN ret_category cat on cat.id_ret_category = pro.cat_id
+            WHERE b.bill_type=11 and b.bill_status=1 AND c.ortertype=3 and c.orderstatus=5
+            and (date(b.bill_date) BETWEEN '".date($FromDt)."' AND '".date($ToDt)."') 
+            ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."	 GROUP BY pro.cat_id having amount>0");
+        }else
+        {
+            $sql=$this->db->query("SELECT cat.name , pro.cat_id, b.bill_no , co.order_no,co.id_customerorder ,
+            IFNULL(SUM(c.rate),0) as amount,IFNULL(SUM(c.weight),0) as weight, IFNULL(SUM(c.totalitems),0) as pcs ,cat.name , IFNULL(sum(c.total_sgst),0) as tot_sgst, IFNULL(sum(c.total_cgst),0) as tot_cgst, IFNULL(sum(c.total_igst),0) as tot_igst, IFNULL(sum(c.repair_tot_tax),0) as tot_tax, IFNULL(sum(c.rate),0) - IFNULL(sum(c.repair_tot_tax),0) as tot_taxable,
+            IFNULL(sum(b.round_off_amt), 0) as round_off
+            from ret_billing b 
+            LEFT JOIN customerorderdetails c ON c.bill_id=b.bill_id 
+            LEFT JOIN customerorder co ON co.id_customerorder=c.id_customerorder 
+            LEFT JOIN ret_product_master as pro ON pro.pro_id = c.id_product 
+            LEFT JOIN ret_category cat on cat.id_ret_category = pro.cat_id 
+            WHERE b.bill_type=11 and b.bill_status=1 AND c.ortertype=3 and c.orderstatus=5 and b.tot_bill_amount > 0 
+            and (date(b.bill_date) BETWEEN '".date($FromDt)."' AND '".date($ToDt)."') 
+            ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )." group by b.bill_id");
+        }
+		
+		// print_r($this->db->last_query());exit;
+		$result = $sql->result_array();
+
+		foreach($result as $items)
+        {
+            $return_data[]=array(
+                                'amount'       	=>$items['amount'],
+                                'weight'   		=>$items['weight'],
+                                'pcs' 			=>$items['pcs'],
+                                'name'         	=>$items['name'],
+                                'tot_sgst'      =>$items['tot_sgst'],
+                                'tot_cgst'      =>$items['tot_cgst'],
+                                'tot_igst'   	=>$items['tot_igst'],
+                                'tot_tax'    	=>$items['tot_tax'],
+                                'tot_taxable'   =>$items['tot_taxable'],
+                                'round_off'     =>$items['round_off'],
+                                'bill_no'       =>$items['bill_no'],
+                                'starting_bill' =>$this->getminMaxRepairBills($branch,$FromDt,$ToDt,$items['cat_id'],'DESC'),
+                                'ending_bill'   =>$this->getminMaxRepairBills($branch,$FromDt,$ToDt,$items['cat_id'],'ASC'),
+                               );
+        }
+		return $return_data;
+	}*/
+
+
+    function getRepairCharges($data)
+	{
+		$return_data=[];
+		$d1 = date_create($data['from_date']);
+        $d2 = date_create($data['to_date']);
+        $FromDt = date_format($d1,"Y-m-d");
+        $ToDt = date_format($d2,"Y-m-d");
+        
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+
+        if($data['report']==1)
+        {
+
+		$sql=$this->db->query("SELECT IFNULL(SUM(c.rate),0) as amount,IFNULL(SUM(c.weight),0) as weight, b.bill_no ,
+		IFNULL(SUM(c.totalitems),0) as pcs ,cat.name , IFNULL(sum(c.total_sgst),0) as tot_sgst, IFNULL(sum(c.total_cgst),0) as tot_cgst, IFNULL(sum(c.total_igst),0) as tot_igst,
+		IFNULL(sum(c.repair_tot_tax),0) as tot_tax, IFNULL(sum(c.rate),0) - IFNULL(sum(c.repair_tot_tax),0) as tot_taxable , pro.cat_id,
+		IFNULL(sum(b.round_off_amt), 0) as round_off,IFNULL(cus.lastname,'') as cus_name,
+        date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_id, st.name as statename,
+        IFNULL(b.pan_no, ifnull(cus.pan, '')) as pan, IFNULL(cus.gst_number,'') as gst_number 
+		from ret_billing b
+		LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+		LEFT JOIN customerorderdetails c ON c.bill_id=b.bill_id
+		LEFT JOIN ret_product_master as pro ON pro.pro_id = c.id_product
+		LEFT JOIN ret_category cat on cat.id_ret_category = pro.cat_id 
+		LEFT JOIN address as adr ON adr.id_customer = cus.id_customer 
+        LEFT JOIN state as st ON st.id_state = adr.id_state 
+		WHERE b.bill_type=11 and b.bill_status=1 AND c.ortertype=3 and c.orderstatus=5
+		and (date(b.bill_date) BETWEEN '".date($FromDt)."' AND '".date($ToDt)."') 
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."	 GROUP BY pro.cat_id having amount>0");
+        }
+        else
+        {
+        $sql=$this->db->query("SELECT cat.name , pro.cat_id, b.bill_no , co.order_no,co.id_customerorder,
+        IFNULL(SUM(c.rate),0) as amount,IFNULL(SUM(c.weight),0) as weight, IFNULL(SUM(c.totalitems),0) as pcs ,cat.name , IFNULL(sum(c.total_sgst),0) as tot_sgst, IFNULL(sum(c.total_cgst),0) as tot_cgst, IFNULL(sum(c.total_igst),0) as tot_igst, IFNULL(sum(c.repair_tot_tax),0) as tot_tax, IFNULL(sum(c.rate),0) - IFNULL(sum(c.repair_tot_tax),0) as tot_taxable,
+        IFNULL(sum(b.round_off_amt), 0) as round_off,IFNULL(cus.lastname,'') as cus_name,
+        date_format(b.bill_date,'%d-%m-%Y') as bill_date,b.bill_id, st.name as statename,
+        IFNULL(b.pan_no, ifnull(cus.pan, '')) as pan, IFNULL(cus.gst_number,'') as gst_number 
+        from ret_billing b 
+        LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id
+        LEFT JOIN customerorderdetails c ON c.bill_id=b.bill_id 
+        LEFT JOIN customerorder co ON co.id_customerorder=c.id_customerorder 
+        LEFT JOIN ret_product_master as pro ON pro.pro_id = c.id_product 
+        LEFT JOIN ret_category cat on cat.id_ret_category = pro.cat_id 
+        LEFT JOIN address as adr ON adr.id_customer = cus.id_customer 
+        LEFT JOIN state as st ON st.id_state = adr.id_state 
+        WHERE b.bill_type=11 and b.bill_status=1 AND c.ortertype=3 and c.orderstatus=5 and b.tot_bill_amount > 0 
+        and (date(b.bill_date) BETWEEN '".date($FromDt)."' AND '".date($ToDt)."') 
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )." group by b.bill_id ORDER BY `name` ASC ,b.bill_no");
+        }
+	    //print_r($this->db->last_query());exit;
+		$result = $sql->result_array();
+
+		foreach($result as $items)
+        {
+            $return_data[$items['name']][]=array(
+                                'amount'       	=>$items['amount'],
+                                'weight'   		=>$items['weight'],
+                                'pcs' 			=>$items['pcs'],
+                                'name'         	=>$items['name'],
+                                'tot_sgst'      =>$items['tot_sgst'],
+                                'tot_cgst'      =>$items['tot_cgst'],
+                                'tot_igst'   	=>$items['tot_igst'],
+                                'tot_tax'    	=>$items['tot_tax'],
+                                'tot_taxable'   =>$items['tot_taxable'],
+                                'round_off'     =>$items['round_off'],
+                                'bill_no'       =>$items['bill_no'],
+                                'bill_id'       =>$items['bill_id'],
+                                'cus_name'      =>$items['cus_name'],
+                                'bill_date'     =>$items['bill_date'],
+                                'gst_number'    =>$items['gst_number'],
+                                'pan'           =>$items['pan'],
+                                'statename'     => $items['statename'],
+                                'starting_bill' =>$this->getminMaxRepairBills($branch,$FromDt,$ToDt,$items['cat_id'],'DESC'),
+                                'ending_bill'   =>$this->getminMaxRepairBills($branch,$FromDt,$ToDt,$items['cat_id'],'ASC'),
+                               );
+        }
+		return $return_data;
+    }
+    
+	function getminMaxRepairBills($id_branch,$FromDt,$ToDt,$id_category,$type)
+	{
+		$sql=$this->db->query("SELECT cat.name , b.bill_no , co.order_no,co.id_customerorder
+		from ret_billing b
+				   LEFT JOIN customerorderdetails c ON c.bill_id=b.bill_id
+				   LEFT JOIN customerorder co ON co.id_customerorder=c.id_customerorder
+				   LEFT JOIN ret_product_master as pro ON pro.pro_id = c.id_product
+					LEFT JOIN ret_category cat on cat.id_ret_category = pro.cat_id
+				   WHERE b.bill_type=11 and b.bill_status=1 AND c.ortertype=3 and c.orderstatus=5 and b.tot_bill_amount > 0
+				   and (date(b.bill_date) BETWEEN '".date($FromDt)."' AND '".date($ToDt)."') 
+        			 ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."		
+        			".($id_category!='' ? " and pro.cat_id=".$id_category."" :'')."
+					ORDER BY co.id_customerorder " . $type. " LIMIT 1");
+					// print_r($this->db->last_query());exit;
+					return $sql->row()->bill_no;
+	}
+
+	
+    //gst abstract
+    
+    
+    //SALES RETURN ABSTRACT
+    
+    function get_sals_return_details($data)
+    {
+        
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+		
+        $return_data=array();
+		if($data['group_by']==0){
+			$sql=$this->db->query("SELECT d.bill_id,sum(d.piece) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,
+			sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,round(FLOOR(sum(d.item_cost)),2) as total_amount,
+			IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,
+			p.product_name,br.name as branch_name,b.id_branch,
+			tag.tag_status,bill.bill_id as sales_bill_id,
+			concat(br.short_name, '-SA-' , metal_code, '-', bill.sales_ref_no) as sales_bill_no,
+			date_format(bill.bill_date,'%d-%m-%Y') as sales_date,tag.tag_code,
+			b.bill_id as ret_bill_id,date_format(b.bill_date,'%d-%m-%Y') as ret_bill_date, 
+			concat(br.short_name, '-SR-' , metal_code, '-', b.s_ret_refno) as ret_bill_no,  
+			c.name as category_name,
+				sum(ifnull((SELECT sum(bs.wt) as totwt FROM ret_billing_item_stones bs 
+                                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                                WHERE st.stone_type = 1 
+                                                AND bs.bill_det_id = r.ret_bill_det_id), 0)) as tot_dia_wt
+			FROM ret_bill_return_details r 
+			LEFT JOIN ret_bill_details d ON d.bill_det_id=r.ret_bill_det_id
+			LEFT JOIN ret_billing b ON b.bill_id=r.bill_id
+			LEFT JOIN ret_billing bill ON bill.bill_id=r.ret_bill_id
+			LEFT JOIN ret_taging tag ON tag.tag_id=d.tag_id
+			LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+            LEFT JOIN ret_category c on c.id_ret_category=p.cat_id 
+            LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+			LEFT JOIN branch br on br.id_branch=b.id_branch
+			WHERE b.bill_status=1 AND tag.tag_status=6
+			and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+			".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )." 
+			".($data['id_category'] != '' && $data['id_category'] >0 ? ' and p.cat_id ='.$data['id_category']: '')." 
+			GROUP BY bill.bill_id");
+			//b.bill_no as ret_bill_no,
+			//print_r($this->db->last_query());exit;
+			$result = $sql->result_array();
+			foreach($result as $r){
+				$return_data[$r['category_name']][] = $r; 
+			}
+		}
+		else{
+			$sql=$this->db->query("SELECT c.name category_name,IFNULL(sum(d.piece),0) as piece,IFNULL(sum(d.gross_wt),0) as gross_wt,IFNULL(sum(d.net_wt),0) as net_wt,
+			sum(d.item_cost-d.item_total_tax) as taxable_amt,sum(d.item_total_tax) as tax_amt,round(FLOOR(sum(d.item_cost)),2) as total_amount,
+			IFNULL(sum(d.total_sgst),0) as total_sgst,IFNULL(sum(d.total_cgst),0) as total_cgst,IFNULL(sum(d.total_igst),0) as total_igst,br.name as branch_name,b.id_branch,
+			tag.tag_status,bill.bill_id as sales_bill_id,bill.bill_no as sales_bill_no,date_format(bill.bill_date,'%d-%m-%Y') as sales_date,
+			concat(br.short_name, '-SR-' , metal_code, '-', b.s_ret_refno) as voucherno, 
+			sum(ifnull((SELECT sum(bs.wt) as totwt FROM ret_billing_item_stones bs 
+                                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                                WHERE st.stone_type = 1 
+                                                AND bs.bill_det_id = r.ret_bill_det_id), 0)) as tot_dia_wt 
+			FROM ret_bill_return_details r 
+			LEFT JOIN ret_bill_details d ON d.bill_det_id=r.ret_bill_det_id
+			LEFT JOIN ret_billing b ON b.bill_id=r.bill_id
+			LEFT JOIN ret_billing bill ON bill.bill_id=r.ret_bill_id
+			LEFT JOIN ret_taging tag ON tag.tag_id=d.tag_id
+			LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+			LEFT JOIN ret_category c on c.id_ret_category=p.cat_id 
+			LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+			LEFT JOIN branch br on br.id_branch=b.id_branch
+			WHERE b.bill_status=1 AND tag.tag_status=6
+			and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')  
+			".($data['id_category'] != '' && $data['id_category'] >0 ? ' and p.cat_id ='.$data['id_category']: '')."  
+			".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )." GROUP BY c.id_ret_category");
+			// print_r($this->db->last_query());exit;
+
+			$result = $sql->result_array();
+
+			foreach($result as $r){
+				$return_data[$r['category_name']][] = $r;
+			}
+		}
+
+		return $return_data;
+    }
+    
+    function get_card_collection_report($data)
+    {
+        
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+		
+        $return_data = [];
+        $sql=$this->db->query("SELECT b.bill_id,date_format(b.bill_date,'%d-%m-%Y') as bill_date,concat(c.firstname,' ',IFNULL(c.lastname,'')) as cus_name,
+        p.payment_amount,p.card_no,
+        if(p.card_type=1,'Rupay',if(p.card_type=2,'Visa',if(p.card_type=3,'Mastro','Master'))) as card_name,p.card_no,br.name as branch_name, 
+        if(b.sales_ref_no IS NULL, b.bill_no, concat(br.short_name, '-SA-' , metal_code, '-', sales_ref_no)) as bill_no, ifnull(payment_ref_number,'') as approvalno,
+        ifnull(paydev.device_name, 0) as device_name 
+        FROM ret_billing b 
+        LEFT JOIN ret_billing_payment p ON p.bill_id=b.bill_id 
+        LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = p.id_pay_device 
+        LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+        LEFT JOIN branch br ON br.id_branch=b.id_branch
+        LEFT JOIN bank a ON a.id_bank=p.id_bank 
+        LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+        WHERE b.bill_status=1 AND p.card_no is NOT null and  (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."");
+        //print_r($this->db->last_query());exit;
+        $result=$sql->result_array();
+
+        $advance_amount=$this->db->query("select r.bill_no,r.id_issue_receipt,c.firstname as cus_name,
+        if(rp.card_type=1,'Rupay',if(rp.card_type=2,'Visa',if(rp.card_type=3,'Mastro','Master'))) as card_name,
+        rp.payment_amount,rp.payment_mode,rp.card_no,br.name as branch_name,DATE_FORMAT(r.bill_date,'%d-%m-%Y') as bill_date ,
+        ifnull(payment_ref_number,'') as approvalno, ifnull(paydev.device_name, 0) as device_name 
+        from  ret_issue_receipt r
+        left join ret_issue_rcpt_payment rp on rp.id_issue_rcpt=r.id_issue_receipt 
+        LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = rp.id_pay_device
+        LEFT JOIN customer c ON c.id_customer=r.id_customer
+        LEFT JOIN branch br on br.id_branch=r.id_branch
+        where r.bill_status=1 and r.type=2 and rp.payment_mode in ('CC','DC')
+        and (date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."') 
+        ".($branch!='' && $branch !='0' ? " and r.id_branch in (".$branch.") " :'' )."");
+        // print_r($this->db->last_query());exit;
+        $result1=$advance_amount->result_array();
+        
+
+        $final_result2=array_merge($result,$result1);
+        // print_r($result2);exit;
+
+        foreach($final_result2 as $r){
+            $return_data[$r['bank_code']][] = $r; 
+        }
+        return $return_data;
+    }
+
+    //CHEQUE COLLECTION REPORT
+    
+    function get_cheque_collection_report($data)
+    {
+        
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+		
+         $return_data = [];
+            $sql=$this->db->query("SELECT b.bill_id,if(p.type=1,'Receipt','Issue') as type,b.bill_no,date_format(b.bill_date,'%d-%m-%Y') as bill_date,concat(c.firstname,' ',IFNULL(c.lastname,'')) as cus_name,p.payment_amount,
+            a.short_code as bank_code,p.cheque_no,br.name as branch_name,p.payment_mode,date_format(p.cheque_date,'%d-%m-%Y') as cheque_date
+            FROM ret_billing b 
+            LEFT JOIN ret_billing_payment p ON p.bill_id=b.bill_id
+            LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+            LEFT JOIN branch br ON br.id_branch=b.id_branch
+            LEFT JOIN bank a ON a.id_bank=p.id_bank
+            WHERE b.bill_status=1 AND p.cheque_no is NOT null 
+			and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+            ".($branch!='' && $branch !='0' ? " and br.id_branch in (".$branch.") " :'' )." ");
+
+        	$result=$sql->result_array();
+
+			// foreach($result as $r){
+			// 	$return_data[$r['bank_code']][] = $r;
+			// }
+
+			$chq_advance = $this->db->query("SELECT r.id_issue_receipt,r.bill_no,if(p.type=1,'Receipt','Issue') as type,date_format(r.bill_date,'%d-%m-%Y') as bill_date,concat(c.firstname,' ',IFNULL(c.lastname,'')) as cus_name,.p.payment_amount,
+			IFNULL(a.short_code,'-') as bank_code,p.cheque_no,br.name as branch_name,p.payment_mode,date_format(p.cheque_date,'%d-%m-%Y') as cheque_date
+			FROM ret_issue_receipt r 
+			LEFT JOIN ret_issue_rcpt_payment p ON p.id_issue_rcpt=r.id_issue_receipt
+			LEFT JOIN customer c ON c.id_customer=r.id_customer
+			LEFT JOIN branch br ON br.id_branch=r.id_branch
+			LEFT JOIN bank a ON a.id_bank=p.id_bank
+			WHERE r.bill_status=1 AND p.cheque_no is NOT null 
+			and (date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+			".($branch!='' && $branch !='0' ? " and br.id_branch in (".$branch.") " :'' )." ");
+
+			$result1=$chq_advance->result_array();
+
+			$return_data=array_merge($result,$result1);
+
+			return $return_data;
+
+    }
+    
+    
+    function getNetbankingCollectionReport($from_date,$to_date,$id_branch,$nb_type)
+	{
+	    
+	    $multiple_id_branch = implode(' , ', $id_branch);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $id_branch;
+		}
+		
+		$sql=$this->db->query("SELECT ba.bank_name,IF(p.type=1,'Receipt','Issue') as payment_type,IF(NB_type=1,'RTGS',if(nb_type=2,'IMPS','UPI')) as nb_type,p.bill_id,b.bill_no,payment_mode,payment_amount,
+		c.firstname,c.mobile,DATE_FORMAT(b.bill_date,'%d-%m-%Y') as bill_date,IFNULL(p.payment_ref_number,'-') payment_ref_number,br.name,IFNULL(DATE_FORMAT(p.net_banking_date,'%d-%m-%Y'),'-') as payment_date from ret_billing_payment p
+		left join ret_billing b on b.bill_id=p.bill_id
+		left join customer c on c.id_customer=b.bill_cus_id
+		left join branch as br on br.id_branch=b.id_branch
+		LEFT JOIN bank ba ON ba.id_bank=p.id_bank
+		where payment_mode='NB' 
+		and date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+		".($nb_type!='' && $nb_type>0 ? " and p.nb_type = ".$nb_type." " :'' )."
+		".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."		 ");
+		// print_r($this->db->last_query());exit;
+		
+		$result=$sql->result_array();
+
+
+		$advance_nb=$this->db->query("select ba.bank_name,IF(rp.type=1,'Receipt','Issue') payment_type,IF(NB_type=1,'RTGS',if(nb_type=2,'IMPS','UPI')) as nb_type,c.mobile,r.bill_no,r.id_issue_receipt,c.firstname,IFNULL(rp.payment_ref_number,'-') payment_ref_number,rp.payment_amount,rp.payment_mode,rp.card_no,br.name,
+		IFNULL(DATE_FORMAT(rp.net_banking_date,'%d-%m-%Y'),'-') as payment_date,DATE_FORMAT(r.bill_date,'%d-%m-%Y') as bill_date  from  ret_issue_receipt r
+				left join ret_issue_rcpt_payment rp on rp.id_issue_rcpt=r.id_issue_receipt
+				LEFT JOIN customer c ON c.id_customer=r.id_customer
+				LEFT JOIN branch br on br.id_branch=r.id_branch
+				LEFT JOIN bank ba ON ba.id_bank=rp.id_bank
+				where r.bill_status=1 and r.type=2 and rp.payment_mode in ('NB')
+				and date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."'
+				".($nb_type!='' && $nb_type>0 ? " and rp.nb_type = ".$nb_type." " :'' )."
+				".($branch!='' && $branch !='0' ? " and br.id_branch in (".$branch.") " :'' )."	
+				having payment_amount>0");
+				// print_r($this->db->last_query());exit;
+
+		$result1=$advance_nb->result_array();
+
+		$final_result2=array_merge($result,$result1);
+
+		foreach($final_result2 as $nb){
+			$return_data[$nb['bank_name']][] = $nb;
+		}
+		return $return_data;
+	}
+    
+    
+    
+    function get_advance_receipt_report($data)
+    {
+    $multiple_id_branch = implode(' , ', $data['id_branch']);
+    if($multiple_id_branch != '')
+    {
+    $branch = $multiple_id_branch;
+    }else{
+    $branch = $data['id_branch'];
+    }
+    
+    
+    $sql_orer_adjusted= $this->db->query("SELECT b.bill_no,b.bill_id,c.mobile,c.firstname,adv.advance_amount advance_adj,br.name,date_format(b.bill_date,'%d-%m-%Y') bill_date FROM ret_billing b
+    LEFT JOIN ret_billing_advance adv ON adv.adjusted_bill_id=b.bill_id
+    LEFT JOIN customer c ON c.id_customer=b.bill_cus_id
+    LEFT JOIN branch br ON br.id_branch=b.id_branch
+    WHERE b.bill_status=1 AND b.bill_type=9
+    and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+    ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )." ");
+    
+    $sql=$this->db->query("select IFNULL(sum(au.utilized_amt),0) advance_adj,b.bill_id,b.bill_no,DATE_FORMAT(b.bill_date,'%d-%m-%Y') bill_date,c.firstname ,c.mobile,br.name 
+    from ret_billing as b
+    left join ret_advance_utilized au on au.bill_id=b.bill_id
+    LEFT join customer c ON c.id_customer=b.bill_cus_id
+    LEFT JOIN branch br on br.id_branch=b.id_branch
+    where b.bill_status=1 and b.bill_id is not null
+    and (date(b.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+    ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )."
+    and au.utilized_amt is not null GROUP by b.bill_id");
+    
+
+    $first_array = $sql->result_array();
+    
+    $second_array = $sql_orer_adjusted->result_array();
+    
+    $final_array1 = array_merge($first_array,$second_array);
+    
+    $dataset['advance_utilized'] = $final_array1;
+    
+    
+    $sql_order=$this->db->query("SELECT bill.bill_no,bill.bill_id ,date_format(bill.bill_date,'%d-%m-%Y') bill_date,c.firstname,c.mobile,b.name,bill.tot_amt_received amount FROM `ret_billing` bill
+    LEFT JOIN customer c on c.id_customer=bill.bill_cus_id
+    LEFT JOIN branch b on b.id_branch=bill.id_branch
+    WHERE bill.bill_type=5 AND bill.bill_status=1
+    and (date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+    ".($branch!='' && $branch !='0' ? " and bill.id_branch in (".$branch.") " :'' )." ");
+
+    $sql_issued=$this->db->query("SELECT r.amount,(r.weight*r.rate_per_gram) as weight_amt,DATE_FORMAT(r.bill_date,'%d-%m-%Y') bill_date,r.bill_no,r.id_issue_receipt,c.firstname,c.mobile,b.name 
+    FROM ret_issue_receipt r
+    LEFT JOIN customer c on c.id_customer=r.id_customer
+    LEFT JOIN branch b on b.id_branch=r.id_branch
+    WHERE r.type=2 and r.bill_status=1
+    and (date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+    ".($branch!='' && $branch !='0' ? " and r.id_branch in (".$branch.") " :'' )." ");
+    //    print_r($this->db->last_query());exit;
+    
+    $first_array = $sql_issued->result_array();
+    $second_array = $sql_order->result_array();
+    $final_array = array_merge($first_array,$second_array);
+    
+    $dataset['advance_receipt'] = $final_array;
+    
+    
+    $order_bill_refund=$this->db->query("SELECT bill.bill_no,bill.bill_id ,date_format(bill.bill_date,'%d-%m-%Y') bill_date,c.firstname,c.mobile,b.name,ad.received_amount amount FROM `ret_billing` bill
+    LEFT JOIN ret_billing_advance ad ON ad.adjusted_bill_id=bill.bill_id
+    LEFT JOIN customer c on c.id_customer=bill.bill_cus_id
+    LEFT JOIN branch b on b.id_branch=bill.id_branch
+    WHERE bill.bill_type=12 AND bill.bill_status=1 AND ad.is_adavnce_adjusted=2
+    and (date(bill.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+    ".($branch!='' && $branch !='0' ? " and bill.id_branch in (".$branch.") " :'' )." ");
+    
+    $receipt_refund=$this->db->query("SELECT sum(iss.refund_amount) as amount,
+    DATE_FORMAT(r.bill_date,'%d-%m-%Y') bill_date,r.bill_no,r.id_issue_receipt,c.firstname,c.mobile,b.name 
+    FROM ret_issue_receipt r
+    LEFT JOIN ret_advance_refund iss ON iss.id_issue_receipt=r.id_issue_receipt
+    LEFT JOIN customer c on c.id_customer=r.id_customer
+    LEFT JOIN branch b on b.id_branch=r.id_branch
+    WHERE r.type=2 and r.bill_status=1 AND r.is_refunded=1 AND iss.id_issue_receipt is not null
+    and (date(r.bill_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+    ".($branch!='' && $branch !='0' ? " and r.id_branch in (".$branch.") " :'' )." GROUP by r.id_issue_receipt");
+
+    $first_array = $order_bill_refund->result_array();
+    
+    $second_array = $receipt_refund->result_array();
+    
+    $final_array2 = array_merge($first_array,$second_array);
+    
+    $dataset['advance_refund'] = $final_array2;
+    
+    return $dataset;
+    }
+    
+    
+     function stock_details_categorywise($data)
+    {
+        if($_POST['dt_range'] != ''){
+            $dateRange = explode('-',$_POST['dt_range']);
+            $from = str_replace('/','-',$dateRange[0]);
+            $to = str_replace('/','-',$dateRange[1]);  
+            $d1 = date_create($from);
+            $d2 = date_create($to);
+            $FromDt = date_format($d1,"Y-m-d");
+            $ToDt = date_format($d2,"Y-m-d");
+        }
+            $id_branch = $data['id_branch'];
+            $day_closing=$this->getBranchDayClosingData($id_branch);
+            $date=($day_closing['is_day_closed']==1 ? $day_closing['entry_date']:date("Y-m-d"));
+			//echo "<pre>"; print_r($day_closing);
+			//print_r($date);
+			//exit;
+                // Previous Date
+            if(($FromDt!=$date) && ($ToDt!=$date))
+        {
+            $op_date= date('Y-m-d',(strtotime('-1 day',strtotime($FromDt))));
+            $sql = $this->db->query("SELECT b.name as branch_name,p.product_name,c.id_ret_category,
+            IFNULL(blc.piece,0) as op_blc_pcs,IFNULL(blc.gross_wt,0) as op_blc_gwt,IFNULL(blc.net_wt,0) as op_blc_nwt,sum(s.inw_pcs) as inw_pcs,sum(s.inw_gwt) as inw_gwt,sum(s.inw_nwt) as inw_nwt,
+            sum(s.sold_pcs) as sold_pcs,sum(s.sold_gwt) as sold_gwt,sum(s.sold_nwt) as sold_nwt,
+            Date_Format(s.date,'%d-%m-%Y') as date_add,sum(s.br_out_pcs) as br_out_pcs,
+                            sum(s.br_out_gwt) as br_out_gwt, IFNULL((blc.piece),0) + IFNULL(sum(s.inw_pcs),0) - IFNULL(sum(s.sold_pcs),0) - IFNULL(sum(s.br_out_pcs),0) as closing_pcs, IFNULL(blc.gross_wt,0) + IFNULL(sum(s.inw_gwt),0) - IFNULL(sum(s.sold_gwt),0) - IFNULL(sum(s.br_out_gwt),0) as closing_gwt,'0' as in_trans_gwt,'0' as in_trans_pcs, IFNULL((blc.piece),0) + IFNULL(sum(s.inw_pcs),0) - IFNULL(sum(s.sold_pcs),0) - IFNULL(sum(s.br_out_pcs),0) as closing_stock,
+            c.name as category_name,m.metal as metal_name
+            From ret_stock_balance s
+            LEFT JOIN ret_product_master p on p.pro_id=s.id_product
+            left join ret_category c on c.id_ret_category=p.cat_id
+            left join metal m on m.id_metal=c.id_metal
+            lEFT JOIN branch b on b.id_branch=s.id_branch
+                           
+                            LEFT JOIN (SELECT s.id_product as product_id,c.id_ret_category,sum(s.closing_gwt) as gross_wt,sum(s.closing_nwt) as net_wt,sum(s.closing_pcs) as piece,s.date
+                            FROM ret_stock_balance s
+                            LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+            left join ret_category c on c.id_ret_category=p.cat_id
+            WHERE s.id_product is NOT null AND date(s.date)='$op_date' and s.type=1
+                            ".($id_branch!='' ? " and s.id_branch=".$id_branch."" :'')."
+            GROUP by c.id_ret_category) blc on blc.id_ret_category=c.id_ret_category
+            
+            where date(s.date) BETWEEN '$FromDt' AND '$ToDt' 
+                ".($data['id_branch']!='' ? " and s.id_branch=".$data['id_branch']."" :'')." and s.type=1
+                and p.pro_id is not null and c.id_ret_category is not null GROUP by c.id_ret_category");
+            
+            $return_data=$sql->result_array();
+			//print_r($this->db->last_query());exit;
+			foreach($return_data as $value)
+		{
+			$dataset[] = array(
+			'product_name' => $value['product_name'],
+			'branch_name' => $value['branch_name'],
+			'category_name' => $value['category_name'],
+			'op_blc_gwt' => $value['op_blc_gwt'],
+			'op_blc_nwt' => $value['op_blc_nwt'],
+			'op_blc_pcs' => $value['op_blc_pcs'],
+			'inw_gwt' => $value['inw_gwt'],
+			'inw_nwt' => $value['inw_nwt'],
+			'inw_pcs' => $value['inw_pcs'],
+			'sold_gwt' => $value['sold_gwt'],
+			'sold_nwt' => $value['sold_nwt'],
+			'sold_pcs' => $value['sold_pcs'],
+			'br_out_gwt' => $value['br_out_gwt'],
+			'br_out_pcs' => $value['br_out_pcs'],
+			'in_trans_gwt' => $value['in_trans_gwt'],
+			'in_trans_pcs' => $value['in_trans_pcs'],
+			'closing_pcs' => $value['closing_pcs'],
+			'closing_gwt' => $value['closing_gwt'],
+			'closing_stock' => $value['closing_stock'],
+			'date_add' => $value['date_add'],
+			'metal_name' => $value['metal_name'],
+			'sub_product_details'  => $this->get_sub_products_details_previous_date($value['id_ret_category'],$op_date,$FromDt,$ToDt,$data['id_branch'])
+			);
+			
+			
+		}
+		//echo 'pre';
+		//print_r($dataset);
+		//exit;
+    	return $dataset;
+            //echo"<pre>"; print_r($return_data);exit;
+                   // return $return_data;
+        }
+        else{
+            $id_branch = $data['id_branch'];
+            $op_date= date('Y-m-d',(strtotime('-1 day',strtotime($FromDt))));
+                 
+              $sql = $this->db->query("SELECT t.product_id,p.product_name,b.name as branch_name,c.name as category_name,c.id_ret_category,
+                    IFNULL(blc.gross_wt,0) as op_blc_gwt,IFNULL(blc.net_wt,0) as op_blc_nwt,IFNULL(blc.piece,0) as op_blc_pcs,
+                    IFNULL(INW.gross_wt,0) as inw_gwt,IFNULL(INW.net_wt,0) as inw_nwt,IFNULL(INW.piece,0) as inw_pcs,
+                    IFNULL(s.gross_wt,0) as sold_gwt,IFNULL(s.net_wt,0) as sold_nwt,IFNULL(s.piece,0) as sold_pcs,
+                    IFNULL(br_out.gross_wt,0) as br_out_gwt,IFNULL(br_out.net_wt,0) as br_out_nwt,IFNULL(br_out.piece,0) as br_out_pcs,
+                    IFNULL(in_trans.gross_wt,0) as in_trans_gwt,IFNULL(in_trans.net_wt,0) as in_trans_nwt,IFNULL(in_trans.piece,0) as in_trans_pcs,IFNULL(blc.piece,0) + IFNULL(INW.piece,0) - IFNULL(s.piece,0) - IFNULL(br_out.piece,0) as closing_pcs,
+                            IFNULL(blc.gross_wt,0) + IFNULL(INW.gross_wt,0) - IFNULL(s.gross_wt,0) - IFNULL(br_out.gross_wt,0) as closing_gwt,
+                            IFNULL(blc.piece,0) + IFNULL(INW.piece,0) - IFNULL(s.piece,0) - IFNULL(br_out.piece,0) - IFNULL(in_trans.piece,0) as closing_stock,
+            
+                   
+                    Date_Format(current_date(),'%d-%m-%Y') as date_add,m.metal as metal_name
+                    FROM ret_taging t
+                    LEFT JOIN ret_product_master p on p.pro_id=t.product_id
+                    LEFT JOIN branch b on b.id_branch=t.current_branch
+                    left join ret_category c on c.id_ret_category=p.cat_id
+                    left join metal m on m.id_metal=c.id_metal
+                   
+                    LEFT JOIN (SELECT s.id_product as product_id,c.id_ret_category,sum(s.closing_gwt) as gross_wt,sum(s.closing_nwt) as net_wt,sum(s.closing_pcs) as piece,s.date
+                            FROM ret_stock_balance s
+                            LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+            left join ret_category c on c.id_ret_category=p.cat_id
+                            WHERE s.id_product is NOT null AND date(s.date)='$op_date'
+                            ".($id_branch!='' ? " and s.id_branch=".$id_branch."" :'')." and s.type=1
+                            GROUP by c.id_ret_category) blc on blc.id_ret_category=c.id_ret_category
+                   
+                    LEFT JOIN (SELECT tag.tag_id,c.id_ret_category,tag.product_id,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece
+                            FROM ret_taging tag
+                            LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id and
+							l.status=0
+							".($id_branch!='' ? " and l.to_branch=".$id_branch."" :'')."
+							LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+                            left join ret_category c on c.id_ret_category=prod.cat_id          
+                            WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt') And l.status=0
+                             and l.to_branch=2
+                             GROUP by c.id_ret_category) INW on INW.id_ret_category=c.id_ret_category
+                   
+                    LEFT JOIN (SELECT b.tag_id,c.id_ret_category,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece,b.product_id
+                    FROM ret_taging tag
+                    LEFT JOIN ret_bill_details b on b.tag_id=tag.tag_id
+                    lEFT JOIN ret_billing bill on bill.bill_id=b.bill_id
+                    LEFT JOIN ret_product_master prod on prod.pro_id=b.product_id
+            left join ret_category c on c.id_ret_category=prod.cat_id
+                    WHERE  bill.bill_status=1 and date(bill.bill_date) BETWEEN '$FromDt' AND '$ToDt'  AND b.product_id=prod.pro_id
+                    ".($id_branch!='' ? " and bill.id_branch=".$id_branch." and tag.current_branch=".$id_branch."" :'')."
+                    GROUP by c.id_ret_category) s ON s.id_ret_category=c.id_ret_category
+                   
+                    LEFT JOIN (SELECT tag.tag_id,tag.product_id,c.id_ret_category,sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece
+                            FROM ret_taging tag
+                            LEFT JOIN ret_taging_status_log l on l.tag_id=tag.tag_id and l.from_branch=".$id_branch." and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=11)
+                            LEFT JOIN ret_product_master prod on prod.pro_id=tag.product_id
+            left join ret_category c on c.id_ret_category=prod.cat_id
+                            WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt')  and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=11)
+                            ".($id_branch!='' ? " and l.from_branch=".$id_branch."" :'')."
+                             GROUP by c.id_ret_category) br_out on br_out.id_ret_category=c.id_ret_category
+                   
+                            LEFT JOIN (SELECT t.tag_id,t.product_id,c.id_ret_category,sum(t.piece) as piece,SUM(t.gross_wt) as gross_wt,sum(t.net_wt) as net_wt,p.product_name
+                            FROM ret_taging_status_log l
+                            LEFT JOIN ret_taging t ON t.tag_id=l.tag_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=t.product_id
+            left join ret_category c on c.id_ret_category=p.cat_id
+                            WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt') and t.tag_status=4
+                            ".($id_branch!='' ? " and l.to_branch=".$id_branch."" :'')."
+                            GROUP by c.id_ret_category) in_trans on in_trans.id_ret_category=c.id_ret_category
+                   
+                    where p.pro_id is not null and c.id_ret_category is not null GROUP by c.id_ret_category");
+                // print_r($this->db->last_query());exit;
+                    $data = $sql->result_array();
+		//print_r($data);
+		foreach($data as $value)
+		{
+			$dataset[] = array(
+			'product_id' => $value['product_id'],
+			'product_name' => $value['product_name'],
+			'branch_name' => $value['branch_name'],
+			'category_name' => $value['category_name'],
+			'op_blc_gwt' => $value['op_blc_gwt'],
+			'op_blc_nwt' => $value['op_blc_nwt'],
+			'op_blc_pcs' => $value['op_blc_pcs'],
+			'inw_gwt' => $value['inw_gwt'],
+			'inw_nwt' => $value['inw_nwt'],
+			'inw_pcs' => $value['inw_pcs'],
+			'sold_gwt' => $value['sold_gwt'],
+			'sold_nwt' => $value['sold_nwt'],
+			'sold_pcs' => $value['sold_pcs'],
+			'br_out_gwt' => $value['br_out_gwt'],
+			'br_out_nwt' => $value['br_out_nwt'],
+			'br_out_pcs' => $value['br_out_pcs'],
+			'in_trans_gwt' => $value['in_trans_gwt'],
+			'in_trans_nwt' => $value['in_trans_nwt'],
+			'in_trans_pcs' => $value['in_trans_pcs'],
+			'closing_pcs' => $value['closing_pcs'],
+			'closing_gwt' => $value['closing_gwt'],
+			'closing_stock' => $value['closing_stock'],
+			'date_add' => $value['date_add'],
+			'metal_name' => $value['metal_name'],
+			'sub_product_details'  => $this->get_sub_products_details_multiple_date($value['id_ret_category'],$op_date,$FromDt,$ToDt,$id_branch)
+			);
+			
+			
+		}
+		//echo 'pre';
+		//print_r($dataset);
+		//exit;
+    	return $dataset;
+        }
+       
+    }
+    
+    function get_categorywise_bt_report($data)
+	{
+		$multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+		
+		if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+        }
+        
+        if($data['transtype'] == 1){ // Issue (Issue items to other branches from cost centre)
+            $branch1 = $data['from_branch']; // Cost centre
+		    $catquery = $this->db->query("SELECT cat.name as category_name,
+                            sum(tag.gross_wt) as grs_wt,sum(tag.piece) as piece,sum(tag.net_wt) as net_wt,
+                            b.branch_trans_code as trans_code,br.name as from_branch,brc.name as to_branch_name, 
+                            sum(ifnull(tag.sales_value,0)) as sales_value,
+                            round(sum(ifnull((SELECT round(sum((bs.wt/5)),3) as totwt FROM ret_taging_stone bs 
+                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                WHERE st.stone_type = 1 
+                                AND bs.tag_id = tag.tag_id HAVING totwt > 0), 0 )),3) as totaldiawt,
+                            b.branch_transfer_id, 
+                            ifnull(date_format(b.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                            ifnull(date_format(b.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                            FROM ret_taging tag
+                            LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+                            LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                            LEFT JOIN branch br ON br.id_branch = b.transfer_from_branch
+                            left JOIN branch brc ON brc.id_branch = b.transfer_to_branch
+                            WHERE b.branch_transfer_id IS NOT null and b.is_other_issue = 0 
+                            ".($FromDt!='' && $ToDt!='' ? " and (date(b.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                            ".($branch1!='' && $branch1 !='0' ? " and b.transfer_from_branch in (".$branch1.") " :'' )." 
+                            ".($branch!='' && $branch !='0' ? " and b.transfer_to_branch in (".$branch.") " :'' )." 
+                            ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                            GROUP by cat.id_ret_category,b.branch_trans_code");
+                           
+                            
+            $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        sum(ifnull(sales_value,0)) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        round('0',3) as totaldiawt, 
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type != 1 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_from_branch in (".$branch1.") " :'' )." 
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+               
+                $cat_purchase_non_tag_query = $this->db->query("SELECT oldt.metal_type as ItemName, 
+                                                sum(osl.gross_wt) as grs_wt, 
+                                                ifnull(sum(osl.net_wt),0) as net_wt, 
+                                                ifnull(sum(osl.piece), 0) as piece,  
+                                                ifnull(sum(osl.rate),0) as sales_value, 
+                                                '' as HSNCode, oldt.metal_type as category_name, 
+                                                round('0',3) as totaldiawt ,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name , 
+                                                bt.branch_transfer_id, 
+                                                ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                FROM `ret_brch_transfer_old_metal` trtag 
+                                                LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                LEFT JOIN ret_bill_old_metal_sale_details as osl ON osl.old_metal_sale_id = trtag.old_metal_sale_id 
+                                                LEFT JOIN ret_estimation_old_metal_sale_details as estold ON estold.old_metal_sale_id =  osl.esti_old_metal_sale_id 
+                                                LEFT JOIN ret_old_metal_type as oldt ON oldt.id_metal_type = estold.id_old_metal_type 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 3 AND trtag.item_type = 1 
+                                               ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                               ".($branch1!='' && $branch1 !='0' ? " and bt.approved_datetime in (".$branch1.") " :'' )." 
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                 ".($data['id_category']!='' && $data['id_category']>0 ? " and osl.metal_type = ".$data['id_category']." " :'' )." 
+                                                GROUP BY oldt.id_metal_type, bt.branch_trans_code");
+                                
+                $cat_non_tag_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                cat.hsn_code as HSNCode, cat.name as category_name,
+                                                if(cat.id_metal = 1, round(mr.goldrate_22ct * bt.net_wt), round(mr.silverrate_1gm * bt.net_wt)) as sales_value,
+                                                bt.grs_wt as grs_wt, bt.net_wt as net_wt, bt.pieces as piece,
+                                                bt.branch_trans_code as trans_code, br.name as from_branch,brc.name as to_branch_name, round('0',3) as totaldiawt,
+                                                bt.branch_transfer_id, 
+                                                ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                FROM `ret_branch_transfer` bt 
+                                                LEFT JOIN ret_nontag_item as nt ON nt.id_nontag_item = bt.id_nontag_item 
+                                                LEFT JOIN ret_product_master as pr ON pr.pro_id = nt.product 
+                                                LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                LEFT JOIN metal_rates as mr ON date(mr.updatetime) = date(bt.approved_datetime) 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 2 AND bt.id_nontag_item IS NOT NULL 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_from_branch in (".$branch1.") " :'' )." 
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                 ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+        
+            if($data['transitemtype'] == 0){ // All the transaction
+            $result = array_merge($catquery->result_array(), $cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array(), $cat_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 1){ // To fetch Tagged item transactions
+            $result = $catquery->result_array();
+        }else if($data['transitemtype'] == 2){ // To fetch non tag transaction
+            $result = $cat_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 3){ // To fetch all the purchase items
+            $result = array_merge($cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 4){ // To fetch purchase item of old metal
+             $result = $cat_purchase_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 5){ // To fetch purchase item of sales return
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt, 
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 2 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_from_branch in (".$branch1.") " :'' )." 
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                        
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            
+             $result = $cat_purchase_query->result_array();
+        }else if($data['transitemtype'] == 6){ // To fetch purchase item of partly sale
+            if($data['transtype'] == 0 || $data['transtype'] == ''){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt, 
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 3 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_from_branch in (".$branch1.") " :'' )." 
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                        
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }
+             $result = $cat_purchase_query->result_array();
+        }
+        }else if($data['transtype'] == 2){ // receipt (Receipt items from other branch to cost centre)
+            
+            $branch1 = $data['from_branch']; // Cost centre
+		    $catquery = $this->db->query("SELECT cat.name as category_name,
+                            sum(tag.gross_wt) as grs_wt,sum(tag.piece) as piece,sum(tag.net_wt) as net_wt,
+                            b.branch_trans_code as trans_code,br.name as from_branch,brc.name as to_branch_name, 
+                            sum(ifnull(tag.sales_value,0)) as sales_value,
+                            round(sum(ifnull((SELECT round(sum((bs.wt/5)),3) as totwt FROM ret_taging_stone bs 
+                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                WHERE st.stone_type = 1 
+                                AND bs.tag_id = tag.tag_id HAVING totwt > 0), 0 )),3) as totaldiawt,
+                            b.branch_transfer_id, 
+                            ifnull(date_format(b.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                            ifnull(date_format(b.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                            FROM ret_taging tag
+                            LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+                            LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                            LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+                            left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+                            WHERE b.branch_transfer_id IS NOT null and b.is_other_issue=0
+                            ".($FromDt!='' && $ToDt!='' ? " and (date(b.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                            ".($branch!='' && $branch !='0' ? " and b.transfer_from_branch in (".$branch.") " :'' )." 
+                            ".($branch1!='' && $branch1 !='0' ? " and b.transfer_to_branch in (".$branch1.") " :'' )." 
+                            ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                            GROUP by cat.id_ret_category,b.branch_trans_code");
+                           
+                            
+            $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        sum(ifnull(sales_value,0)) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        round('0',3) as totaldiawt, 
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type != 1 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+               
+                $cat_purchase_non_tag_query = $this->db->query("SELECT oldt.metal_type as ItemName, 
+                                                sum(osl.gross_wt) as grs_wt, 
+                                                ifnull(sum(osl.net_wt),0) as net_wt, 
+                                                ifnull(sum(osl.piece), 0) as piece,  
+                                                ifnull(sum(osl.rate),0) as sales_value, 
+                                                '' as HSNCode, oldt.metal_type as category_name, 
+                                                round('0',3) as totaldiawt ,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name , 
+                                                bt.branch_transfer_id, 
+                                                ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                FROM `ret_brch_transfer_old_metal` trtag 
+                                                LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                LEFT JOIN ret_bill_old_metal_sale_details as osl ON osl.old_metal_sale_id = trtag.old_metal_sale_id 
+                                                LEFT JOIN ret_estimation_old_metal_sale_details as estold ON estold.old_metal_sale_id =  osl.esti_old_metal_sale_id 
+                                                LEFT JOIN ret_old_metal_type as oldt ON oldt.id_metal_type = estold.id_old_metal_type 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 3 AND trtag.item_type = 1 
+                                               ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                               ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                 ".($data['id_category']!='' && $data['id_category']>0 ? " and osl.metal_type = ".$data['id_category']." " :'' )." 
+                                                GROUP BY oldt.id_metal_type, bt.branch_trans_code");
+                                
+                $cat_non_tag_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                cat.hsn_code as HSNCode, cat.name as category_name,
+                                                if(cat.id_metal = 1, round(mr.goldrate_22ct * bt.net_wt), round(mr.silverrate_1gm * bt.net_wt)) as sales_value,
+                                                bt.grs_wt as grs_wt, bt.net_wt as net_wt, bt.pieces as piece,
+                                                bt.branch_trans_code as trans_code, br.name as from_branch,brc.name as to_branch_name, round('0',3) as totaldiawt,
+                                                bt.branch_transfer_id, 
+                                                ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                FROM `ret_branch_transfer` bt 
+                                                LEFT JOIN ret_nontag_item as nt ON nt.id_nontag_item = bt.id_nontag_item 
+                                                LEFT JOIN ret_product_master as pr ON pr.pro_id = nt.product 
+                                                LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                LEFT JOIN metal_rates as mr ON date(mr.updatetime) = date(bt.approved_datetime) 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 2 AND bt.id_nontag_item IS NOT NULL 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                 ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+        
+            if($data['transitemtype'] == 0){ // All the transaction
+            $result = array_merge($catquery->result_array(), $cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array(), $cat_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 1){ // To fetch Tagged item transactions
+            $result = $catquery->result_array();
+        }else if($data['transitemtype'] == 2){ // To fetch non tag transaction
+            $result = $cat_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 3){ // To fetch all the purchase items
+            $result = array_merge($cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 4){ // To fetch purchase item of old metal
+             $result = $cat_purchase_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 5){ // To fetch purchase item of sales return
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt, 
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 2 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                        
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            
+             $result = $cat_purchase_query->result_array();
+        }else if($data['transitemtype'] == 6){ // To fetch purchase item of partly sale
+            if($data['transtype'] == 0 || $data['transtype'] == ''){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt, 
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 3 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                        
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }
+             $result = $cat_purchase_query->result_array();
+        }
+            
+            
+        }
+        return $result;
+	}
+    
+    function get_categorywise_bt_report_on_300721($data)
+	{
+		$multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+		
+		
+		if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+        }
+        if(empty($data['from_branch'])){
+             
+                $catquery = $this->db->query("SELECT cat.name as category_name,
+                            sum(tag.gross_wt) as grs_wt,sum(tag.piece) as piece,sum(ifnull(tag.net_wt,0)) as net_wt,
+                            b.branch_trans_code as trans_code,br.name as from_branch,brc.name as to_branch_name, 
+                            round(sum(ifnull(tag.sales_value,0)),2) as sales_value,
+                            round(sum(ifnull((SELECT sum((bs.wt/5)) as totwt FROM ret_taging_stone bs 
+                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                WHERE st.stone_type = 1 
+                                AND bs.tag_id = tag.tag_id HAVING totwt > 0), 0 )),2) as totaldiawt,
+                            b.branch_transfer_id, 
+                            ifnull(date_format(b.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                            ifnull(date_format(b.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                            FROM ret_taging tag
+                            LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+                            LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                            LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+                            left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+                            WHERE b.branch_transfer_id IS NOT null and b.is_other_issue=0
+                            ".($FromDt!='' && $ToDt!='' ? " and (date(b.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                            ".($branch!='' && $branch !='0' ? " and (b.transfer_from_branch in (".$branch.") " :'' )." 
+                            ".($branch!='' && $branch !='0' ? " OR b.transfer_to_branch in (".$branch.")) " :'' )." 
+                            ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                            GROUP by cat.id_ret_category,b.branch_trans_code");  
+                            
+                            
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        sum(ifnull(sales_value,0)) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        CAST(0 AS DECIMAL(6,2)) as totaldiawt,
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type != 1 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+                $cat_purchase_non_tag_query = $this->db->query("SELECT oldt.metal_type as ItemName, 
+                                                sum(osl.gross_wt) as grs_wt, 
+                                                ifnull(sum(osl.net_wt),0) as net_wt, 
+                                                ifnull(sum(osl.piece), 0) as piece,  
+                                                sum(ifnull(osl.rate,0)) as sales_value, 
+                                                '' as HSNCode, oldt.metal_type as category_name, 
+                                                round('0',3) as totaldiawt ,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name, 
+                                                bt.branch_transfer_id, 
+                                                ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                FROM `ret_brch_transfer_old_metal` trtag 
+                                                LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                LEFT JOIN ret_bill_old_metal_sale_details as osl ON osl.old_metal_sale_id = trtag.old_metal_sale_id 
+                                                LEFT JOIN ret_estimation_old_metal_sale_details as estold ON estold.old_metal_sale_id =  osl.esti_old_metal_sale_id 
+                                                LEFT JOIN ret_old_metal_type as oldt ON oldt.id_metal_type = estold.id_old_metal_type 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 3 AND trtag.item_type = 1 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                GROUP BY oldt.id_metal_type, bt.branch_trans_code");
+                $cat_non_tag_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                cat.hsn_code as HSNCode, cat.name as category_name,
+                                                if(cat.id_metal = 1, round(mr.goldrate_22ct * bt.net_wt), round(mr.silverrate_1gm * bt.net_wt)) as sales_value,
+                                                bt.grs_wt as grs_wt, bt.net_wt as net_wt, bt.pieces as piece,
+                                                bt.branch_trans_code as trans_code, br.name as from_branch,brc.name as to_branch_name, round('0',3) as totaldiawt, 
+                                                bt.branch_transfer_id, 
+                                                ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                FROM `ret_branch_transfer` bt 
+                                                LEFT JOIN ret_nontag_item as nt ON nt.id_nontag_item = bt.id_nontag_item 
+                                                LEFT JOIN ret_product_master as pr ON pr.pro_id = nt.product 
+                                                LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                LEFT JOIN metal_rates as mr ON date(mr.updatetime) = date(bt.approved_datetime) 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 2 AND bt.id_nontag_item IS NOT NULL 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+        }else{
+            $branch1 = $data['from_branch'];
+		    $catquery = $this->db->query("SELECT cat.name as category_name,
+                            sum(tag.gross_wt) as grs_wt,sum(tag.piece) as piece,sum(tag.net_wt) as net_wt,
+                            b.branch_trans_code as trans_code,br.name as from_branch,brc.name as to_branch_name, 
+                            sum(ifnull(tag.sales_value,0)) as sales_value,
+                            round(sum(ifnull((SELECT round(sum((bs.wt/5)),3) as totwt FROM ret_taging_stone bs 
+                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                WHERE st.stone_type = 1 
+                                AND bs.tag_id = tag.tag_id HAVING totwt > 0), 0 )),3) as totaldiawt,
+                            b.branch_transfer_id, 
+                            ifnull(date_format(b.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                            ifnull(date_format(b.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                            FROM ret_taging tag
+                            LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+                            LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                            LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+                            left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+                            WHERE b.branch_transfer_id IS NOT null and b.is_other_issue=0
+                            ".($FromDt!='' && $ToDt!='' ? " and (date(b.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                            ".($branch!='' && $branch !='0' ? " and b.transfer_from_branch in (".$branch.") " :'' )." 
+                            ".($branch1!='' && $branch1 !='0' ? " and b.transfer_to_branch in (".$branch1.") " :'' )." 
+                            ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                            GROUP by cat.id_ret_category,b.branch_trans_code");
+                           
+                            
+            $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        sum(ifnull(sales_value,0)) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        round('0',3) as totaldiawt, 
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type != 1 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+               
+                $cat_purchase_non_tag_query = $this->db->query("SELECT oldt.metal_type as ItemName, 
+                                                sum(osl.gross_wt) as grs_wt, 
+                                                ifnull(sum(osl.net_wt),0) as net_wt, 
+                                                ifnull(sum(osl.piece), 0) as piece,  
+                                                ifnull(sum(osl.rate),0) as sales_value, 
+                                                '' as HSNCode, oldt.metal_type as category_name, 
+                                                round('0',3) as totaldiawt ,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name , 
+                                                bt.branch_transfer_id, 
+                                                ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                FROM `ret_brch_transfer_old_metal` trtag 
+                                                LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                LEFT JOIN ret_bill_old_metal_sale_details as osl ON osl.old_metal_sale_id = trtag.old_metal_sale_id 
+                                                LEFT JOIN ret_estimation_old_metal_sale_details as estold ON estold.old_metal_sale_id =  osl.esti_old_metal_sale_id 
+                                                LEFT JOIN ret_old_metal_type as oldt ON oldt.id_metal_type = estold.id_old_metal_type 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 3 AND trtag.item_type = 1 
+                                               ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                               ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                 ".($data['id_category']!='' && $data['id_category']>0 ? " and osl.metal_type = ".$data['id_category']." " :'' )." 
+                                                GROUP BY oldt.id_metal_type, bt.branch_trans_code");
+                                
+                $cat_non_tag_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                cat.hsn_code as HSNCode, cat.name as category_name,
+                                                if(cat.id_metal = 1, round(mr.goldrate_22ct * bt.net_wt), round(mr.silverrate_1gm * bt.net_wt)) as sales_value,
+                                                bt.grs_wt as grs_wt, bt.net_wt as net_wt, bt.pieces as piece,
+                                                bt.branch_trans_code as trans_code, br.name as from_branch,brc.name as to_branch_name, round('0',3) as totaldiawt,
+                                                bt.branch_transfer_id, 
+                                                ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                FROM `ret_branch_transfer` bt 
+                                                LEFT JOIN ret_nontag_item as nt ON nt.id_nontag_item = bt.id_nontag_item 
+                                                LEFT JOIN ret_product_master as pr ON pr.pro_id = nt.product 
+                                                LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                LEFT JOIN metal_rates as mr ON date(mr.updatetime) = date(bt.approved_datetime) 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 2 AND bt.id_nontag_item IS NOT NULL 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                 ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+        }
+        
+        if($data['transitemtype'] == 0){ // All the transaction
+            $result = array_merge($catquery->result_array(), $cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array(), $cat_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 1){ // To fetch Tagged item transactions
+            $result = $catquery->result_array();
+        }else if($data['transitemtype'] == 2){ // To fetch non tag transaction
+            $result = $cat_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 3){ // To fetch all the purchase items
+            $result = array_merge($cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 4){ // To fetch purchase item of old metal
+             $result = $cat_purchase_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 5){ // To fetch purchase item of sales return
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt, 
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 2 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                        
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            
+             $result = $cat_purchase_query->result_array();
+        }else if($data['transitemtype'] == 6){ // To fetch purchase item of partly sale
+            if($data['transtype'] == 0 || $data['transtype'] == ''){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt, 
+                                                        bt.branch_transfer_id, 
+                                                        ifnull(date_format(bt.approved_datetime, '%d-%m-%Y'), '') as approvedon,
+                                                        ifnull(date_format(bt.dwnload_datetime, '%d-%m-%Y'), '') as downloadedon 
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 3 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                        
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }
+             $result = $cat_purchase_query->result_array();
+        }
+        return $result;
+	}
+    
+    function get_categorywise_bt_report_23072022($data)
+	{
+		$multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+		
+		
+		 if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+           }
+        
+       if(empty($data['from_branch']) || ($data['transtype'] == 0 || $data['transtype'] == '')){
+        
+		if($data['transtype'] == 0 || $data['transtype'] == ''){ 
+                $catquery = $this->db->query("SELECT cat.name as category_name,
+                            sum(tag.gross_wt) as grs_wt,sum(tag.piece) as piece,sum(ifnull(tag.net_wt,0)) as net_wt,
+                            b.branch_trans_code as trans_code,br.name as from_branch,brc.name as to_branch_name, 
+                            round(sum(ifnull(tag.sales_value,0)),2) as sales_value,
+                            round(sum(ifnull((SELECT sum((bs.wt/5)) as totwt FROM ret_taging_stone bs 
+                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                WHERE st.stone_type = 1 
+                                AND bs.tag_id = tag.tag_id HAVING totwt > 0), 0 )),2) as totaldiawt
+                            FROM ret_taging tag
+                            LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+                            LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                            LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+                            left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+                            WHERE b.branch_transfer_id IS NOT null and b.is_other_issue=0
+                            ".($FromDt!='' && $ToDt!='' ? " and (date(b.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                            ".($branch!='' && $branch !='0' ? " and (b.transfer_from_branch in (".$branch.") " :'' )." 
+                            ".($branch!='' && $branch !='0' ? " OR b.transfer_to_branch in (".$branch.")) " :'' )." 
+                            ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                            GROUP by cat.id_ret_category,b.branch_trans_code");  
+                            
+                            
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        sum(ifnull(sales_value,0)) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        CAST(0 AS DECIMAL(6,2)) as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type != 1 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+                $cat_purchase_non_tag_query = $this->db->query("SELECT oldt.metal_type as ItemName, 
+                                                sum(osl.gross_wt) as grs_wt, 
+                                                ifnull(sum(osl.net_wt),0) as net_wt, 
+                                                ifnull(sum(osl.piece), 0) as piece,  
+                                                sum(ifnull(osl.rate,0)) as sales_value, 
+                                                '' as HSNCode, oldt.metal_type as category_name, 
+                                                round('0',3) as totaldiawt ,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name  
+                                                FROM `ret_brch_transfer_old_metal` trtag 
+                                                LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                LEFT JOIN ret_bill_old_metal_sale_details as osl ON osl.old_metal_sale_id = trtag.old_metal_sale_id 
+                                                LEFT JOIN ret_estimation_old_metal_sale_details as estold ON estold.old_metal_sale_id =  osl.esti_old_metal_sale_id 
+                                                LEFT JOIN ret_old_metal_type as oldt ON oldt.id_metal_type = estold.id_old_metal_type 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 3 AND trtag.item_type = 1 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                GROUP BY osl.metal_type, bt.branch_trans_code");
+                $cat_non_tag_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                cat.hsn_code as HSNCode, cat.name as category_name,
+                                                if(cat.id_metal = 1, round(mr.goldrate_22ct * bt.net_wt), round(mr.silverrate_1gm * bt.net_wt)) as sales_value,
+                                                bt.grs_wt as grs_wt, bt.net_wt as net_wt, bt.pieces as piece,
+                                                bt.branch_trans_code as trans_code, br.name as from_branch,brc.name as to_branch_name, round('0',3) as totaldiawt   
+                                                FROM `ret_branch_transfer` bt 
+                                                LEFT JOIN ret_nontag_item as nt ON nt.id_nontag_item = bt.id_nontag_item 
+                                                LEFT JOIN ret_product_master as pr ON pr.pro_id = nt.product 
+                                                LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                LEFT JOIN metal_rates as mr ON date(mr.updatetime) = date(bt.approved_datetime) 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 2 AND bt.id_nontag_item IS NOT NULL 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+		}else if($data['transtype'] == 1){//Inward
+		    $catquery = $this->db->query("SELECT cat.name as category_name,
+                            sum(tag.gross_wt) as grs_wt,sum(tag.piece) as piece,sum(tag.net_wt) as net_wt,
+                            b.branch_trans_code as trans_code,br.name as from_branch,brc.name as to_branch_name, 
+                            sum(ifnull(tag.sales_value,0)) as sales_value,
+                            round(sum(ifnull((SELECT round(sum((bs.wt/5)),3) as totwt FROM ret_taging_stone bs 
+                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                WHERE st.stone_type = 1 
+                                AND bs.tag_id = tag.tag_id HAVING totwt > 0), 0 )),3) as totaldiawt
+                            FROM ret_taging tag
+                            LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+                            LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                            LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+                            left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+                            WHERE b.branch_transfer_id IS NOT null and b.is_other_issue=0
+                            ".($FromDt!='' && $ToDt!='' ? " and (date(b.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                            ".($branch!='' && $branch !='0' ? " and b.transfer_to_branch in (".$branch.") " :'' )." 
+                            ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                            GROUP by cat.id_ret_category,b.branch_trans_code");
+                            
+                            
+            $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        sum(ifnull(sales_value,0)) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        round('0',3) as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type != 1 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+                
+                $cat_purchase_non_tag_query = $this->db->query("SELECT oldt.metal_type as ItemName, 
+                                                sum(osl.gross_wt) as grs_wt, 
+                                                ifnull(sum(osl.net_wt),0) as net_wt, 
+                                                ifnull(sum(osl.piece), 0) as piece,  
+                                                ifnull(sum(osl.rate),0) as sales_value, 
+                                                '' as HSNCode, oldt.metal_type as category_name, 
+                                                round('0',3) as totaldiawt ,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name  
+                                                FROM `ret_brch_transfer_old_metal` trtag 
+                                                LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                LEFT JOIN ret_bill_old_metal_sale_details as osl ON osl.old_metal_sale_id = trtag.old_metal_sale_id 
+                                                LEFT JOIN ret_estimation_old_metal_sale_details as estold ON estold.old_metal_sale_id =  osl.esti_old_metal_sale_id 
+                                                LEFT JOIN ret_old_metal_type as oldt ON oldt.id_metal_type = estold.id_old_metal_type 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 3 AND trtag.item_type = 1 
+                                               ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                GROUP BY osl.metal_type, bt.branch_trans_code");
+                                
+                $cat_non_tag_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                cat.hsn_code as HSNCode, cat.name as category_name,
+                                                if(cat.id_metal = 1, round(mr.goldrate_22ct * bt.net_wt), round(mr.silverrate_1gm * bt.net_wt)) as sales_value,
+                                                bt.grs_wt as grs_wt, bt.net_wt as net_wt, bt.pieces as piece,
+                                                bt.branch_trans_code as trans_code, br.name as from_branch,brc.name as to_branch_name, round('0',3) as totaldiawt    
+                                                FROM `ret_branch_transfer` bt 
+                                                LEFT JOIN ret_nontag_item as nt ON nt.id_nontag_item = bt.id_nontag_item 
+                                                LEFT JOIN ret_product_master as pr ON pr.pro_id = nt.product 
+                                                LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                LEFT JOIN metal_rates as mr ON date(mr.updatetime) = date(bt.approved_datetime) 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 2 AND bt.id_nontag_item IS NOT NULL 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+                                                
+		}else if($data['transtype'] == 2){ //Outward
+		    $catquery = $this->db->query("SELECT cat.name as category_name,
+                            sum(tag.gross_wt) as grs_wt,sum(tag.piece) as piece,sum(tag.net_wt) as net_wt,
+                            b.branch_trans_code as trans_code,br.name as from_branch,brc.name as to_branch_name, 
+                            sum(ifnull(tag.sales_value,0)) as sales_value,
+                            round(sum(ifnull((SELECT round(sum((bs.wt/5)),3) as totwt FROM ret_taging_stone bs 
+                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                WHERE st.stone_type = 1 
+                                AND bs.tag_id = tag.tag_id HAVING totwt > 0), 0 )),3) as totaldiawt
+                            FROM ret_taging tag
+                            LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+                            LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                            LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+                            left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+                            WHERE b.branch_transfer_id IS NOT null and b.is_other_issue=0
+                            ".($FromDt!='' && $ToDt!='' ? " and (date(b.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                            ".($branch!='' && $branch !='0' ? " and b.transfer_from_branch in (".$branch.") " :'' )." 
+                            ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                            GROUP by cat.id_ret_category,b.branch_trans_code");
+                            
+                            
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        round('0',3) as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type != 1 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+                $cat_purchase_non_tag_query = $this->db->query("SELECT oldt.metal_type as ItemName, 
+                                                sum(osl.gross_wt) as grs_wt, 
+                                                ifnull(sum(osl.net_wt),0) as net_wt, 
+                                                ifnull(sum(osl.piece), 0) as piece,  
+                                                ifnull(sum(osl.rate),0) as sales_value, 
+                                                '' as HSNCode, oldt.metal_type as category_name, 
+                                                round('0',3) as totaldiawt ,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name  
+                                                FROM `ret_brch_transfer_old_metal` trtag 
+                                                LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                LEFT JOIN ret_bill_old_metal_sale_details as osl ON osl.old_metal_sale_id = trtag.old_metal_sale_id 
+                                                LEFT JOIN ret_estimation_old_metal_sale_details as estold ON estold.old_metal_sale_id =  osl.esti_old_metal_sale_id 
+                                                LEFT JOIN ret_old_metal_type as oldt ON oldt.id_metal_type = estold.id_old_metal_type 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 3 AND trtag.item_type = 1 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                GROUP BY osl.metal_type, bt.branch_trans_code");
+                $cat_non_tag_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                cat.hsn_code as HSNCode, cat.name as category_name,
+                                                if(cat.id_metal = 1, round(mr.goldrate_22ct * bt.net_wt), round(mr.silverrate_1gm * bt.net_wt)) as sales_value,
+                                                bt.grs_wt as grs_wt, bt.net_wt as net_wt, bt.pieces as piece,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name, round('0',3) as totaldiawt   
+                                                FROM `ret_branch_transfer` bt 
+                                                LEFT JOIN ret_nontag_item as nt ON nt.id_nontag_item = bt.id_nontag_item 
+                                                LEFT JOIN ret_product_master as pr ON pr.pro_id = nt.product 
+                                                LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                LEFT JOIN metal_rates as mr ON date(mr.updatetime) = date(bt.approved_datetime) 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 2 AND bt.id_nontag_item IS NOT NULL 
+                                               ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+		}
+        //echo $this->db->last_query();exit;
+        
+        //".($data['id_category']!='' && $data['id_category']>0 ? " and r.issue_cat_id = ".$data['id_category']." " :'' )." 
+        
+        if($data['transitemtype'] == 0){ // All the transaction
+            $result = array_merge($catquery->result_array(), $cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array(), $cat_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 1){ // To fetch Tagged item transactions
+            $result = $catquery->result_array();
+        }else if($data['transitemtype'] == 2){ // To fetch non tag transaction
+            $result = $cat_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 3){ // To fetch all the purchase items
+            $result = array_merge($cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 4){ // To fetch purchase item of old metal
+             $result = $cat_purchase_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 5){ // To fetch purchase item of sales return
+            if($data['transtype'] == 0 || $data['transtype'] == ''){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 2 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }else if($data['transtype'] == 1){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 2 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }else if($data['transtype'] == 2){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 2 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }
+             $result = $cat_purchase_query->result_array();
+        }else if($data['transitemtype'] == 6){ // To fetch purchase item of partly sale
+            if($data['transtype'] == 0 || $data['transtype'] == ''){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 3 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }else if($data['transtype'] == 1){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 3 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }else if($data['transtype'] == 2){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 3 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }
+             $result = $cat_purchase_query->result_array();
+        }
+	}else{
+        $branch1 = $data['from_branch'];
+		if($data['transtype'] == 1){//Inward
+		    $catquery = $this->db->query("SELECT cat.name as category_name,
+                            sum(tag.gross_wt) as grs_wt,sum(tag.piece) as piece,sum(tag.net_wt) as net_wt,
+                            b.branch_trans_code as trans_code,br.name as from_branch,brc.name as to_branch_name, 
+                            sum(ifnull(tag.sales_value,0)) as sales_value,
+                            round(sum(ifnull((SELECT round(sum((bs.wt/5)),3) as totwt FROM ret_taging_stone bs 
+                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                WHERE st.stone_type = 1 
+                                AND bs.tag_id = tag.tag_id HAVING totwt > 0), 0 )),3) as totaldiawt
+                            FROM ret_taging tag
+                            LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+                            LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                            LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+                            left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+                            WHERE b.branch_transfer_id IS NOT null and b.is_other_issue=0
+                            ".($FromDt!='' && $ToDt!='' ? " and (date(b.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                            ".($branch!='' && $branch !='0' ? " and b.transfer_from_branch in (".$branch.") " :'' )." 
+                            ".($branch1!='' && $branch1 !='0' ? " and b.transfer_to_branch in (".$branch1.") " :'' )." 
+                            ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                            GROUP by cat.id_ret_category,b.branch_trans_code");
+                           
+                            
+            $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        sum(ifnull(sales_value,0)) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        round('0',3) as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type != 1 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+                
+                $cat_purchase_non_tag_query = $this->db->query("SELECT oldt.metal_type as ItemName, 
+                                                sum(osl.gross_wt) as grs_wt, 
+                                                ifnull(sum(osl.net_wt),0) as net_wt, 
+                                                ifnull(sum(osl.piece), 0) as piece,  
+                                                ifnull(sum(osl.rate),0) as sales_value, 
+                                                '' as HSNCode, oldt.metal_type as category_name, 
+                                                round('0',3) as totaldiawt ,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name  
+                                                FROM `ret_brch_transfer_old_metal` trtag 
+                                                LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                LEFT JOIN ret_bill_old_metal_sale_details as osl ON osl.old_metal_sale_id = trtag.old_metal_sale_id 
+                                                LEFT JOIN ret_estimation_old_metal_sale_details as estold ON estold.old_metal_sale_id =  osl.esti_old_metal_sale_id 
+                                                LEFT JOIN ret_old_metal_type as oldt ON oldt.id_metal_type = estold.id_old_metal_type 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 3 AND trtag.item_type = 1 
+                                               ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                               ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                GROUP BY osl.metal_type, bt.branch_trans_code");
+                                
+                $cat_non_tag_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                cat.hsn_code as HSNCode, cat.name as category_name,
+                                                if(cat.id_metal = 1, round(mr.goldrate_22ct * bt.net_wt), round(mr.silverrate_1gm * bt.net_wt)) as sales_value,
+                                                bt.grs_wt as grs_wt, bt.net_wt as net_wt, bt.pieces as piece,
+                                                bt.branch_trans_code as trans_code, br.name as from_branch,brc.name as to_branch_name, round('0',3) as totaldiawt    
+                                                FROM `ret_branch_transfer` bt 
+                                                LEFT JOIN ret_nontag_item as nt ON nt.id_nontag_item = bt.id_nontag_item 
+                                                LEFT JOIN ret_product_master as pr ON pr.pro_id = nt.product 
+                                                LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                LEFT JOIN metal_rates as mr ON date(mr.updatetime) = date(bt.approved_datetime) 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 2 AND bt.id_nontag_item IS NOT NULL 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.dwnload_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_to_branch in (".$branch1.") " :'' )." 
+                                                GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+                                                
+		}else if($data['transtype'] == 2){ //Outward
+		    $catquery = $this->db->query("SELECT cat.name as category_name,
+                            sum(tag.gross_wt) as grs_wt,sum(tag.piece) as piece,sum(tag.net_wt) as net_wt,
+                            b.branch_trans_code as trans_code,br.name as from_branch,brc.name as to_branch_name, 
+                            sum(ifnull(tag.sales_value,0)) as sales_value,
+                            round(sum(ifnull((SELECT round(sum((bs.wt/5)),3) as totwt FROM ret_taging_stone bs 
+                                LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                WHERE st.stone_type = 1 
+                                AND bs.tag_id = tag.tag_id HAVING totwt > 0), 0 )),3) as totaldiawt
+                            FROM ret_taging tag
+                            LEFT JOIN ret_brch_transfer_tag_items t ON t.tag_id=tag.tag_id
+                            LEFT JOIN ret_branch_transfer b ON b.branch_transfer_id=t.transfer_id
+                            LEFT JOIN ret_product_master p ON p.pro_id=tag.product_id
+                            LEFT JOIN ret_category cat on cat.id_ret_category=p.cat_id
+                            LEFT JOIN branch br ON br.id_branch=b.transfer_from_branch
+                            left JOIN branch brc ON brc.id_branch=b.transfer_to_branch
+                            WHERE b.branch_transfer_id IS NOT null and b.is_other_issue=0
+                            ".($FromDt!='' && $ToDt!='' ? " and (date(b.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                            ".($branch!='' && $branch !='0' ? " and b.transfer_to_branch in (".$branch.") " :'' )." 
+                            ".($branch1!='' && $branch1 !='0' ? " and b.transfer_from_branch in (".$branch1.") " :'' )." 
+                            ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                            GROUP by cat.id_ret_category,b.branch_trans_code");
+                            
+                            
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        round('0',3) as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type != 1 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                        ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_from_branch in (".$branch1.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+                $cat_purchase_non_tag_query = $this->db->query("SELECT oldt.metal_type as ItemName, 
+                                                sum(osl.gross_wt) as grs_wt, 
+                                                ifnull(sum(osl.net_wt),0) as net_wt, 
+                                                ifnull(sum(osl.piece), 0) as piece,  
+                                                ifnull(sum(osl.rate),0) as sales_value, 
+                                                '' as HSNCode, oldt.metal_type as category_name, 
+                                                round('0',3) as totaldiawt ,
+                                                bt.branch_trans_code as trans_code,
+                                                brc.name as from_branch,br.name as to_branch_name  
+                                                FROM `ret_brch_transfer_old_metal` trtag 
+                                                LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                LEFT JOIN ret_bill_old_metal_sale_details as osl ON osl.old_metal_sale_id = trtag.old_metal_sale_id 
+                                                LEFT JOIN ret_estimation_old_metal_sale_details as estold ON estold.old_metal_sale_id =  osl.esti_old_metal_sale_id 
+                                                LEFT JOIN ret_old_metal_type as oldt ON oldt.id_metal_type = estold.id_old_metal_type 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 3 AND trtag.item_type = 1 
+                                                ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_from_branch in (".$branch1.") " :'' )." 
+                                                GROUP BY osl.metal_type, bt.branch_trans_code");
+                $cat_non_tag_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                cat.hsn_code as HSNCode, cat.name as category_name,
+                                                if(cat.id_metal = 1, round(mr.goldrate_22ct * bt.net_wt), round(mr.silverrate_1gm * bt.net_wt)) as sales_value,
+                                                bt.grs_wt as grs_wt, bt.net_wt as net_wt, bt.pieces as piece,
+                                                bt.branch_trans_code as trans_code,
+                                                br.name as from_branch,brc.name as to_branch_name, round('0',3) as totaldiawt   
+                                                FROM `ret_branch_transfer` bt 
+                                                LEFT JOIN ret_nontag_item as nt ON nt.id_nontag_item = bt.id_nontag_item 
+                                                LEFT JOIN ret_product_master as pr ON pr.pro_id = nt.product 
+                                                LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                LEFT JOIN metal_rates as mr ON date(mr.updatetime) = date(bt.approved_datetime) 
+                                                LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                WHERE bt.transfer_item_type = 2 AND bt.id_nontag_item IS NOT NULL 
+                                               ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                ".($branch!='' && $branch !='0' ? " and bt.transfer_to_branch in (".$branch.") " :'' )." 
+                                                ".($branch1!='' && $branch1 !='0' ? " and bt.transfer_from_branch in (".$branch1.") " :'' )." 
+                                                GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+		}
+        //echo $this->db->last_query();exit;
+        
+        //".($data['id_category']!='' && $data['id_category']>0 ? " and r.issue_cat_id = ".$data['id_category']." " :'' )." 
+        
+        if($data['transitemtype'] == 0){ // All the transaction
+            $result = array_merge($catquery->result_array(), $cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array(), $cat_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 1){ // To fetch Tagged item transactions
+            $result = $catquery->result_array();
+        }else if($data['transitemtype'] == 2){ // To fetch non tag transaction
+            $result = $cat_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 3){ // To fetch all the purchase items
+            $result = array_merge($cat_purchase_query->result_array(), $cat_purchase_non_tag_query->result_array());
+        }else if($data['transitemtype'] == 4){ // To fetch purchase item of old metal
+             $result = $cat_purchase_non_tag_query->result_array();
+        }else if($data['transitemtype'] == 5){ // To fetch purchase item of sales return
+            if($data['transtype'] == 0 || $data['transtype'] == ''){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 2 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }else if($data['transtype'] == 1){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 2 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }else if($data['transtype'] == 2){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 2 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }
+             $result = $cat_purchase_query->result_array();
+        }else if($data['transitemtype'] == 6){ // To fetch purchase item of partly sale
+            if($data['transtype'] == 0 || $data['transtype'] == ''){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 3 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.created_time) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and (bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($branch!='' && $branch !='0' ? " OR bt.transfer_to_branch in (".$branch.")) " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }else if($data['transtype'] == 1){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 3 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }else if($data['transtype'] == 2){
+                $cat_purchase_query = $this->db->query("SELECT pr.product_name as ItemName, 
+                                                        sum(tag.gross_wt) as grs_wt, 
+                                                        ifnull(sum(tag.net_wt),0) as net_wt, 
+                                                        ifnull(sum(tag.piece), 0) as piece, 
+                                                        bt.branch_trans_code as trans_code,
+                                                        br.name as from_branch,brc.name as to_branch_name, 
+                                                        ifnull(sum(sales_value),0) as sales_value, 
+                                                        cat.hsn_code as HSNCode, cat.name as category_name, 
+                                                        '0' as totaldiawt  
+                                                        FROM `ret_brch_transfer_old_metal` trtag 
+                                                        LEFT JOIN ret_branch_transfer as bt ON bt.branch_transfer_id = trtag.transfer_id 
+                                                        LEFT JOIN ret_taging as tag ON tag.tag_id = trtag.tag_id 
+                                                        LEFT JOIN ret_product_master as pr ON pr.pro_id = tag.product_id 
+                                                        LEFT JOIN ret_category as cat ON cat.id_ret_category = pr.cat_id 
+                                                        LEFT JOIN branch br ON br.id_branch=bt.transfer_from_branch
+                                                        left JOIN branch brc ON brc.id_branch=bt.transfer_to_branch
+                                                        WHERE bt.transfer_item_type = 3 AND trtag.item_type = 3 
+                                                        ".($FromDt!='' && $ToDt!='' ? " and (date(bt.approved_datetime) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."
+                                                        ".($branch!='' && $branch !='0' ? " and bt.transfer_from_branch in (".$branch.") " :'' )." 
+                                                        ".($data['id_category']!='' && $data['id_category']>0 ? " and cat.id_ret_category = ".$data['id_category']." " :'' )." 
+                                                        GROUP BY cat.id_ret_category, bt.branch_trans_code ");
+            }
+             $result = $cat_purchase_query->result_array();
+        }
+	
+	}
+        return $result;
+	}
+    
+    //ACCOUNTS REPORTS
+    
+    function get_ActiveDevicename()
+    {
+        $sql=$this->db->query("SELECT * from ret_bill_pay_device");
+        return $sql->result_array();
+    }
+    
+    function get_pay_device_bills($data)
+    {
+        $multiple_id_branch = implode(' , ', $data['id_branch']);
+		if($multiple_id_branch != '')
+		{
+			$branch = $multiple_id_branch;
+		}else{
+			$branch = $data['id_branch'];
+		}
+
+        if($_POST['dt_range'] != ''){
+            $dateRange = explode('-',$_POST['dt_range']);
+            $from = str_replace('/','-',$dateRange[0]);
+            $to = str_replace('/','-',$dateRange[1]);  
+            $d1 = date_create($from);
+            $d2 = date_create($to);
+            $FromDt = date_format($d1,"Y-m-d");
+            $ToDt = date_format($d2,"Y-m-d");
+            }
+
+        $sql=$this->db->query("SELECT b.bill_id,b.bill_no,ifnull(sum(bp.payment_amount),0) as amount,b.id_branch,
+        bp.id_pay_device,pd.device_name,br.name as branch,date_format(b.bill_date,'%d-%m-%Y') as bill_date
+        from ret_billing b
+        LEFT JOIN ret_billing_payment bp on bp.bill_id=b.bill_id
+        LEFT JOIN ret_bill_pay_device pd on  pd.id_device=bp.id_pay_device
+        LEFT JOIN branch br on br.id_branch=b.id_branch
+        where b.bill_status=1 and bp.id_pay_device is not null 
+        ".($FromDt!= '' && $ToDt!='' ? ' and (date(b.bill_date) BETWEEN "'.$FromDt.'" AND "'.$ToDt.'")' : '')." 
+        ".($branch!='' && $branch !='0' ? " and b.id_branch in (".$branch.") " :'' )." 
+        ".($data['id_pay_device']!='' && $data['id_pay_device']!=0 ? " and bp.id_pay_device=".$data['id_pay_device']."" :'')."
+        Group by b.bill_id;");
+        //print_r($this->db->last_query());
+        return $sql->result_array();
+    }
+    
+    
+    
+    function get_stock_rotation_sales_details($data)
+    {
+        $multiple_weight_range = implode(' , ', $data['id_weight']);
+		if($multiple_weight_range != '')
+		{
+			$id_weight = $multiple_weight_range;
+		}else{
+			$id_weight = $data['id_weight'];
+		}
+	    $returnData = array();
+        $sql = $this->db->query("SELECT wt.id_weight,wt.from_weight,wt.to_weight,wt.weight_description,wt.id_product,wt.id_design,wt.id_sub_design,
+        p.product_name,des.design_name,subDes.sub_design_name
+        FROM ret_weight wt 
+        LEFT JOIN ret_product_master p ON p.pro_id = wt.id_product
+        LEFT JOIN ret_design_master des ON des.design_no = wt.id_design
+        LEFT JOIN ret_sub_design_master subDes ON subDes.id_sub_design = wt.id_sub_design
+        WHERE wt.from_weight IS NOT NULL AND wt.to_weight IS NOT NULL AND wt.id_product IS NOT NULL AND wt.id_design IS NOT NULL AND wt.id_sub_design IS NOT NULL
+        ".($data['id_product']!='' ? " and wt.id_product=".$data['id_product']."" :'')."
+        ".($data['id_design']!='' ? " and wt.id_design=".$data['id_design']."" :'')."
+        ".($data['id_design']!='' ? " and wt.id_design=".$data['id_design']."" :'')."
+        ".($data['id_sub_design']!='' ? " and wt.id_sub_design=".$data['id_sub_design']."" :'')."
+        ");
+        //echo $this->db->last_query();exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $sales_details = $this->weight_range_sale_det($items['id_product'],$items['id_design'],$items['id_sub_design'],$items['from_weight'],$items['to_weight'],$data['from_date'],$data['to_date'],$data['id_karigar'],$data['id_branch']);
+            if($sales_details['piece'] > 0 || $sales_details['gross_wt'] > 0){
+                $returnData[]=array(
+                                   'id_weight'          =>$items['id_weight'],
+                                   'weight_description' =>$items['weight_description'],
+                                   'product_name'       =>$items['product_name'],
+                                   'design_name'        =>$items['design_name'],
+                                   'sub_design_name'    =>$items['sub_design_name'],
+                                   'sales_pcs'          =>$sales_details['piece'],
+                                   'sales_gwt'          =>$sales_details['gross_wt'],
+                                   'age'                =>($sales_details['piece']>0 ?number_format($sales_details['age']/$sales_details['piece'],2,'.','') :0),
+                                   );
+            }
+        }
+        
+        return $returnData;
+    }
+    
+    function weight_range_sale_det($id_product,$id_design,$id_sub_design,$from_weight,$to_weight,$from_date,$to_date,$id_karigar, $id_branch)
+    {
+        $sql=$this->db->query("SELECT IFNULL(SUM(d.gross_wt),0) as gross_wt,IFNULL(SUM(d.piece),0) as piece,
+        SUM(DATEDIFF(date(b.bill_date),date(t.tag_datetime))) AS age,k.firstname as supplier_name
+        FROM ret_billing b 
+        LEFT JOIN ret_bill_details d ON d.bill_id=b.bill_id
+        LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+        LEFT JOIN ret_taging t ON t.tag_id=d.tag_id
+        LEFT JOIN ret_lot_inwards l ON l.lot_no = t.tag_lot_id
+        LEFT JOIN ret_karigar k ON k.id_karigar = l.gold_smith
+        WHERE d.tag_id IS NOT NULL AND b.bill_status=1
+        ".($id_branch!='' && $id_branch!=0 ? " and b.id_branch=".$id_branch."" :'')."
+        ".($id_product!='' ? " and t.product_id=".$id_product."" :'')."
+        ".($id_design!='' ? " and t.design_id=".$id_design."" :'')."
+        ".($id_sub_design!='' ? " and t.id_sub_design=".$id_sub_design."" :'')."
+        ".($id_karigar!='' && $id_karigar!=0 ? " and l.gold_smith=".$id_karigar."" :'')."
+        ".($from_weight!='' && $to_weight!='' ? " and d.gross_wt BETWEEN '".$from_weight."' and '".$to_weight."'" :'')."
+        ".($from_date != '' && $to_date!='' ? ' and date(b.bill_date) BETWEEN "'.date('Y-m-d',strtotime($from_date)).'" AND "'.date('Y-m-d',strtotime($to_date)).'"' : '')." 
+         ");
+        /*if($id_product == 1 && $id_design == 1 && $id_sub_design == 28 && $from_weight == '8.501' && $to_weight == '10.5'){
+            print_r($this->db->last_query());exit;
+        }*/
+        return  $sql->row_array();
+    }
+    
+    
+    
+    function get_staff_chit_incentive_details($data)
+	{
+	    $returnData = array();
+	    $sql=$this->db->query("SELECT e.id_employee,e.firstname as emp_name,e.emp_code,e.mobile,IFNULL(sch_join.total_acc,0) as tot_acc_joined,
+	    IFNULL(sch_join.sch_join_amt,0) as sch_join_amt,IFNULL(clc.total_acc_closed,0) as total_acc_closed,
+	    br.name as branch_name
+        FROM employee e 
+        LEFT JOIN branch br ON br.id_branch = e.login_branches
+        
+        LEFT JOIN(SELECT sa.id_employee,s.emp_refferal_value,COUNT(sa.id_scheme_account) as total_acc,pay.paid_installments,IFNULL(SUM(s.emp_refferal_value),0) as sch_join_amt
+        FROM scheme_account sa 
+        LEFT JOIN scheme s ON s.id_scheme = sa.id_scheme
+            LEFT JOIN(select sa.id_scheme_account,IFNULL(IF(sa.is_opening=1,IFNULL(sa.paid_installments,0)+ IFNULL(if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues)),0), if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues))) ,0) as paid_installments
+            FROM payment p
+            left join scheme_account sa on sa.id_scheme_account=p.id_scheme_account
+            left join scheme s on s.id_scheme=sa.id_scheme
+            where p.payment_status=1
+            GROUP by sa.id_scheme_account) as pay on pay.id_scheme_account = sa.id_scheme_account
+        where date(sa.date_add) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."'
+        GROUP by sa.id_employee
+        HAVING pay.paid_installments>0) as sch_join ON sch_join.id_employee = e.id_employee
+        
+        LEFT JOIN(SELECT sa.id_employee,COUNT(sa.id_scheme_account) as total_acc_closed
+        FROM scheme_account sa 
+        LEFT JOIN scheme s on s.id_scheme = sa.id_scheme
+        WHERE sa.is_closed = 1
+        and date(sa.closing_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."'
+        GROUP by sa.id_employee
+        ) AS clc ON clc.id_employee = e.id_employee
+        
+        WHERE e.id_employee IS NOT NULL AND e.active = 1
+        ".($data['id_branch']!='' ?  " and e.login_branches=".$data['id_branch']."" :'')."
+        HAVING tot_acc_joined >0 or total_acc_closed>0");
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $clsoing_benefit_amt = 0;
+            if($items['total_acc_closed']>0)
+            {
+                $clsoing_benefit_amt = $this->getSchemeClosedDetails($items['id_employee'],$data['from_date'],$data['to_date']);
+            }
+            $returnData[]=array(
+                               'id_employee'        =>$items['id_employee'],
+                               'emp_name'           =>$items['emp_name'],
+                               'emp_code'           =>$items['emp_code'],
+                               'branch_name'        =>$items['branch_name'],
+                               'sch_join_amt'       =>$items['sch_join_amt'],
+                               'tot_acc_joined'     =>$items['tot_acc_joined'],
+                               'total_acc_closed'   =>$items['total_acc_closed'],
+                               'closing_benefit_amt'=>number_format($clsoing_benefit_amt,2,'.',''),
+                               'total_amount'       =>number_format($items['sch_join_amt']+$clsoing_benefit_amt,2,'.',''),
+                               );
+        }
+        
+        return $returnData;
+	}
+	
+	function getSchemeClosedDetails($id_employee,$from_date,$to_date)
+	{
+	    $credit_amt = 0;
+	    $sql=$this->db->query("SELECT date(sa.closing_date) as closing_date,sa.id_scheme_account,sa.id_scheme,s.closing_incentive_based_on,s.emp_incentive_closing,pay.paid_installments,sa.closing_weight
+        FROM scheme_account sa 
+        LEFT JOIN scheme s ON s.id_scheme = sa.id_scheme
+        LEFT JOIN(select sa.id_scheme_account,IFNULL(IF(sa.is_opening=1,IFNULL(sa.paid_installments,0)+ IFNULL(if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues)),0), if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues))) ,0) as paid_installments
+        FROM payment p
+        left join scheme_account sa on sa.id_scheme_account=p.id_scheme_account
+        left join scheme s on s.id_scheme=sa.id_scheme
+        where p.payment_status=1
+        GROUP by sa.id_scheme_account) as pay on pay.id_scheme_account = sa.id_scheme_account
+        WHERE sa.id_employee = ".$id_employee." AND sa.is_closed = 1
+        and date(sa.closing_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."' ");
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            if($items['emp_incentive_closing']==1)
+            {
+                $sch_close_benefits=$this->checkSchemeCloseBeiefits($items['id_scheme']);
+                if($items['closing_incentive_based_on']==2)
+                {
+                    foreach($sch_close_benefits as $acc)
+	                 {
+	                     
+	                     if(($acc['incentive_from']<=$items['closing_weight']) && ($data['closing_weight']<=$items['incentive_to']))
+		                 {
+		                     if($acc['type']==2) // in Percentage
+		                     {
+		                         $metal_rates=$this->getMetalRates($items['closing_date']);
+		                         $credit_amt+=((($items['closing_weight']*$acc['value'])/100)*$metal_rates['goldrate_22ct']);
+		                         
+		                     }else
+		                     {
+		                         $credit_amt+=($acc['value']*$items['closing_weight']);
+		                     }
+		                 }
+	                 }
+                }else
+                {
+                    
+                          foreach($sch_close_benefits as $acc)
+    	                  {
+    	                       if(($acc['incentive_from']<=$items['paid_installments']))
+    	                       {
+    	                           
+    	                           if($items['closing_weight']>0)
+    	                           {
+    	                               $credit_amt+=($acc['value']*$items['closing_weight']);
+    	                           }else
+    	                           {
+    	                               $credit_amt+=$acc['value'];
+    	                           }
+    	                           
+    	                           
+    	                       }
+    	                  }
+                }
+            }
+        }
+        
+        return $credit_amt;
+	}
+	
+	
+	function checkSchemeCloseBeiefits($id_scheme)
+	{
+	    $sql=$this->db->query("SELECT * FROM `emp_closing_incentive` WHERE id_scheme=".$id_scheme."");
+	    return $sql->result_array();
+	}
+	
+	function getMetalRates($closing_date)
+	{
+	    $sql=$this->db->query("SELECT m.goldrate_22ct FROM metal_rates m WHERE date(add_date)<='".date($closing_date)."'  order by id_metalrates Desc LIMIT 1");
+	    //print_r($this->db->last_query());exit;
+	    return $sql->row_array();
+	}
+	
+	
+	function get_employee_referred_acc_details($data)
+	{
+	    $returnData = array();
+	    $sql = $this->db->query("SELECT sa.id_scheme_account,cus.firstname as cus_name,cus.mobile,concat(s.code,' - ',sa.scheme_acc_number) as acc_num,v.village_name as area_name,
+	    date_format(sa.start_date,'%d-%m-%Y') as start_date,date_format(sa.closing_date,'%d-%m-%Y') as closing_date,sa.closing_balance,date(sa.closing_date) as closed_date,
+	    IFNULL(s.emp_refferal_value,0) as join_benefit_value,s.emp_incentive_closing,sa.id_scheme,s.closing_incentive_based_on,IFNULL(sa.closing_weight,0) as closing_weight,
+	    pay.paid_installments
+        FROM scheme_account sa 
+        LEFT JOIN customer cus ON cus.id_customer = sa.id_customer
+        LEFT JOIN scheme s ON s.id_scheme = sa.id_scheme
+        LEFT JOIN village v ON v.id_village = cus.id_village
+        LEFT JOIN(select sa.id_scheme_account,IFNULL(IF(sa.is_opening=1,IFNULL(sa.paid_installments,0)+ IFNULL(if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues)),0), if(s.scheme_type = 1 and s.min_weight != s.max_weight , COUNT(Distinct Date_Format(p.date_payment,'%Y%m')), sum(p.no_of_dues))) ,0) as paid_installments
+        FROM payment p
+        left join scheme_account sa on sa.id_scheme_account=p.id_scheme_account
+        left join scheme s on s.id_scheme=sa.id_scheme
+        where p.payment_status=1
+        GROUP by sa.id_scheme_account) as pay on pay.id_scheme_account = sa.id_scheme_account
+        where sa.id_scheme_account IS NOT NULL and sa.id_employee=".$data['id_employee']."
+        ".($data['type']==1 ? " and date(sa.date_add) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."' " :'')."
+        ".($data['type']==2 ? " and date(sa.closing_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."' " :'')."
+        ");
+        //print_r($this->db->last_query());exit;
+        $result = $sql->result_array();
+        foreach($result as $items)
+        {
+            $clsoing_benefit = 0;
+            $scheme_benefit = 0;
+            $per_gram_amount = $acc['value'];
+            $rate_per_gram = 0;
+            if($data['type']==2)
+            {
+                if($items['emp_incentive_closing']==1)
+                {
+                    $sch_close_benefits=$this->checkSchemeCloseBeiefits($items['id_scheme']);
+                    
+                    if($items['closing_incentive_based_on']==2)
+                    {
+                        foreach($sch_close_benefits as $acc)
+    	                 {
+    	                     
+    	                     if(($acc['incentive_from']<=$items['closing_weight']) && ($data['closing_weight']<=$items['incentive_to']))
+    		                 {
+    		                     if($acc['type']==2) // in Percentage
+    		                     {
+    		                         $metal_rates=$this->getMetalRates($items['closed_date']);
+    		                         $clsoing_benefit=((($items['closing_weight']*$acc['value'])/100)*$metal_rates['goldrate_22ct']);
+    		                         $per_gram_amount = $acc['value'].'%';
+    		                         $rate_per_gram = $metal_rates['goldrate_22ct'];
+    		                         
+    		                     }else
+    		                     {
+    		                         $clsoing_benefit=($acc['value']*$items['closing_weight']);
+    		                         $per_gram_amount=$acc['value'];
+    		                     }
+    		                 }
+    	                 }
+                    }else
+                    {
+                         foreach($sch_close_benefits as $acc)
+    	                  {
+    	                      
+    	                       if(($acc['incentive_from']<=$items['paid_installments']))
+    	                       {
+    	                           
+    	                           if($items['closing_weight']>0)
+    	                           {
+    	                               $clsoing_benefit=($acc['value']*$items['closing_weight']);
+    	                               $scheme_benefit = $acc['value'];
+    	                           }else
+    	                           {
+    	                               $clsoing_benefit=$acc['value'];
+    	                               $scheme_benefit=$acc['value'];
+    	                           }
+    	                           
+    	                           
+    	                       }
+    	                  }
+                    }
+                }
+            }
+            
+            $returnData[]=array(
+                               'acc_num'            =>$items['acc_num'],
+                               'area_name'          =>$items['area_name'],
+                               'closing_date'       =>$items['closing_date'],
+                               'cus_name'           =>$items['cus_name'],
+                               'id_scheme_account'  =>$items['id_scheme_account'],
+                               'mobile'             =>$items['mobile'],
+                               'start_date'         =>$items['start_date'],
+                               'closing_balance'    =>$items['closing_balance'],
+                               'paid_installments'  =>$items['paid_installments'],
+                               'closing_weight'     =>$items['closing_weight'],
+                               'rate_per_gram'      =>$rate_per_gram,
+                               'clsoing_benefit'    =>(($data['type']==1 ? number_format($items['join_benefit_value'],2,'.','') :$scheme_benefit )),
+                               'emp_incentive_amt'  =>number_format(($data['type']==1 ? $items['join_benefit_value'] :$clsoing_benefit ),2,'.',''),
+                               );
+        }
+        
+        return $returnData;
+	}
+    
+    
+    function get_karigar_metal_issue($data)
+    {
+        $issue=array();
+        $sql=$this->db->query("SELECT DATE_FORMAT(iss.met_issue_date,'%d-%m-%Y') as metal_issue_date,iss.met_issue_id,iss.met_issue_ref_id,iss.met_issue_karid,r.issue_metal_pur_wt as issue_metal_pur_wt,r.issue_metal_wt as issue_metal_wt,
+        k.firstname as karigar_name,m.metal,c.name as category_name,p.product_name
+        FROM  ret_karigar_metal_issue iss
+        LEFT JOIN ret_karigar k ON k.id_karigar=iss.met_issue_karid 
+        LEFT JOIN ret_karigar_metal_issue_details r on r.issue_met_parent_id=iss.met_issue_id
+        LEFT JOIN ret_category c on c.id_ret_category=r.issue_cat_id
+        LEFT JOIN metal m on m.id_metal=r.issue_metal
+        LEFT JOIN ret_product_master p on p.pro_id=r.issu_met_pro_id
+        WHERE (date(iss.met_issue_date) BETWEEN '".date('Y-m-d',strtotime($data['from_date']))."' AND '".date('Y-m-d',strtotime($data['to_date']))."')
+      	".($data['id_karigar']!='' && $data['id_karigar']>0 ? " and iss.met_issue_karid = ".$data['id_karigar']." " :'' )." 
+      	".($data['id_category']!='' && $data['id_category']>0 ? " and r.issue_cat_id = ".$data['id_category']." " :'' )." 
+      	".($data['id_product']!='' && $data['id_product']>0 ? " and r.issu_met_pro_id = ".$data['id_product']." " :'' )." 
+      	".($data['id_metal']!='' && $data['id_metal']>0 ? " and r.issue_metal  = ".$data['id_metal']." " :'' )." 
+          order by iss.met_issue_date asc " );     
+        //print_r($this->db->last_query());exit;
+        $result =  $sql->result_array();
+	   foreach($result as $items)
+       {
+              $issue[$items['met_issue_ref_id']][]=array(
+                                'metal_issue_date'      =>$items['metal_issue_date'],
+                                'met_issue_ref_id'      =>$items['met_issue_ref_id'],
+                                'issue_metal_wt'        =>$items['issue_metal_wt'],
+                                'issue_metal_pur_wt'    =>$items['issue_metal_pur_wt'],
+                                'karigar_name'          =>$items['karigar_name'],
+                                'metal_name'            =>$items['metal'],
+                                'category_name'         =>$items['category_name'],
+                                'product_name'          =>$items['product_name'],
+                              //  'issue_detilas'         =>$this->get_issue_detials($items['met_issue_id'],$data['from_date'],$data['to_date'])
+
+                           ); 
+                            
+        }  
+        
+           return $issue;
+    }
+	
+
+     function get_issue_detials($id_issue_metal,$from_date,$to_date)
+     {
+
+        $sql_1=$this->db->query("SELECT r.issue_metal_wt,r.issue_metal_pur_wt, r.issue_metal,r.issue_cat_id,r.issue_pur_id,r.issu_met_pro_id,
+         DATE_FORMAT(i.met_issue_date,'%d-%m-%Y') as metal_issue_date,m.metal,c.name as category_name,p.product_name
+        FROM ret_karigar_metal_issue_details r
+        LEFT JOIN ret_karigar_metal_issue i on i.met_issue_id=r.issue_met_parent_id
+         LEFT JOIN ret_category c on c.id_ret_category=r.issue_cat_id
+        LEFT JOIN metal m on m.id_metal=r.issue_metal
+        LEFT JOIN ret_product_master p on p.pro_id=r.issu_met_pro_id
+        WHERE  (date(i.met_issue_date) BETWEEN '".date('Y-m-d',strtotime($from_date))."' AND '".date('Y-m-d',strtotime($to_date))."') AND 
+        r.issue_met_parent_id='".$id_issue_metal."'  "); 
+        //print_r($this->db->last_query());exit;
+        return $sql_1->result_array();
+     }
+     
+     
+    function get_cus_details($post)
+    {
+        $FromDt=$this->input->post('from_date');
+        $ToDt=$this->input->post('to_date');
+        $id_zone=$this->input->post('id_zone');
+        $id_village=$this->input->post('id_village');
+        $id_branch=$this->input->post('id_branch');
+        $data=$this->db->query("SELECT c.id_customer,c.id_branch,c.id_village,IF(c.lastname is null,c.firstname,concat(c.firstname,' ',c.lastname)) as cus_name,ifnull(c.pan,'-') as pan_no,c.gender,date_format(c.date_of_wed,'%d-%m-%y','-') as wedding_date,c.mobile,c.id_village,ifnull(c.email,'-')as email,date_format(c.date_of_birth,'%d-%m-%y','-') as date_of_birth,a.id_state,a.id_city,a.address1,a.address2,a.address3,a.pincode,
+        ifnull(ci.name,'-' )as city_name,ifnull(s.name,'-') as state_name,ifnull(v.village_name,'-') as village 
+        from customer c
+        left join address a on a.id_customer =c.id_customer
+        left join village v on v.id_village =c.id_village
+        left join city ci on ci.id_city =a.id_city
+        left join state s on s.id_state =a.id_state
+        where c.id_customer IS NOT NULL
+        ".($id_branch!='' && $id_branch!=0 ? " and c.id_branch=".$id_branch."" :'')."
+        ".($FromDt!='' && $ToDt!='' ? " and (date(c.date_add) BETWEEN '".date('Y-m-d',strtotime($FromDt))."' AND '".date('Y-m-d',strtotime($ToDt))."')" :'')."");
+        //print_r($this->db->last_query());exit;
+        return $data->result_array();
+    }
+    
+    function get_stock_details_29_07_22($data)
+    {
+       $stock_detail = [];
+       if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+           }
+        $group_by = $data['group_by'];//1-Product,2-Category
+        $sql = $this->db->query("SELECT t.product_id,p.product_name,b.name as branch_name,c.name as category_name,
+                        	IFNULL(blc.gross_wt,0) as op_blc_gwt,IFNULL(blc.net_wt,0) as op_blc_nwt,IFNULL(blc.piece,0) as op_blc_pcs,
+                        	IFNULL(INW.gross_wt,0) as inw_gwt,IFNULL(INW.net_wt,0) as inw_nwt,IFNULL(INW.piece,0) as inw_pcs,
+                        	IFNULL(s.gross_wt,0) as sold_gwt,IFNULL(s.net_wt,0) as sold_nwt,IFNULL(s.piece,0) as sold_pcs,
+                        	IFNULL(br_out.gross_wt,0) as br_out_gwt,IFNULL(br_out.net_wt,0) as br_out_nwt,IFNULL(br_out.piece,0) as br_out_pcs,
+                        	IFNULL(in_trans.gross_wt,0) as in_trans_gwt,IFNULL(in_trans.net_wt,0) as in_trans_nwt,IFNULL(in_trans.piece,0) as in_trans_pcs,
+                        	IFNULL(current.piece,0) as closing_pcs, IFNULL(current.gross_wt,0) as closing_gwt, IFNULL(current.net_wt,0) as closing_nwt,
+                        
+                        	Date_Format(current_date(),'%d-%m-%Y') as date_add,m.metal as metal_name
+                        	FROM ret_taging t
+                        	LEFT JOIN ret_product_master p on p.pro_id=t.product_id
+                        	LEFT JOIN branch b on b.id_branch=t.current_branch
+                        	left join ret_category c on c.id_ret_category=p.cat_id
+                        	left join metal m on m.id_metal=c.id_metal
+                        	
+                        	LEFT JOIN (SELECT tag.product_id,p.cat_id,ifnull(sum(tag.gross_wt),0) as gross_wt,
+                        	ifnull(SUM(tag.net_wt),0) as net_wt, 
+                        	ifnull(SUM(tag.piece),0) as piece   
+                        	FROM ret_taging_status_log m1 
+                        	LEFT JOIN ret_taging_status_log m2 ON (m1.tag_id = m2.tag_id AND m1.id_tag_status_log < m2.id_tag_status_log AND date(m2.date) < '$FromDt')
+                        	LEFT JOIN ret_taging as tag ON tag.tag_id = m1.tag_id 
+                        	LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id 
+                        	WHERE m2.id_tag_status_log IS NULL  
+                        	".($data['id_branch']!='' ? " and m1.to_branch=".$data['id_branch']."" :'')." 
+                        	AND (m1.status = 0 or m1.status = 10 OR m1.status = 6) AND date(m1.date) < '$FromDt' 
+                        	GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") blc on ".($group_by==1 ? " blc.product_id = t.product_id " : " blc.cat_id = p.cat_id" )."
+                        	
+                        	
+                        	
+                            LEFT JOIN(SELECT tag.tag_id,tag.product_id,p.cat_id,ifnull(sum(tag.gross_wt),0) as gross_wt,
+                            ifnull(SUM(tag.net_wt),0) as net_wt, ifnull(SUM(tag.piece),0) as piece
+                            FROM ret_taging_status_log m1 
+                            LEFT JOIN ret_taging_status_log m2 ON (m1.tag_id = m2.tag_id AND m1.id_tag_status_log < m2.id_tag_status_log AND date(m2.date)  BETWEEN '$FromDt' AND '$ToDt' ".($data['id_branch']!='' ? " and m2.to_branch=".$data['id_branch']."" :'')." and m2.status = 0)
+                            LEFT JOIN ret_taging as tag ON tag.tag_id = m1.tag_id 
+                            LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id
+                            WHERE m2.id_tag_status_log IS NULL  
+                            ".($data['id_branch']!='' ? " and m1.to_branch=".$data['id_branch']."" :'')."
+                            AND (m1.status = 0) AND date(m1.date) BETWEEN '$FromDt' AND '$ToDt' GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") INW on ".($group_by==1 ? " INW.product_id = t.product_id " : " INW.cat_id = p.cat_id" )."
+        	
+                        	
+                        	LEFT JOIN (SELECT sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt, 
+                        	SUM(b.piece) as piece,b.product_id,p.cat_id
+                        	FROM ret_taging tag 
+                        	LEFT JOIN ret_bill_details b on b.tag_id = tag.tag_id 
+                        	LEFT JOIN ret_billing bill on bill.bill_id = b.bill_id 
+                        	LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id 
+                        	WHERE bill.bill_status = 1 and 
+                        	(date(bill.bill_date) BETWEEN '$FromDt' AND '$ToDt') AND b.product_id = p.pro_id 
+                        	".($data['id_branch']!='' ? " and bill.id_branch=".$data['id_branch']." " :'')."  
+                        	GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") s ON ".($group_by==1 ? " s.product_id = t.product_id " : "s.cat_id = p.cat_id" )." 
+                        
+                        	LEFT JOIN (SELECT tag.product_id,p.cat_id,sum(tag.gross_wt) as gross_wt, 
+                        		SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece 
+                        		FROM ret_taging tag 
+                        		LEFT JOIN ret_taging_status_log l on l.tag_id = tag.tag_id and l.from_branch = ".$data['id_branch']." and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=12) 
+                        		LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id 
+                        	WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt') and 
+                        	(l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=12)  
+                        	".($data['id_branch']!='' ? " and l.from_branch=".$data['id_branch']."" :'')." 
+                        	 GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") br_out on ".($group_by==1 ? " br_out.product_id = t.product_id " : "br_out.cat_id = p.cat_id" )." 
+                        	 
+                        	 
+                        	LEFT JOIN (SELECT tag.product_id, ifnull(sum(tag.gross_wt),0) as gross_wt,
+                        	ifnull(SUM(tag.net_wt),0) as net_wt, 
+                        	ifnull(SUM(tag.piece),0) as piece,p.cat_id  
+                        	FROM ret_taging_status_log m1 
+                        	LEFT JOIN ret_taging_status_log m2 ON (m1.tag_id = m2.tag_id AND m1.id_tag_status_log < m2.id_tag_status_log AND date(m2.date) <= '$ToDt')
+                        	LEFT JOIN ret_taging as tag ON tag.tag_id = m1.tag_id 
+                        	LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id 
+                        	WHERE m2.id_tag_status_log IS NULL  
+                        	".($data['id_branch']!='' ? " and m1.to_branch=".$data['id_branch']."" :'')." 
+                        	AND m1.status = 0 AND date(m1.date) <= '$ToDt' GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") as current ON  ".($group_by==1 ? " current.product_id = t.product_id " : "current.cat_id = p.cat_id" )."  
+						
+                        	LEFT JOIN (SELECT t.tag_id,t.product_id,sum(t.piece) as piece,SUM(t.gross_wt) as gross_wt,sum(t.net_wt) as net_wt,p.product_name,
+                        	p.cat_id
+                        	FROM ret_taging_status_log l
+                        	LEFT JOIN ret_taging t ON t.tag_id=l.tag_id
+                        	LEFT JOIN ret_product_master p ON p.pro_id=t.product_id
+                        	WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt') and t.tag_status=4
+                        	".($id_branch!='' ? " and l.from_branch=".$id_branch."" :'')."
+                        	GROUP by ".($group_by==1 ? " t.product_id" :" p.cat_id")." ) in_trans on ".($group_by==1 ? " in_trans.product_id = t.product_id" : " in_trans.cat_id = p.cat_id" )."
+                        	
+                        	
+                        	where t.tag_id is not null 
+                        	".($data['id_category']!='' && $data['id_category']!=0 ? " and p.cat_id=".$data['id_category']."" :'')." 
+                        	".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')." 
+                        	GROUP by ".($group_by==1 ? " t.product_id" :" p.cat_id")." 
+                        	order by c.sort,p.pro_id ASC");
+            //print_r($this->db->last_query());exit;
+            $result = $sql->result_array();
+            foreach($result as $r){
+				$stock_detail[$r['metal_name']][$r['category_name']][] = $r; 
+			}
+    	    return $stock_detail;
+    }
+    
+    function get_stock_details($data)
+    {
+       $stock_detail = [];
+       if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+           }
+        $group_by = $data['group_by'];//1-Product,2-Category
+        
+        $op_blc_to_date= date('Y-m-d',(strtotime('-1 day',strtotime($FromDt))));
+        
+        $sql = $this->db->query("SELECT t.product_id,p.product_name,b.name as branch_name,c.name as category_name,
+                        	(IFNULL(blc.gross_wt,0)+IFNULL(op_blc_inw.gross_wt,0)-IFNULL(op_blc_br_out.gross_wt,0)-IFNULL(op_blc_sales.gross_wt,0)) as op_blc_gwt,
+                        	(IFNULL(blc.net_wt,0)+IFNULL(op_blc_inw.net_wt,0)-IFNULL(op_blc_br_out.net_wt,0)-IFNULL(op_blc_sales.net_wt,0)) as op_blc_nwt,
+                        	(IFNULL(blc.piece,0)+IFNULL(op_blc_inw.piece,0)-IFNULL(op_blc_br_out.piece,0)-IFNULL(op_blc_sales.piece,0)) as op_blc_pcs,
+                        	IFNULL(INW.gross_wt,0) as inw_gwt,IFNULL(INW.net_wt,0) as inw_nwt,IFNULL(INW.piece,0) as inw_pcs,
+                        	IFNULL(s.gross_wt,0) as sold_gwt,IFNULL(s.net_wt,0) as sold_nwt,IFNULL(s.piece,0) as sold_pcs,
+                        	IFNULL(br_out.gross_wt,0) as br_out_gwt,IFNULL(br_out.net_wt,0) as br_out_nwt,IFNULL(br_out.piece,0) as br_out_pcs,
+                        	IFNULL(in_trans.gross_wt,0) as in_trans_gwt,IFNULL(in_trans.net_wt,0) as in_trans_nwt,IFNULL(in_trans.piece,0) as in_trans_pcs,
+                        	IFNULL(current.piece,0) as closing_pcs, IFNULL(current.gross_wt,0) as closing_gwt, IFNULL(current.net_wt,0) as closing_nwt,
+                        
+                        	Date_Format(current_date(),'%d-%m-%Y') as date_add,m.metal as metal_name
+                        	FROM ret_taging t
+                        	LEFT JOIN ret_product_master p on p.pro_id=t.product_id
+                        	LEFT JOIN branch b on b.id_branch=t.current_branch
+                        	left join ret_category c on c.id_ret_category=p.cat_id
+                        	left join metal m on m.id_metal=c.id_metal
+                        	
+                            LEFT JOIN (SELECT s.id_product as product_id,s.closing_gwt as gross_wt,s.closing_nwt as net_wt,s.closing_pcs as piece,s.date,
+                            p.cat_id
+                            FROM ret_stock_balance s
+                            LEFT JOIN ret_product_master p ON p.pro_id=s.id_product
+                            left join ret_category c on c.id_ret_category=p.cat_id 
+                            left join metal m on m.id_metal=c.id_metal 
+                            WHERE s.id_product is NOT null AND date(s.date)='2022-03-31'
+                            ".($data['id_branch']!='' ? " and s.id_branch=".$data['id_branch']."" :'')."
+                            ".($data['id_metal']!='' && $data['id_metal']!='0' ? " and m.id_metal=".$data['id_metal']."" :'')."
+                            ".($data['id_category']!='' && $data['id_category']!='0' ? " and c.id_ret_category=".$data['id_category']."" :'')."
+                            GROUP by ".($group_by==1 ? " s.id_product" :" p.cat_id").") blc on ".($group_by==1 ? " blc.product_id = t.product_id " : " blc.cat_id = p.cat_id" )."
+                        	
+                        	LEFT JOIN(SELECT tag.tag_id,tag.product_id,p.cat_id,ifnull(sum(tag.gross_wt),0) as gross_wt,
+                            ifnull(SUM(tag.net_wt),0) as net_wt, ifnull(SUM(tag.piece),0) as piece
+                            FROM ret_taging_status_log m1 
+                            LEFT JOIN ret_taging_status_log m2 ON (m1.tag_id = m2.tag_id AND m1.id_tag_status_log < m2.id_tag_status_log AND date(m2.date)  BETWEEN '2022-04-01' AND '$op_blc_to_date' ".($data['id_branch']!='' ? " and m2.to_branch=".$data['id_branch']."" :'')." and m2.status = 0)
+                            LEFT JOIN ret_taging as tag ON tag.tag_id = m1.tag_id 
+                            LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id
+                            WHERE tag.tag_id IS NOT NULL  
+                            ".($data['id_branch']!='' ? " and m1.to_branch=".$data['id_branch']."" :'')."
+                            AND (m1.status = 0) AND date(m1.date) BETWEEN '2022-04-01' AND '$op_blc_to_date' GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") op_blc_inw on ".($group_by==1 ? " op_blc_inw.product_id = t.product_id " : " op_blc_inw.cat_id = p.cat_id" )."
+                        	
+                        	
+                            LEFT JOIN (SELECT tag.product_id,p.cat_id,sum(tag.gross_wt) as gross_wt, 
+                            SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece 
+                            FROM ret_taging tag 
+                            LEFT JOIN ret_taging_status_log l on l.tag_id = tag.tag_id and l.from_branch = ".$data['id_branch']." and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=12) 
+                            LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id 
+                            WHERE (date(l.date) BETWEEN '2022-04-01' AND '$op_blc_to_date') and 
+                            (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=12)  
+                            ".($data['id_branch']!='' ? " and l.from_branch=".$data['id_branch']."" :'')." 
+                            GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") op_blc_br_out on ".($group_by==1 ? " op_blc_br_out.product_id = t.product_id " : "op_blc_br_out.cat_id = p.cat_id" )." 
+                            
+                            LEFT JOIN (SELECT sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt, 
+                        	SUM(b.piece) as piece,b.product_id,p.cat_id
+                        	FROM ret_taging tag 
+                        	LEFT JOIN ret_bill_details b on b.tag_id = tag.tag_id 
+                        	LEFT JOIN ret_billing bill on bill.bill_id = b.bill_id 
+                        	LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id 
+                        	WHERE bill.bill_status = 1 and 
+                        	(date(bill.bill_date) BETWEEN '2022-04-01' AND '$op_blc_to_date') AND b.product_id = p.pro_id 
+                        	".($data['id_branch']!='' ? " and bill.id_branch=".$data['id_branch']." " :'')."  
+                        	GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") op_blc_sales ON ".($group_by==1 ? " op_blc_sales.product_id = t.product_id " : "op_blc_sales.cat_id = p.cat_id" )." 
+                        	
+                        	
+                        	
+                        	
+                        	 
+                            LEFT JOIN(SELECT tag.tag_id,tag.product_id,p.cat_id,ifnull(sum(tag.gross_wt),0) as gross_wt,
+                            ifnull(SUM(tag.net_wt),0) as net_wt, ifnull(SUM(tag.piece),0) as piece
+                            FROM ret_taging_status_log m1 
+                            LEFT JOIN ret_taging_status_log m2 ON (m1.tag_id = m2.tag_id AND m1.id_tag_status_log < m2.id_tag_status_log AND date(m2.date)  BETWEEN '$FromDt' AND '$ToDt' ".($data['id_branch']!='' ? " and m2.to_branch=".$data['id_branch']."" :'')." and m2.status = 0)
+                            LEFT JOIN ret_taging as tag ON tag.tag_id = m1.tag_id 
+                            LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id
+                            WHERE tag.tag_id IS NOT NULL  
+                            ".($data['id_branch']!='' ? " and m1.to_branch=".$data['id_branch']."" :'')."
+                            AND (m1.status = 0) AND date(m1.date) BETWEEN '$FromDt' AND '$ToDt' GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") INW on ".($group_by==1 ? " INW.product_id = t.product_id " : " INW.cat_id = p.cat_id" )."
+        	
+                        	
+                        	LEFT JOIN (SELECT sum(tag.gross_wt) as gross_wt,SUM(tag.net_wt) as net_wt, 
+                        	SUM(b.piece) as piece,b.product_id,p.cat_id
+                        	FROM ret_taging tag 
+                        	LEFT JOIN ret_bill_details b on b.tag_id = tag.tag_id 
+                        	LEFT JOIN ret_billing bill on bill.bill_id = b.bill_id 
+                        	LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id 
+                        	WHERE bill.bill_status = 1 and 
+                        	(date(bill.bill_date) BETWEEN '$FromDt' AND '$ToDt') AND b.product_id = p.pro_id 
+                        	".($data['id_branch']!='' ? " and bill.id_branch=".$data['id_branch']." " :'')."  
+                        	GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") s ON ".($group_by==1 ? " s.product_id = t.product_id " : "s.cat_id = p.cat_id" )." 
+                        
+                        	LEFT JOIN (SELECT tag.product_id,p.cat_id,sum(tag.gross_wt) as gross_wt, 
+                        		SUM(tag.net_wt) as net_wt,SUM(tag.piece) as piece 
+                        		FROM ret_taging tag 
+                        		LEFT JOIN ret_taging_status_log l on l.tag_id = tag.tag_id and l.from_branch = ".$data['id_branch']." and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=12) 
+                        		LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id 
+                        	WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt') and 
+                        	(l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=12)  
+                        	".($data['id_branch']!='' ? " and l.from_branch=".$data['id_branch']."" :'')." 
+                        	 GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") br_out on ".($group_by==1 ? " br_out.product_id = t.product_id " : "br_out.cat_id = p.cat_id" )." 
+                        	 
+                        	 
+                        	LEFT JOIN (SELECT tag.product_id, ifnull(sum(tag.gross_wt),0) as gross_wt,
+                        	ifnull(SUM(tag.net_wt),0) as net_wt, 
+                        	ifnull(SUM(tag.piece),0) as piece,p.cat_id  
+                        	FROM ret_taging_status_log m1 
+                        	LEFT JOIN ret_taging_status_log m2 ON (m1.tag_id = m2.tag_id AND m1.id_tag_status_log < m2.id_tag_status_log AND date(m2.date) <= '$ToDt')
+                        	LEFT JOIN ret_taging as tag ON tag.tag_id = m1.tag_id 
+                        	LEFT JOIN ret_product_master as p ON p.pro_id = tag.product_id 
+                        	WHERE m2.id_tag_status_log IS NULL  
+                        	".($data['id_branch']!='' ? " and m1.to_branch=".$data['id_branch']."" :'')." 
+                        	AND m1.status = 0 AND date(m1.date) <= '$ToDt' GROUP by ".($group_by==1 ? " tag.product_id" :" p.cat_id").") as current ON  ".($group_by==1 ? " current.product_id = t.product_id " : "current.cat_id = p.cat_id" )."  
+						
+                        	LEFT JOIN (SELECT t.tag_id,t.product_id,sum(t.piece) as piece,SUM(t.gross_wt) as gross_wt,sum(t.net_wt) as net_wt,p.product_name,
+                        	p.cat_id
+                        	FROM ret_taging_status_log l
+                        	LEFT JOIN ret_taging t ON t.tag_id=l.tag_id
+                        	LEFT JOIN ret_product_master p ON p.pro_id=t.product_id
+                        	WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt') and t.tag_status=4
+                        	".($id_branch!='' ? " and l.from_branch=".$id_branch."" :'')."
+                        	GROUP by ".($group_by==1 ? " t.product_id" :" p.cat_id")." ) in_trans on ".($group_by==1 ? " in_trans.product_id = t.product_id" : " in_trans.cat_id = p.cat_id" )."
+                        	
+                        	
+                        	where t.tag_id is not null 
+                        	".($data['id_category']!='' && $data['id_category']!=0 ? " and p.cat_id=".$data['id_category']."" :'')." 
+                        	".($data['id_product']!='' ? " and t.product_id=".$data['id_product']."" :'')." 
+                        	GROUP by ".($group_by==1 ? " t.product_id" :" p.cat_id")." 
+                        	order by c.sort,p.pro_id ASC");
+            //print_r($this->db->last_query());exit;
+            $result = $sql->result_array();
+            foreach($result as $r){
+				$stock_detail[$r['metal_name']][$r['category_name']][] = $r; 
+			}
+    	    return $stock_detail;
+    }
+    
+    
+    
+    function get_nontag_stock_details($data)
+    {
+        if($_POST['dt_range'] != ''){
+           $dateRange = explode('-',$_POST['dt_range']);
+           $from = str_replace('/','-',$dateRange[0]);
+           $to = str_replace('/','-',$dateRange[1]);  
+           $d1 = date_create($from);
+           $d2 = date_create($to);
+           $FromDt = date_format($d1,"Y-m-d");
+           $ToDt = date_format($d2,"Y-m-d");
+           }
+        $id_branch = $data['id_branch'];
+        $sql = $this->db->query("SELECT p.product_name,c.name as category_name,
+                        	IFNULL(blc.gross_wt,0) as op_blc_gwt,IFNULL(blc.net_wt,0) as op_blc_nwt,IFNULL(blc.piece,0) as op_blc_pcs,
+                        	IFNULL(INW.gross_wt,0) as inw_gwt,IFNULL(INW.net_wt,0) as inw_nwt,IFNULL(INW.piece,0) as inw_pcs,
+                        	IFNULL(s.gross_wt,0) as sold_gwt,IFNULL(s.net_wt,0) as sold_nwt,IFNULL(s.piece,0) as sold_pcs,
+                        	IFNULL(br_out.gross_wt,0) as br_out_gwt,IFNULL(br_out.net_wt,0) as br_out_nwt,IFNULL(br_out.piece,0) as br_out_pcs,
+                        	
+                        	IFNULL(current.piece,0) as closing_pcs, IFNULL(current.gross_wt,0) as closing_gwt, IFNULL(current.net_wt,0) as closing_nwt,
+                        
+                        	Date_Format(current_date(),'%d-%m-%Y') as date_add,m.metal as metal_name
+                        	FROM ret_product_master p
+                        	left join ret_category c on c.id_ret_category=p.cat_id
+                        	left join metal m on m.id_metal=c.id_metal
+                        	
+                        	LEFT JOIN (SELECT m1.product, ifnull(sum(m1.gross_wt),0) as gross_wt,
+                        	ifnull(SUM(m1.net_wt),0) as net_wt, 
+                        	ifnull(SUM(m1.no_of_piece),0) as piece     
+                        	FROM ret_nontag_item_log m1 
+                        	LEFT JOIN ret_nontag_item_log m2 ON (m1.product = m2.product AND m1.id_nontag_log < m2.id_nontag_log AND date(m2.date) < '$FromDt')
+                        	LEFT JOIN ret_product_master as p ON p.pro_id = m1.product 
+                        	WHERE m2.id_nontag_log IS NULL  
+                        	".($id_branch!='' ? " and m1.to_branch=".$id_branch."" :'')."
+                        	AND m1.status = 0 AND date(m1.date) < '$FromDt' GROUP by m1.product) blc on blc.product = p.pro_id
+                        	
+                        	LEFT JOIN (SELECT nt_tag.product, ifnull(sum(nt_tag.gross_wt),0) as gross_wt,
+                        	ifnull(SUM(nt_tag.net_wt),0) as net_wt, 
+                        	ifnull(SUM(nt_tag.no_of_piece),0) as piece  
+                        	FROM ret_nontag_item_log nt_tag 
+                        		LEFT JOIN (SELECT m1.* 
+                        			FROM ret_nontag_item_log m1 
+                        				LEFT JOIN ret_nontag_item_log m2 ON (m1.product = m2.product AND m1.id_nontag_log < m2.id_nontag_log AND (date(m2.date) BETWEEN '2022-06-13' AND '2022-06-13') AND m2.status = 0) 
+                        			) l on l.product = nt_tag.product   and l.to_branch=2 and l.status = 0 
+                        	LEFT JOIN ret_product_master as p ON p.pro_id = nt_tag.product 
+                        	LEFT JOIN ret_category rc on rc.id_ret_category=p.cat_id 
+                        	LEFT JOIN metal rm on rm.id_metal=rc.id_metal 
+                        	WHERE (date(l.date) 
+                        	BETWEEN '$FromDt' AND '$ToDt') AND l.status = 0 
+                        	".($id_branch!='' ? " and l.to_branch=".$id_branch."" :'')."
+                        	GROUP by nt_tag.product) INW on INW.product=p.pro_id
+                        	
+                        	LEFT JOIN (SELECT IFNULL(SUM(d.gross_wt),0) as gross_wt,IFNULL(SUM(d.net_wt),0) as net_wt,IFNULL(SUM(d.piece),0) as piece,
+							d.product_id
+							FROM ret_bill_details d 
+							LEFT JOIN ret_product_master p ON p.pro_id=d.product_id
+							LEFT JOIN ret_billing b ON b.bill_id=d.bill_id
+							WHERE b.bill_status=1 AND p.stock_type=2 AND d.is_non_tag = 1 
+							".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')."
+							and date(b.bill_date) BETWEEN '$FromDt' AND '$ToDt' 
+							group by d.product_id) s ON s.product_id=p.pro_id
+                        
+                        	LEFT JOIN (SELECT l.product, sum(l.gross_wt) as gross_wt, 
+                        		SUM(l.net_wt) as net_wt,SUM(l.no_of_piece) as piece 
+                        		FROM ret_nontag_item_log l 
+                        		LEFT JOIN ret_product_master p on p.pro_id = l.product and l.from_branch = 2 and (l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=12) 
+                        	WHERE (date(l.date) BETWEEN '$FromDt' AND '$ToDt') and 
+                        	(l.status=2 or l.status=3 or l.status=5 or l.status=4 or l.status=9 or l.status=12)  
+                        	 ".($id_branch!='' ? " and l.from_branch=".$id_branch."" :'')."
+                        	 GROUP by l.product) br_out on br_out.product = p.pro_id
+                        	 
+                        	 
+                        	LEFT JOIN (SELECT m1.product, ifnull(sum(m1.gross_wt),0) as gross_wt,
+                        	ifnull(SUM(m1.net_wt),0) as net_wt, 
+                        	ifnull(SUM(m1.no_of_piece),0) as piece    
+                        	FROM ret_nontag_item_log m1 
+                        	LEFT JOIN ret_nontag_item_log m2 ON (m1.product = m2.product AND m1.id_nontag_log < m2.id_nontag_log AND date(m2.date) <= '2022-06-13')
+                        	LEFT JOIN ret_product_master as p ON p.pro_id = m1.product 
+                        	WHERE m2.id_nontag_log IS NULL  
+                        	".($id_branch!='' ? " and m1.to_branch=".$id_branch."" :'')."
+                        	AND m1.status = 0 AND date(m1.date) <= '$FromDt' GROUP by m1.product) as current ON current.product = p.pro_id
+
+                        	where p.pro_id is not null  AND p.stock_type = 2
+                        	GROUP by p.pro_id order by c.sort,p.pro_id ASC");
+            //print_r($this->db->last_query());exit;
+            $result = $sql->result_array();
+            foreach($result as $r){
+				$stock_detail[$r['metal_name']][$r['category_name']][] = $r; 
+			}
+    	    return $stock_detail;
+    }
+    
+    
+    //day closing report
+    
+    function getDayCloseLog_Details($id_branch,$stock_date,$stock_type)
+    {
+        $sql= $this->db->query("
+        SELECT * FROM ret_stock_balance WHERE type = ".$stock_type."  AND id_branch = ".$id_branch." AND date(date) = '".date('Y-m-d',strtotime($stock_date))."'"
+        );
+        //echo "<pre>";print_r($this->db->last_query());exit;
+        return $sql->num_rows();
+    }
+    
+    
+    function day_closing_report($data)
+    {
+        $returnData = array();
+        $stock_type = array("0"=>1,"1"=>2);
+        $sql = $this->db->query("SELECT * FROM branch where active=1 ".($data['id_branch']!='' ? " and id_branch = ".$data['id_branch']." " :'')." ");
+        $result = $sql->result_array();
+        //echo "<pre>";print_r($stock_type);exit;
+        foreach($result as $branch)
+        {
+            foreach($stock_type as $val)
+            {
+                $TaggedItems = $this->getDayCloseLog_Details($branch['id_branch'],$data['stock_date'],$val);
+                $returnData[]=array(
+                               'id_branch'      =>$branch['id_branch'],
+                               'branch_name'    =>$branch['name'],
+                               'stockType'     =>($val==1 ? 'Tagged' : 'Non Tagged'),
+                               'stock_type'     =>$val,
+                               'records'        =>(($TaggedItems)>0 ? $TaggedItems['records'] :0),
+                                 );
+            }
+            
+        }
+        
+        return $returnData;
+    }
+    
+    function day_transactions_report($data)
+    {
+        $id_branch = $data['id_branch'];
+        $FromDt = date('Y-m-d',strtotime($data['from_date']));
+        $ToDt   = date('Y-m-d',strtotime($data['to_date']));
+        $mode   = $data['mode'];
+        
+        if($mode == 0){
+                    $sql    = $this->db->query("SELECT '1' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.sales_ref_no, 
+                                b.billing_for, 
+                                if((b.bill_type <=3 OR b.bill_type = 9), concat(br.short_name, '-SA-' , metal_code, '-', sales_ref_no), if(b.bill_type = 5, concat(br.short_name,'-OD-', order_adv_ref_no), if(b.bill_type = 8 , concat(br.short_name,'-CC-', credit_coll_refno), if(b.bill_type = 11 , concat(br.short_name,'-RD-', b.bill_no), '')))) as voucherno,  
+                                cus.firstname, IFNULL(del.address1,'') as address1,IFNULL(del.address2,'') as address2, 
+                                IFNULL(del.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , b.bill_id, br.short_name as brcode, 
+                                br.name as branchname, b.round_off_amt as roundoff, 
+                                CAST(ifnull((SELECT sum(gross_wt) as gross_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0) AS DECIMAL(10,3)) as grsswt, 
+                                CAST(ifnull((SELECT sum(net_wt) as net_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0) AS DECIMAL(10,3)) as netwt, 
+                                CAST(ifnull((SELECT sum(bs.wt) as totwt 
+                                        FROM ret_billing_item_stones bs 
+                                        LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                        LEFT JOIN ret_bill_details as d ON d.bill_id = bs.bill_det_id  
+                                        WHERE st.stone_type = 1 AND d.bill_id = b.bill_id), 0) AS DECIMAL(10,3)) as diawt, 
+		                        CAST(if(b.tot_bill_amount = 0 , b.tot_amt_received, abs(b.tot_bill_amount)) AS DECIMAL(10,2)) as tot_bill_amount, 
+		                        CAST(ifnull((SELECT sum(total_sgst) as total_sgst FROM ret_bill_details WHERE bill_id = b.bill_id) , 0) AS DECIMAL(10,2)) as total_sgst, 
+		                        CAST(ifnull((SELECT sum(total_cgst) as total_cgst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0) AS DECIMAL(10,2)) as total_cgst, 
+		                        CAST(ifnull((SELECT sum(total_igst) as total_igst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0) AS DECIMAL(10,2)) as total_igst, 
+		                        CAST(ifnull((SELECT sum(item_total_tax) as total_tax FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0) AS DECIMAL(10,2)) as total_tax, 
+		                        CAST(ifnull((SELECT sum(item_cost - item_total_tax) as item_cost FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0) AS DECIMAL(10,2)) as total_item_cost, 
+		                        ABS(CAST(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND payment_mode = 'Cash' AND type = 1) , 0) AS DECIMAL(10,2))) as total_cash, 
+		                        CAST(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as pay 
+                            		LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                            		WHERE pay.bill_id = b.bill_id AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0) AS DECIMAL(10,2)) as total_paytm,
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0) as total_card,
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CHQ')) , 0) as total_cheque, 
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'NB') AND (id_pay_device IS NULL OR id_pay_device !=1)) , 0) as total_nb, 
+                        		'0' as total_cashfree, 
+                        		ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_billing_chit_utilization as chuti WHERE chuti.bill_id = b.bill_id) , 0) as total_chit_utlize, 
+                        		b.tot_discount, if(b.is_credit = 1, (if(b.tot_bill_amount = 0 , b.tot_amt_received, b.tot_bill_amount) - tot_amt_received),0) as dueamount, b.handling_charges, 
+                        		if(b.bill_type = 5, 0, ifnull((SELECT sum(advance_amount) as item_cost FROM ret_billing_advance as adv WHERE adv.adjusted_bill_id = b.bill_id) , 0)) as total_order_adv_adj, 
+                        		ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_advance_utilized advuti WHERE advuti.bill_id = b.bill_id) , 0) as total_adv_adj, 
+                        		ifnull((SELECT sum(rate) as old_metal_cost FROM ret_bill_old_metal_sale_details old WHERE old.bill_id = b.bill_id) , 0) as total_old_metal_cost, 
+                        		if(b.bill_type =2 OR b.bill_type = 4, concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), '') as pur_ref_no,  
+                        		ifnull(s_ret_refno,'-') as s_ret_refno, 
+                        		ifnull((SELECT sum(item_cost) as totreturn 
+                        				FROM ret_bill_return_details rd
+                        				LEFT JOIN ret_bill_details as d ON d.bill_det_id = rd.ret_bill_det_id 
+                        				WHERE rd.bill_id = b.bill_id
+                        				), 0) as ret_bill_amt
+                        		
+                                FROM ret_billing b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                        		LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+                                WHERE b.bill_status =1 and (b.bill_type <=3 OR bill_type = 5 OR bill_type = 8 OR bill_type = 9 OR bill_type = 11) 
+                                 AND ((b.tot_bill_amount > 0 OR b.tot_amt_received > 0) OR (b.tot_bill_amount < 0 AND b.bill_type = 5))
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."
+                                
+                                UNION 
+                                
+                                SELECT '1' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.bill_no as sales_ref_no,b.issue_to as billing_for, 
+                                concat('GI-', b.bill_no) as voucherno,  
+                                cus.firstname, IFNULL(adr.address1,'') as address1,IFNULL(adr.address2,'') as address2, 
+                                IFNULL(adr.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , 
+								b.id_issue_receipt as bill_id, br.short_name as brcode, 
+                                br.name as branchname, '0' as roundoff, 
+                                '0' as grsswt, '0' as netwt, '0' as diawt, 
+		                        b.amount as tot_bill_amount, 
+		                        '0' as total_sgst, 
+		                        '0' as total_cgst, 
+		                        '0' as total_igst, 
+		                        '0' as total_tax, 
+		                        '0' as total_item_cost, 
+		                        ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND payment_mode = 'Cash') , 0) as total_cash, 
+		                        ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as pay 
+                            		LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                            		WHERE pay.id_issue_rcpt = b.id_issue_receipt AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0) as total_paytm,
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0) as total_card,
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CHQ')) , 0) as total_cheque, 
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'NB')AND id_pay_device IS NULL) , 0) as total_nb, 
+                        		'0' as total_cashfree,
+                        		'0' as total_chit_utlize, 
+                        		'0' as tot_discount, '0' as dueamount, '0' as handling_charges, 
+                        		'0' as total_order_adv_adj, 
+                        		'0' as total_adv_adj, 
+                        		'0' as total_old_metal_cost, 
+                        		'-' as pur_ref_no,  
+                        		'-' as s_ret_refno, 
+                        		'0' as ret_bill_amt 
+                                FROM ret_issue_receipt b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.id_customer 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                                WHERE b.bill_status =1 and b.type = 2 
+                                and (receipt_type != 4 AND receipt_type != 3 ) 
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')." 
+                                
+                                UNION
+                                SELECT '1' as reporttype, date_format(p.date_payment, '%d-%m-%Y') as billdate,'Chit' as sales_ref_no,'' as billing_for, 
+                                'Chit' as voucherno,  
+                                '' as firstname, '' as address1,'' as address2, '' as address3, '' as cuaddress, '' as cuspincode, '' as cusstate, '' as cuscountry,  
+                                '' as mobile, p.id_branch, 
+								'' as bill_id, br.short_name as brcode, 
+                                br.name as branchname, CAST(0 AS DECIMAL(6,2)) as roundoff, 
+                                CAST(0 AS DECIMAL(10,3)) as grsswt, CAST(0 AS DECIMAL(10,3)) as netwt, CAST(0 AS DECIMAL(10,3)) as diawt, 
+		                        -- sum(p.payment_amount) as tot_bill_amount,
+		                         round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM 
+                                        payment_mode_details as pmd  
+                                        LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+                                        WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch 
+                                        AND bp.payment_status = 1 AND bp.receipt_no IS NOT NULL) , 0),2) as tot_bill_amount,
+		                        
+		                        CAST(0 AS DECIMAL(6,2)) as total_sgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_cgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_igst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_tax, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_item_cost, 
+		                        round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM 
+                                payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+                                WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND bp.payment_status = 1 AND bp.receipt_no IS NOT NULL AND (pmd.payment_mode = 'CASH' OR pmd.payment_mode = 'CSH')) , 0),2) as total_cash,
+		                        round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM 
+                                payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+	                            LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pmd.id_pay_device 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND (pmd.payment_mode != 'CASH' AND pmd.payment_mode != 'CSH') AND (bp.id_payGateway IS NULL OR bp.id_payGateway = 0) AND (pmd.id_pay_device IS NOT NULL AND pmd.id_pay_device !=0 AND paydev.device_type = 1)) , 0),2) as total_paytm,	
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND bp.payment_status = 1 AND bp.id_payGateway IS NULL AND bp.receipt_no IS NOT NULL AND ifnull(pmd.id_pay_device, 0) != 1 AND (pmd.payment_mode = 'CC' OR pmd.payment_mode = 'DC') ) , 0),2) as total_card,
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM  payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND (pmd.payment_mode = 'CHQ')) , 0)) as total_cheque, 
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM  payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND bp.id_payGateway IS NULL AND (pmd.payment_mode = 'NB' AND ifnull(pmd.id_pay_device,0) != 1 )) , 0),2) as total_nb, 
+                        		
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM  payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment  
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND bp.id_payGateway IS NOT NULL) , 0),2) as total_cashfree, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_chit_utlize, 
+                        		CAST(0 AS DECIMAL(6,2)) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, CAST(0 AS DECIMAL(6,2)) as handling_charges, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_order_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_old_metal_cost, 
+                        		'-' as pur_ref_no,  
+                        		'-' as s_ret_refno, 
+                        		CAST(0 AS DECIMAL(6,2)) as ret_bill_amt 
+                                FROM payment p 
+								LEFT JOIN branch br ON br.id_branch = p.id_branch 
+								WHERE p.payment_status=1 and p.receipt_no IS NOT NULL 
+	                            AND p.payment_status = 1 
+	                           ".($id_branch!='' ? " and p.id_branch=".$id_branch."" :'')." 
+                                ".($FromDt!='' && $ToDt!='' ? " and (DATE(p.date_payment)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."  
+                                 GROUP BY date(p.date_payment) 
+                                 
+                                UNION 
+                                SELECT '2' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.pur_ref_no, 
+                                b.billing_for, 
+                                if((b.bill_type =2 OR b.bill_type = 4), concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), if((b.bill_type = 3 OR b.bill_type = 7), concat(br.short_name,'-SR-', s_ret_refno), if(b.bill_type = 10 , concat(br.short_name,'-CC-', chit_preclose_refno), if(b.bill_type = 1 , concat(br.short_name,'-SA-', sales_ref_no), '')))) as voucherno,  
+                                cus.firstname, IFNULL(del.address1,'') as address1,IFNULL(del.address2,'') as address2, 
+                                IFNULL(del.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , b.bill_id, br.short_name as brcode, 
+                                br.name as branchname, round(b.round_off_amt,2) as roundoff, 
+                                round(ifnull((SELECT sum(gross_wt) as gross_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),3) as grsswt, 
+                                round(ifnull((SELECT sum(net_wt) as net_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),3) as netwt, 
+                                round(ifnull((SELECT sum(bs.wt) as totwt 
+                                		FROM ret_billing_item_stones bs 
+                                		LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                		LEFT JOIN ret_bill_details as d ON d.bill_id = bs.bill_det_id  
+                                		WHERE st.stone_type = 1 AND d.bill_id = b.bill_id), 0),2) as diawt, 
+                                round(ABS(b.tot_bill_amount),2) as tot_bill_amount, 
+                                round(ifnull((SELECT sum(total_sgst) as total_sgst FROM ret_bill_details WHERE bill_id = b.bill_id) , 0),2) as total_sgst, 
+                                round(ifnull((SELECT sum(total_cgst) as total_cgst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_cgst, 
+                                round(ifnull((SELECT sum(total_igst) as total_igst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_igst, 
+                                round(ifnull((SELECT sum(item_total_tax) as total_tax FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_tax, 
+                                round(ifnull((SELECT sum(item_cost - item_total_tax) as item_cost FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_item_cost, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND payment_mode = 'Cash') , 0),2) as total_cash, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as pay 
+                                	LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                                	WHERE pay.bill_id = b.bill_id AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0),2) as total_paytm,
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0),2) as total_card,
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CHQ')) , 0),2) as total_cheque, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'NB')) , 0),2) as total_nb, 
+                                CAST(0 AS DECIMAL(6,2)) as total_cashfree, 
+                                round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_billing_chit_utilization as chuti WHERE chuti.bill_id = b.bill_id) , 0),2) as total_chit_utlize, 
+                                round(b.tot_discount) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, round(b.handling_charges,2) as handling_charges, 
+                                round(ifnull((SELECT sum(advance_amount) as item_cost FROM ret_billing_advance as adv WHERE adv.adjusted_bill_id = b.bill_id) , 0),2) as total_order_adv_adj, 
+                                round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_advance_utilized advuti WHERE advuti.bill_id = b.bill_id) , 0),2) as total_adv_adj, 
+                                round(ifnull((SELECT sum(rate) as old_metal_cost FROM ret_bill_old_metal_sale_details old WHERE old.bill_id = b.bill_id) , 0),2) as total_old_metal_cost, 
+                                if(b.bill_type =2 OR b.bill_type = 4, concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), '') as pur_ref_no,  
+                                ifnull(s_ret_refno,'-') as s_ret_refno, 
+                                round(ifnull((SELECT sum(item_cost) as totreturn 
+                                		FROM ret_bill_return_details rd
+                                		LEFT JOIN ret_bill_details as d ON d.bill_det_id = rd.ret_bill_det_id 
+                                		WHERE rd.bill_id = b.bill_id
+                                		), 0),2) as ret_bill_amt
+                                
+                                FROM ret_billing b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                                LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+                                WHERE b.bill_status =1 and (((b.bill_type =2 OR b.bill_type =3 OR bill_type = 4 OR bill_type = 7 OR bill_type = 10) 
+                                AND (b.tot_bill_amount < 0 OR bill_type = 10)) OR (b.tot_bill_amount < 0 AND bill_type = 1))
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."
+                                
+                                UNION 
+                                
+                                SELECT '2' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.pur_ref_no, 
+                                b.billing_for, 
+                                if((b.bill_type =2 OR b.bill_type = 4), concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), if((b.bill_type = 3 OR b.bill_type = 7), concat(br.short_name,'-SR-', s_ret_refno), if(b.bill_type = 10 , concat(br.short_name,'-CC-', chit_preclose_refno), if(b.bill_type = 1 , concat(br.short_name,'-SA-', sales_ref_no), '')))) as voucherno,  
+                                cus.firstname, IFNULL(del.address1,'') as address1,IFNULL(del.address2,'') as address2, 
+                                IFNULL(del.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , b.bill_id, br.short_name as brcode, 
+                                br.name as branchname, round(b.round_off_amt,2) as roundoff, 
+                                round(ifnull((SELECT sum(gross_wt) as gross_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),3) as grsswt, 
+                                round(ifnull((SELECT sum(net_wt) as net_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),3) as netwt, 
+                                round(ifnull((SELECT sum(bs.wt) as totwt 
+                                		FROM ret_billing_item_stones bs 
+                                		LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                		LEFT JOIN ret_bill_details as d ON d.bill_id = bs.bill_det_id  
+                                		WHERE st.stone_type = 1 AND d.bill_id = b.bill_id), 0),2) as diawt, 
+                                round(ABS(b.tot_bill_amount),2) as tot_bill_amount, 
+                                round(ifnull((SELECT sum(total_sgst) as total_sgst FROM ret_bill_details WHERE bill_id = b.bill_id) , 0),2) as total_sgst, 
+                                round(ifnull((SELECT sum(total_cgst) as total_cgst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_cgst, 
+                                round(ifnull((SELECT sum(total_igst) as total_igst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_igst, 
+                                round(ifnull((SELECT sum(item_total_tax) as total_tax FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_tax, 
+                                round(ifnull((SELECT sum(item_cost - item_total_tax) as item_cost FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_item_cost, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND payment_mode = 'Cash' AND bp.type = 2) , 0),2) as total_cash, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as pay 
+                                	LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                                	WHERE pay.bill_id = b.bill_id AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0),2) as total_paytm,
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0),2) as total_card,
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CHQ')) , 0),2) as total_cheque, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'NB')) , 0),2) as total_nb, 
+                                CAST(0 AS DECIMAL(6,2)) as total_cashfree, 
+                                round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_billing_chit_utilization as chuti WHERE chuti.bill_id = b.bill_id) , 0),2) as total_chit_utlize, 
+                                round(b.tot_discount) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, round(b.handling_charges,2) as handling_charges, 
+                                round(ifnull((SELECT sum(advance_amount) as item_cost FROM ret_billing_advance as adv WHERE adv.adjusted_bill_id = b.bill_id) , 0),2) as total_order_adv_adj, 
+                                round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_advance_utilized advuti WHERE advuti.bill_id = b.bill_id) , 0),2) as total_adv_adj, 
+                                round(ifnull((SELECT sum(rate) as old_metal_cost FROM ret_bill_old_metal_sale_details old WHERE old.bill_id = b.bill_id) , 0),2) as total_old_metal_cost, 
+                                if(b.bill_type =2 OR b.bill_type = 4, concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), '') as pur_ref_no,  
+                                ifnull(s_ret_refno,'-') as s_ret_refno, 
+                                round(ifnull((SELECT sum(item_cost) as totreturn 
+                                		FROM ret_bill_return_details rd
+                                		LEFT JOIN ret_bill_details as d ON d.bill_det_id = rd.ret_bill_det_id 
+                                		WHERE rd.bill_id = b.bill_id
+                                		), 0),2) as ret_bill_amt
+                                
+                                FROM ret_billing b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                                LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+                                WHERE b.bill_status = 1 and ((b.tot_bill_amount >=0)
+                                AND (SELECT sum(payment_amount) FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND type = 2) < 0 )
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."
+                                
+                                UNION
+
+                                SELECT '2' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.bill_no as sales_ref_no,b.issue_to as billing_for, 
+                                concat('GP-', b.bill_no) as voucherno,  
+                                cus.firstname, IFNULL(adr.address1,'') as address1,IFNULL(adr.address2,'') as address2, 
+                                IFNULL(adr.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , 
+								b.id_issue_receipt as bill_id, br.short_name as brcode, 
+                                br.name as branchname, CAST(0 AS DECIMAL(6,2)) as roundoff, 
+                                CAST(0 AS DECIMAL(10,3)) as grsswt, CAST(0 AS DECIMAL(10,3)) as netwt, CAST(0 AS DECIMAL(10,3)) as diawt, 
+		                        round(ABS(b.amount),2) as tot_bill_amount, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_sgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_cgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_igst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_tax, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_item_cost, 
+		                        round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND payment_mode = 'Cash') , 0),2) as total_cash, 
+		                        round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as pay 
+                            		LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                            		WHERE pay.id_issue_rcpt = b.id_issue_receipt AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0), 2) as total_paytm,
+                        		round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0),2) as total_card,
+                        		round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CHQ')) , 0),2) as total_cheque, 
+                        		round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'NB')) , 0),2) as total_nb, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_cashfree,
+                        		CAST(0 AS DECIMAL(6,2)) as total_chit_utlize, 
+                        		CAST(0 AS DECIMAL(6,2)) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, CAST(0 AS DECIMAL(6,2)) as handling_charges, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_order_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_old_metal_cost, 
+                        		'-' as pur_ref_no,  
+                        		'-' as s_ret_refno, 
+                        		CAST(0 AS DECIMAL(6,2)) as ret_bill_amt 
+                                FROM ret_issue_receipt b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.id_customer 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                                WHERE b.bill_status =1 and b.type = 1 
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."  
+                        ");
+        }else if($mode == 1){//Only bill
+            
+            $sql    = $this->db->query("SELECT '1' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.sales_ref_no, 
+                                b.billing_for, 
+                                if((b.bill_type <=3 OR b.bill_type = 9), concat(br.short_name, '-SA-' , metal_code, '-', sales_ref_no), if(b.bill_type = 5, concat(br.short_name,'-OD-', order_adv_ref_no), if(b.bill_type = 8 , concat(br.short_name,'-CC-', credit_coll_refno), if(b.bill_type = 11 , concat(br.short_name,'-RD-', b.bill_no), '')))) as voucherno, 
+                                cus.firstname, IFNULL(del.address1,'') as address1,IFNULL(del.address2,'') as address2, 
+                                IFNULL(del.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , b.bill_id, br.short_name as brcode, 
+                                br.name as branchname, b.round_off_amt as roundoff, 
+                                ifnull((SELECT sum(gross_wt) as gross_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0) as grsswt, 
+                                ifnull((SELECT sum(net_wt) as net_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0) as netwt, 
+                                ifnull((SELECT sum(bs.wt) as totwt 
+                                        FROM ret_billing_item_stones bs 
+                                        LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                        LEFT JOIN ret_bill_details as d ON d.bill_id = bs.bill_det_id  
+                                        WHERE st.stone_type = 1 AND d.bill_id = b.bill_id), 0) as diawt, 
+		                        b.tot_bill_amount, 
+		                        ifnull((SELECT sum(total_sgst) as total_sgst FROM ret_bill_details WHERE bill_id = b.bill_id) , 0) as total_sgst, 
+		                        ifnull((SELECT sum(total_cgst) as total_cgst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0) as total_cgst, 
+		                        ifnull((SELECT sum(total_igst) as total_igst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0) as total_igst, 
+		                        ifnull((SELECT sum(item_total_tax) as total_tax FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0) as total_tax, 
+		                        ifnull((SELECT sum(item_cost - item_total_tax) as item_cost FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0) as total_item_cost, 
+		                        ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND payment_mode = 'Cash' AND bp.type = 1) , 0) as total_cash, 
+		                        ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as pay 
+                            		LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                            		WHERE pay.bill_id = b.bill_id AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0) as total_paytm,
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CC' OR payment_mode = 'DC') AND id_pay_device != 1) , 0) as total_card,
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CHQ')) , 0) as total_cheque, 
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'NB') AND (id_pay_device IS NULL OR id_pay_device !=1)) , 0) as total_nb, 
+                        		'0' as total_cashfree, 
+                        		ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_billing_chit_utilization as chuti WHERE chuti.bill_id = b.bill_id) , 0) as total_chit_utlize, 
+                        		b.tot_discount, if(b.is_credit = 1, (if(b.tot_bill_amount = 0 , b.tot_amt_received, b.tot_bill_amount) - tot_amt_received),0) as dueamount, b.handling_charges, 
+                        		if(b.bill_type = 5, 0, ifnull((SELECT sum(advance_amount) as item_cost FROM ret_billing_advance as adv WHERE adv.adjusted_bill_id = b.bill_id) , 0)) as total_order_adv_adj, 
+                        		ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_advance_utilized advuti WHERE advuti.bill_id = b.bill_id) , 0) as total_adv_adj, 
+                        		ifnull((SELECT sum(rate) as old_metal_cost FROM ret_bill_old_metal_sale_details old WHERE old.bill_id = b.bill_id) , 0) as total_old_metal_cost, 
+                        		if(b.bill_type =2 OR b.bill_type = 4, concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), '') as pur_ref_no,  
+                        		ifnull(s_ret_refno,'-') as s_ret_refno, 
+                        		ifnull((SELECT sum(item_cost) as totreturn 
+                        				FROM ret_bill_return_details rd
+                        				LEFT JOIN ret_bill_details as d ON d.bill_det_id = rd.ret_bill_det_id 
+                        				WHERE rd.bill_id = b.bill_id
+                        				), 0) as ret_bill_amt
+                        		
+                                FROM ret_billing b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                        		LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+                                WHERE b.bill_status =1 and (b.bill_type <=3 OR bill_type = 9 OR bill_type = 11) 
+                                AND (b.tot_bill_amount > 0 OR b.tot_amt_received > 0)
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')." 
+                            ");
+        }else if($mode == 2){ //Only Receipts
+            $sql    = $this->db->query("SELECT '1' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.sales_ref_no, 
+                                b.billing_for, 
+                                if(b.bill_type <=3 , concat(br.short_name, '-SA-' , metal_code, '-', sales_ref_no), 
+                                if(b.bill_type = 5, concat(br.short_name,'-OD-', order_adv_ref_no), if(b.bill_type = 8 , concat(br.short_name,'-CC-', credit_coll_refno), if(b.bill_type = 11 , concat(br.short_name,'-RD-', b.bill_no), '')))) as voucherno,  
+                                cus.firstname, IFNULL(del.address1,'') as address1,IFNULL(del.address2,'') as address2, 
+                                IFNULL(del.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , b.bill_id, br.short_name as brcode, 
+                                br.name as branchname, b.round_off_amt as roundoff, 
+                                ifnull((SELECT round(sum(gross_wt),2) as gross_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0) as grsswt, 
+                                ifnull((SELECT round(sum(net_wt),2) as net_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0) as netwt, 
+                                ifnull((SELECT round(sum(bs.wt),2) as totwt 
+                                        FROM ret_billing_item_stones bs 
+                                        LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                        LEFT JOIN ret_bill_details as d ON d.bill_id = bs.bill_det_id  
+                                        WHERE st.stone_type = 1 AND d.bill_id = b.bill_id), 0) as diawt, 
+		                        round(if(b.tot_bill_amount = 0 , b.tot_amt_received, abs(b.tot_bill_amount)),2) as tot_bill_amount, 
+		                        round(ifnull((SELECT sum(total_sgst) as total_sgst FROM ret_bill_details WHERE bill_id = b.bill_id) , 0),2) as total_sgst, 
+		                        round(ifnull((SELECT sum(total_cgst) as total_cgst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_cgst, 
+		                        round(ifnull((SELECT sum(total_igst) as total_igst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_igst, 
+		                        round(ifnull((SELECT sum(item_total_tax) as total_tax FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_tax, 
+		                        round(ifnull((SELECT sum(item_cost - item_total_tax) as item_cost FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_item_cost, 
+		                        round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND payment_mode = 'Cash') , 0),2) as total_cash, 
+		                        round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as pay 
+                            		LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                            		WHERE pay.bill_id = b.bill_id AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0),2) as total_paytm,
+                        		round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CC' OR payment_mode = 'DC') AND id_pay_device != 1) , 0),2) as total_card,
+                        		round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CHQ')) , 0),2) as total_cheque, 
+                        		round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'NB') AND (id_pay_device IS NULL OR id_pay_device !=1)) , 0),2) as total_nb, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_cashfree, 
+                        		round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_billing_chit_utilization as chuti WHERE chuti.bill_id = b.bill_id) , 0),2) as total_chit_utlize, 
+                        		round(b.tot_discount,2) as tot_discount, round(if(b.is_credit = 1, (if(b.tot_bill_amount = 0 , b.tot_amt_received, b.tot_bill_amount) - tot_amt_received),0),2) as dueamount, 
+                        		round(b.handling_charges,2) as handling_charges, 
+                        		round(ifnull((SELECT sum(advance_amount) as item_cost FROM ret_billing_advance as adv WHERE adv.adjusted_bill_id = b.bill_id) , 0),2) as total_order_adv_adj, 
+                        		round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_advance_utilized advuti WHERE advuti.bill_id = b.bill_id) , 0),2) as total_adv_adj, 
+                        		round(ifnull((SELECT sum(rate) as old_metal_cost FROM ret_bill_old_metal_sale_details old WHERE old.bill_id = b.bill_id) , 0),2) as total_old_metal_cost, 
+                        		if(b.bill_type =2 OR b.bill_type = 4, concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), '') as pur_ref_no,  
+                        		ifnull(s_ret_refno,'-') as s_ret_refno, 
+                        		round(ifnull((SELECT sum(item_cost) as totreturn 
+                        				FROM ret_bill_return_details rd
+                        				LEFT JOIN ret_bill_details as d ON d.bill_det_id = rd.ret_bill_det_id 
+                        				WHERE rd.bill_id = b.bill_id
+                        				), 0),2) as ret_bill_amt
+                        		
+                                FROM ret_billing b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                        		LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+                                WHERE b.bill_status =1 and (b.bill_type =5 OR bill_type = 6 OR bill_type = 8 ) 
+                                 AND ((b.tot_bill_amount > 0 OR b.tot_amt_received > 0) OR (b.tot_bill_amount < 0 AND b.bill_type = 5))
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."
+                                
+                                UNION 
+                                
+                                SELECT '1' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.bill_no as sales_ref_no,b.issue_to as billing_for, 
+                                concat('GR-', b.bill_no) as voucherno,  
+                                cus.firstname, IFNULL(adr.address1,'') as address1,IFNULL(adr.address2,'') as address2, 
+                                IFNULL(adr.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , 
+								b.id_issue_receipt as bill_id, br.short_name as brcode, 
+                                br.name as branchname, round(0,2) as roundoff, 
+                                CAST(0 AS DECIMAL(10,3)) as grsswt, CAST(0 AS DECIMAL(10,3)) as netwt, CAST(0 AS DECIMAL(10,3)) as diawt, 
+		                        round(b.amount,2) as tot_bill_amount, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_sgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_cgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_igst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_tax, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_item_cost, 
+		                        round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND payment_mode = 'Cash') , 0),2) as total_cash, 
+		                        round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as pay 
+                            		LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                            		WHERE pay.id_issue_rcpt = b.id_issue_receipt AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0),2) as total_paytm,
+                        		round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0),2) as total_card,
+                        		round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CHQ')) , 0),2) as total_cheque, 
+                        		round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'NB')) , 0),2) as total_nb, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_cashfree,
+                        		CAST(0 AS DECIMAL(6,2)) as total_chit_utlize, 
+                        		CAST(0 AS DECIMAL(6,2)) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, CAST(0 AS DECIMAL(6,2)) as handling_charges, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_order_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_old_metal_cost, 
+                        		'-' as pur_ref_no,  
+                        		'-' as s_ret_refno, 
+                        		CAST(0 AS DECIMAL(6,2)) as ret_bill_amt 
+                                FROM ret_issue_receipt b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.id_customer 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                                WHERE b.bill_status =1 and b.type = 2 
+                                and (receipt_type != 4 AND receipt_type != 3 ) 
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')." 
+                            ");
+                                
+        }else if($mode == 3){ //Only chit
+             $sql    = $this->db->query("SELECT '1' as reporttype, date_format(p.date_payment, '%d-%m-%Y') as billdate,'Chit' as sales_ref_no,'' as billing_for, 
+                                'Chit' as voucherno,  
+                                '' as firstname, '' as address1,'' as address2, '' as address3, '' as cuaddress, '' as cuspincode, '' as cusstate, '' as cuscountry,  
+                                '' as mobile, p.id_branch, 
+								'' as bill_id, br.short_name as brcode, 
+                                br.name as branchname, CAST(0 AS DECIMAL(6,2)) as roundoff, 
+                                CAST(0 AS DECIMAL(10,3)) as grsswt, CAST(0 AS DECIMAL(10,3)) as netwt, CAST(0 AS DECIMAL(10,3)) as diawt, 
+		                        -- sum(p.payment_amount) as tot_bill_amount,
+		                        round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM 
+                                        payment_mode_details as pmd  
+                                        LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+                                        WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch 
+                                        AND bp.payment_status = 1 AND bp.receipt_no IS NOT NULL) , 0),2) as tot_bill_amount,
+		                        
+		                        CAST(0 AS DECIMAL(6,2)) as total_sgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_cgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_igst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_tax, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_item_cost, 
+		                        round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM 
+                                payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+                                WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND bp.payment_status = 1 AND bp.receipt_no IS NOT NULL AND (pmd.payment_mode = 'CASH' OR pmd.payment_mode = 'CSH')) , 0),2) as total_cash,
+		                        round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM 
+                                payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+	                            LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pmd.id_pay_device 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND (pmd.payment_mode != 'CASH' AND pmd.payment_mode != 'CSH') AND (bp.id_payGateway IS NULL OR bp.id_payGateway = 0) AND (pmd.id_pay_device IS NOT NULL AND pmd.id_pay_device !=0 AND paydev.device_type = 1)) , 0),2) as total_paytm,	
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND bp.payment_status = 1 AND bp.id_payGateway IS NULL AND bp.receipt_no IS NOT NULL AND bp.added_by=0 AND ((pmd.payment_mode = 'CC' OR pmd.payment_mode = 'DC') AND ifnull(pmd.id_pay_device, 0) != 1 )) , 0),2) as total_card,
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM  payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND (pmd.payment_mode = 'CHQ')) , 0)) as total_cheque, 
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM  payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND bp.id_payGateway IS NULL AND (pmd.payment_mode = 'NB' AND ifnull(pmd.id_pay_device,0) != 1 )) , 0),2) as total_nb, 
+                        		
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM  payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment  
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND bp.id_payGateway IS NOT NULL) , 0),2) as total_cashfree, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_chit_utlize, 
+                        		CAST(0 AS DECIMAL(6,2)) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, CAST(0 AS DECIMAL(6,2)) as handling_charges, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_order_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_old_metal_cost, 
+                        		'-' as pur_ref_no,  
+                        		'-' as s_ret_refno, 
+                        		CAST(0 AS DECIMAL(6,2)) as ret_bill_amt 
+                                FROM payment p 
+								LEFT JOIN branch br ON br.id_branch = p.id_branch 
+								WHERE p.payment_status=1 and p.receipt_no IS NOT NULL 
+	                            AND p.payment_status = 1 
+	                           ".($id_branch!='' ? " and p.id_branch=".$id_branch."" :'')." 
+                                ".($FromDt!='' && $ToDt!='' ? " and (DATE(p.date_payment)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."  
+                                 GROUP BY date(p.date_payment) ");
+                                //echo $this->db->last_query();exit;
+        }else if($mode == 4){ //Only Payments
+             $sql    = $this->db->query("SELECT '2' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.pur_ref_no, 
+                                b.billing_for, 
+                                if((b.bill_type =2 OR b.bill_type = 4), concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), if((b.bill_type = 3 OR b.bill_type = 7), concat(br.short_name,'-SR-', s_ret_refno), if(b.bill_type = 10 , concat(br.short_name,'-CC-', chit_preclose_refno), if(b.bill_type = 1 , concat(br.short_name,'-SA-', sales_ref_no), '')))) as voucherno,  
+                                cus.firstname, IFNULL(del.address1,'') as address1,IFNULL(del.address2,'') as address2, 
+                                IFNULL(del.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , b.bill_id, br.short_name as brcode, 
+                                br.name as branchname, round(b.round_off_amt,2) as roundoff, 
+                                round(ifnull((SELECT sum(gross_wt) as gross_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),3) as grsswt, 
+                                round(ifnull((SELECT sum(net_wt) as net_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),3) as netwt, 
+                                round(ifnull((SELECT sum(bs.wt) as totwt 
+                                		FROM ret_billing_item_stones bs 
+                                		LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                		LEFT JOIN ret_bill_details as d ON d.bill_id = bs.bill_det_id  
+                                		WHERE st.stone_type = 1 AND d.bill_id = b.bill_id), 0),2) as diawt, 
+                                round(ABS(b.tot_bill_amount),2) as tot_bill_amount, 
+                                round(ifnull((SELECT sum(total_sgst) as total_sgst FROM ret_bill_details WHERE bill_id = b.bill_id) , 0),2) as total_sgst, 
+                                round(ifnull((SELECT sum(total_cgst) as total_cgst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_cgst, 
+                                round(ifnull((SELECT sum(total_igst) as total_igst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_igst, 
+                                round(ifnull((SELECT sum(item_total_tax) as total_tax FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_tax, 
+                                round(ifnull((SELECT sum(item_cost - item_total_tax) as item_cost FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_item_cost, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND payment_mode = 'Cash') , 0),2) as total_cash, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as pay 
+                                	LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                                	WHERE pay.bill_id = b.bill_id AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0),2) as total_paytm,
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0),2) as total_card,
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CHQ')) , 0),2) as total_cheque, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'NB')) , 0),2) as total_nb, 
+                                CAST(0 AS DECIMAL(6,2)) as total_cashfree, 
+                                round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_billing_chit_utilization as chuti WHERE chuti.bill_id = b.bill_id) , 0),2) as total_chit_utlize, 
+                                round(b.tot_discount) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, round(b.handling_charges,2) as handling_charges, 
+                                round(ifnull((SELECT sum(advance_amount) as item_cost FROM ret_billing_advance as adv WHERE adv.adjusted_bill_id = b.bill_id) , 0),2) as total_order_adv_adj, 
+                                round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_advance_utilized advuti WHERE advuti.bill_id = b.bill_id) , 0),2) as total_adv_adj, 
+                                round(ifnull((SELECT sum(rate) as old_metal_cost FROM ret_bill_old_metal_sale_details old WHERE old.bill_id = b.bill_id) , 0),2) as total_old_metal_cost, 
+                                if(b.bill_type =2 OR b.bill_type = 4, concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), '') as pur_ref_no,  
+                                ifnull(s_ret_refno,'-') as s_ret_refno, 
+                                round(ifnull((SELECT sum(item_cost) as totreturn 
+                                		FROM ret_bill_return_details rd
+                                		LEFT JOIN ret_bill_details as d ON d.bill_det_id = rd.ret_bill_det_id 
+                                		WHERE rd.bill_id = b.bill_id
+                                		), 0),2) as ret_bill_amt
+                                
+                                FROM ret_billing b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                                LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+                                WHERE b.bill_status =1 and (((b.bill_type =2 OR b.bill_type =3 OR bill_type = 4 OR bill_type = 7 OR bill_type = 10) 
+                                AND (b.tot_bill_amount < 0 OR bill_type = 10)) OR (b.tot_bill_amount < 0 AND bill_type = 1))
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."
+                                
+                                UNION 
+                                
+                                SELECT '2' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.pur_ref_no, 
+                                b.billing_for, 
+                                if((b.bill_type =2 OR b.bill_type = 4), concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), if((b.bill_type = 3 OR b.bill_type = 7), concat(br.short_name,'-SR-', s_ret_refno), if(b.bill_type = 10 , concat(br.short_name,'-CC-', chit_preclose_refno), if(b.bill_type = 1 , concat(br.short_name,'-SA-', sales_ref_no), '')))) as voucherno,  
+                                cus.firstname, IFNULL(del.address1,'') as address1,IFNULL(del.address2,'') as address2, 
+                                IFNULL(del.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , b.bill_id, br.short_name as brcode, 
+                                br.name as branchname, round(b.round_off_amt,2) as roundoff, 
+                                round(ifnull((SELECT sum(gross_wt) as gross_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),3) as grsswt, 
+                                round(ifnull((SELECT sum(net_wt) as net_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),3) as netwt, 
+                                round(ifnull((SELECT sum(bs.wt) as totwt 
+                                		FROM ret_billing_item_stones bs 
+                                		LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                		LEFT JOIN ret_bill_details as d ON d.bill_id = bs.bill_det_id  
+                                		WHERE st.stone_type = 1 AND d.bill_id = b.bill_id), 0),2) as diawt, 
+                                round(ABS(b.tot_bill_amount),2) as tot_bill_amount, 
+                                round(ifnull((SELECT sum(total_sgst) as total_sgst FROM ret_bill_details WHERE bill_id = b.bill_id) , 0),2) as total_sgst, 
+                                round(ifnull((SELECT sum(total_cgst) as total_cgst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_cgst, 
+                                round(ifnull((SELECT sum(total_igst) as total_igst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_igst, 
+                                round(ifnull((SELECT sum(item_total_tax) as total_tax FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_tax, 
+                                round(ifnull((SELECT sum(item_cost - item_total_tax) as item_cost FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_item_cost, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND payment_mode = 'Cash' AND bp.type = 2) , 0),2) as total_cash, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as pay 
+                                	LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                                	WHERE pay.bill_id = b.bill_id AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0),2) as total_paytm,
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0),2) as total_card,
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CHQ')) , 0),2) as total_cheque, 
+                                round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'NB')) , 0),2) as total_nb, 
+                                CAST(0 AS DECIMAL(6,2)) as total_cashfree, 
+                                round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_billing_chit_utilization as chuti WHERE chuti.bill_id = b.bill_id) , 0),2) as total_chit_utlize, 
+                                round(b.tot_discount) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, round(b.handling_charges,2) as handling_charges, 
+                                round(ifnull((SELECT sum(advance_amount) as item_cost FROM ret_billing_advance as adv WHERE adv.adjusted_bill_id = b.bill_id) , 0),2) as total_order_adv_adj, 
+                                round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_advance_utilized advuti WHERE advuti.bill_id = b.bill_id) , 0),2) as total_adv_adj, 
+                                round(ifnull((SELECT sum(rate) as old_metal_cost FROM ret_bill_old_metal_sale_details old WHERE old.bill_id = b.bill_id) , 0),2) as total_old_metal_cost, 
+                                if(b.bill_type =2 OR b.bill_type = 4, concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), '') as pur_ref_no,  
+                                ifnull(s_ret_refno,'-') as s_ret_refno, 
+                                round(ifnull((SELECT sum(item_cost) as totreturn 
+                                		FROM ret_bill_return_details rd
+                                		LEFT JOIN ret_bill_details as d ON d.bill_det_id = rd.ret_bill_det_id 
+                                		WHERE rd.bill_id = b.bill_id
+                                		), 0),2) as ret_bill_amt
+                                
+                                FROM ret_billing b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                                LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+                                WHERE b.bill_status = 1 and ((b.tot_bill_amount >=0)
+                                AND (SELECT sum(payment_amount) FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND type = 2) < 0 ) 
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."
+                                
+                                
+                                
+                                UNION
+                                
+                                SELECT '2' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.bill_no as sales_ref_no,b.issue_to as billing_for, 
+                                concat('GP-', b.bill_no) as voucherno,  
+                                cus.firstname, IFNULL(adr.address1,'') as address1,IFNULL(adr.address2,'') as address2, 
+                                IFNULL(adr.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , 
+								b.id_issue_receipt as bill_id, br.short_name as brcode, 
+                                br.name as branchname, CAST(0 AS DECIMAL(6,2)) as roundoff, 
+                                CAST(0 AS DECIMAL(10,3)) as grsswt, CAST(0 AS DECIMAL(10,3)) as netwt, CAST(0 AS DECIMAL(10,3)) as diawt, 
+		                        round(ABS(b.amount),2) as tot_bill_amount, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_sgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_cgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_igst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_tax, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_item_cost, 
+		                        round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND payment_mode = 'Cash') , 0),2) as total_cash, 
+		                        round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as pay 
+                            		LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                            		WHERE pay.id_issue_rcpt = b.id_issue_receipt AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0), 2) as total_paytm,
+                        		round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0),2) as total_card,
+                        		round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CHQ')) , 0),2) as total_cheque, 
+                        		round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'NB')) , 0),2) as total_nb, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_cashfree,
+                        		CAST(0 AS DECIMAL(6,2)) as total_chit_utlize, 
+                        		CAST(0 AS DECIMAL(6,2)) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, CAST(0 AS DECIMAL(6,2)) as handling_charges, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_order_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_old_metal_cost, 
+                        		'-' as pur_ref_no,  
+                        		'-' as s_ret_refno, 
+                        		CAST(0 AS DECIMAL(6,2)) as ret_bill_amt 
+                                FROM ret_issue_receipt b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.id_customer 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                                WHERE b.bill_status =1 and b.type = 1 
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')." ");
+                                 //echo $this->db->last_query();exit;
+        }else if($mode == 5){ //All receipts
+            
+            $sql    = $this->db->query("SELECT '1' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.sales_ref_no, 
+                                b.billing_for, 
+                                if((b.bill_type <=3 OR b.bill_type = 9), concat(br.short_name, '-SA-' , metal_code, '-', sales_ref_no), if(b.bill_type = 5, concat(br.short_name,'-OD-', order_adv_ref_no), if(b.bill_type = 8 , concat(br.short_name,'-CC-', credit_coll_refno), if(b.bill_type = 11 , concat(br.short_name,'-RD-', b.bill_no), '')))) as voucherno,  
+                                cus.firstname, IFNULL(del.address1,'') as address1,IFNULL(del.address2,'') as address2, 
+                                IFNULL(del.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , b.bill_id, br.short_name as brcode, 
+                                br.name as branchname, round(b.round_off_amt,2) as roundoff, 
+                                round(ifnull((SELECT sum(gross_wt) as gross_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),2) as grsswt, 
+                                round(ifnull((SELECT sum(net_wt) as net_wt FROM ret_bill_details WHERE bill_id = b.bill_id), 0),2) as netwt, 
+                                round(ifnull((SELECT sum(bs.wt) as totwt 
+                                        FROM ret_billing_item_stones bs 
+                                        LEFT JOIN ret_stone as st ON st.stone_id = bs.stone_id 
+                                        LEFT JOIN ret_bill_details as d ON d.bill_id = bs.bill_det_id  
+                                        WHERE st.stone_type = 1 AND d.bill_id = b.bill_id), 0),2) as diawt, 
+		                        round(if(b.tot_bill_amount = 0 , b.tot_amt_received, abs(b.tot_bill_amount)),2) as tot_bill_amount,  
+		                        round(ifnull((SELECT sum(total_sgst) as total_sgst FROM ret_bill_details WHERE bill_id = b.bill_id) , 0),2) as total_sgst, 
+		                        round(ifnull((SELECT sum(total_cgst) as total_cgst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_cgst, 
+		                        round(ifnull((SELECT sum(total_igst) as total_igst FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_igst, 
+		                        round(ifnull((SELECT sum(item_total_tax) as total_tax FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_tax, 
+		                        round(ifnull((SELECT sum(item_cost - item_total_tax) as item_cost FROM ret_bill_details as d WHERE d.bill_id = b.bill_id) , 0),2) as total_item_cost, 
+		                        round(ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND payment_mode = 'Cash' AND bp.type = 1) , 0),2) as total_cash, 
+		                        round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as pay 
+                            		LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                            		WHERE pay.bill_id = b.bill_id AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0),2) as total_paytm,
+                        		round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CC' OR payment_mode = 'DC') AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0),2) as total_card,
+                        		round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'CHQ')) , 0),2) as total_cheque, 
+                        		round(ifnull((SELECT sum(payment_amount) as item_cost FROM ret_billing_payment as bp WHERE bp.bill_id = b.bill_id AND (payment_mode = 'NB') AND (id_pay_device IS NULL OR id_pay_device !=1)) , 0),2) as total_nb, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_cashfree, 
+                        		round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_billing_chit_utilization as chuti WHERE chuti.bill_id = b.bill_id) , 0),2) as total_chit_utlize, 
+                        		round(b.tot_discount,2) as tot_discount, round(if(b.is_credit = 1, (if(b.tot_bill_amount = 0 , b.tot_amt_received, b.tot_bill_amount) - tot_amt_received),0),2) as dueamount, round(b.handling_charges, 2) as handling_charges, 
+                        		round(ifnull((SELECT sum(advance_amount) as item_cost FROM ret_billing_advance as adv WHERE adv.adjusted_bill_id = b.bill_id) , 0),2) as total_order_adv_adj, 
+                        		round(ifnull((SELECT sum(utilized_amt) as item_cost FROM ret_advance_utilized advuti WHERE advuti.bill_id = b.bill_id) , 0),2) as total_adv_adj, 
+                        		round(ifnull((SELECT sum(rate) as old_metal_cost FROM ret_bill_old_metal_sale_details old WHERE old.bill_id = b.bill_id) , 0),2) as total_old_metal_cost, 
+                        		if(b.bill_type =2 OR b.bill_type = 4, concat(br.short_name, '-PU-' , metal_code, '-', pur_ref_no), '') as pur_ref_no,  
+                        		ifnull(s_ret_refno,'-') as s_ret_refno, 
+                        		round(ifnull((SELECT sum(item_cost) as totreturn 
+                        				FROM ret_bill_return_details rd
+                        				LEFT JOIN ret_bill_details as d ON d.bill_det_id = rd.ret_bill_det_id 
+                        				WHERE rd.bill_id = b.bill_id
+                        				), 0),2) as ret_bill_amt
+                        		
+                                FROM ret_billing b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.bill_cus_id 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN ret_bill_delivery del ON del.bill_id=b.bill_id 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                        		LEFT JOIN metal as met ON met.id_metal = b.metal_type 
+                                WHERE b.bill_status =1 and (b.bill_type <=3 OR bill_type = 5 OR bill_type = 8 OR bill_type = 9 OR bill_type = 11) 
+                                AND ((b.tot_bill_amount > 0 OR b.tot_amt_received > 0) OR (b.tot_bill_amount < 0 AND b.bill_type = 5))
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."
+                                
+                                UNION 
+                                
+                                SELECT '1' as reporttype, date_format(b.bill_date, '%d-%m-%Y') as billdate,b.bill_no as sales_ref_no,b.issue_to as billing_for, 
+                                concat('GI-', b.bill_no) as voucherno,  
+                                cus.firstname, IFNULL(adr.address1,'') as address1,IFNULL(adr.address2,'') as address2, 
+                                IFNULL(adr.address3,'') as address3, concat(IFNULL(adr.address1,''),' ', IFNULL(adr.address2,''), ' ', IFNULL(adr.address3,'')) as cuaddress, 
+                                IFNULL(adr.pincode,'') as cuspincode, IFNULL(st.name,'') as cusstate, IFNULL(cn.name,'') as cuscountry,  
+                                cus.mobile,b.id_branch , 
+								b.id_issue_receipt as bill_id, br.short_name as brcode, 
+                                br.name as branchname, '0' as roundoff, 
+                                '0' as grsswt, '0' as netwt, '0' as diawt, 
+		                        b.amount as tot_bill_amount, 
+		                        '0' as total_sgst, 
+		                        '0' as total_cgst, 
+		                        '0' as total_igst, 
+		                        '0' as total_tax, 
+		                        '0' as total_item_cost, 
+		                        ifnull((SELECT sum(ABS(payment_amount)) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND payment_mode = 'Cash') , 0) as total_cash, 
+		                        ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as pay 
+                            		LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pay.id_pay_device 
+                            		WHERE pay.id_issue_rcpt = b.id_issue_receipt AND payment_mode != 'Cash' AND id_pay_device IS NOT NULL AND paydev.device_type = 1) , 0) as total_paytm,
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CC' OR payment_mode = 'DC')  AND (id_pay_device != 1 OR id_pay_device IS NULL)) , 0) as total_card,
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'CHQ')) , 0) as total_cheque, 
+                        		ifnull((SELECT sum(payment_amount) as item_cost FROM ret_issue_rcpt_payment as bp WHERE bp.id_issue_rcpt = b.id_issue_receipt AND (payment_mode = 'NB') AND (id_pay_device IS NULL OR id_pay_device !=1)) , 0) as total_nb, 
+                        		'0' as total_cashfree,
+                        		'0' as total_chit_utlize, 
+                        		'0' as tot_discount, '0' as dueamount, '0' as handling_charges, 
+                        		'0' as total_order_adv_adj, 
+                        		'0' as total_adv_adj, 
+                        		'0' as total_old_metal_cost, 
+                        		'-' as pur_ref_no,  
+                        		'-' as s_ret_refno, 
+                        		'0' as ret_bill_amt 
+                                FROM ret_issue_receipt b  
+                                LEFT JOIN customer cus ON cus.id_customer=b.id_customer 
+                                LEFT JOIN address as adr ON adr.id_customer = cus.id_customer  
+                                LEFT JOIN country as cn ON cn.id_country = adr.id_country 
+                                LEFT JOIN state as st ON st.id_state = adr.id_state 
+                                LEFT JOIN branch br ON br.id_branch = b.id_branch 
+                                WHERE b.bill_status =1 and b.type = 2 
+                                and (receipt_type != 4 AND receipt_type != 3 ) 
+                                ".($id_branch!='' ? " and b.id_branch=".$id_branch."" :'')." 
+                                 ".($FromDt!='' && $ToDt!='' ? " and (DATE(b.bill_date)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')." 
+                                
+                                UNION
+                                SELECT '1' as reporttype, date_format(p.date_payment, '%d-%m-%Y') as billdate,'Chit' as sales_ref_no,'' as billing_for, 
+                                'Chit' as voucherno,  
+                                '' as firstname, '' as address1,'' as address2, '' as address3, '' as cuaddress, '' as cuspincode, '' as cusstate, '' as cuscountry,  
+                                '' as mobile, p.id_branch, 
+								'' as bill_id, br.short_name as brcode, 
+                                br.name as branchname, '0' as roundoff, 
+                                '0' as grsswt, '0' as netwt, '0' as diawt, 
+		                        -- sum(p.payment_amount) as tot_bill_amount,
+		                          round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM 
+                                        payment_mode_details as pmd  
+                                        LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+                                        WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch 
+                                        AND bp.payment_status = 1 AND bp.receipt_no IS NOT NULL) , 0),2) as tot_bill_amount,
+		                        
+		                        CAST(0 AS DECIMAL(6,2)) as total_sgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_cgst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_igst, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_tax, 
+		                        CAST(0 AS DECIMAL(6,2)) as total_item_cost, 
+		                        round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM 
+                                payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+                                WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND bp.payment_status = 1 AND bp.receipt_no IS NOT NULL AND (pmd.payment_mode = 'CASH' OR pmd.payment_mode = 'CSH')) , 0),2) as total_cash,
+		                        round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM 
+                                payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+	                            LEFT JOIN ret_bill_pay_device as paydev ON paydev.id_device = pmd.id_pay_device 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND (pmd.payment_mode != 'CASH' AND pmd.payment_mode != 'CSH') AND (bp.id_payGateway IS NULL OR bp.id_payGateway = 0) AND (pmd.id_pay_device IS NOT NULL AND pmd.id_pay_device !=0 AND paydev.device_type = 1)) , 0),2) as total_paytm,	
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND bp.payment_status = 1 AND bp.id_payGateway IS NULL AND bp.receipt_no IS NOT NULL AND bp.added_by=0 AND ((pmd.payment_mode = 'CC' OR pmd.payment_mode = 'DC') AND ifnull(pmd.id_pay_device, 0) != 1 )) , 0),2) as total_card,
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM  payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND (pmd.payment_mode = 'CHQ')) , 0)) as total_cheque, 
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM  payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment 
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND bp.id_payGateway IS NULL AND (pmd.payment_mode = 'NB' AND ifnull(pmd.id_pay_device,0) != 1 )) , 0),2) as total_nb, 
+                        		
+                        		round(ifnull((SELECT sum(pmd.payment_amount) as item_cost FROM  payment_mode_details as pmd  
+                                LEFT JOIN payment as bp ON bp.id_payment = pmd.id_payment  
+								WHERE date(pmd.payment_date) = date(p.date_payment) AND bp.id_branch = p.id_branch AND p.payment_status = 1 AND bp.receipt_no IS NOT NULL AND bp.id_payGateway IS NOT NULL) , 0),2) as total_cashfree, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_chit_utlize, 
+                        		CAST(0 AS DECIMAL(6,2)) as tot_discount, CAST(0 AS DECIMAL(6,2)) as dueamount, CAST(0 AS DECIMAL(6,2)) as handling_charges, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_order_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_adv_adj, 
+                        		CAST(0 AS DECIMAL(6,2)) as total_old_metal_cost, 
+                        		'-' as pur_ref_no,  
+                        		'-' as s_ret_refno, 
+                        		CAST(0 AS DECIMAL(6,2)) as ret_bill_amt 
+                                FROM payment p 
+								LEFT JOIN branch br ON br.id_branch = p.id_branch 
+								WHERE p.payment_status=1 and p.receipt_no IS NOT NULL 
+	                            AND p.payment_status = 1 
+	                           ".($id_branch!='' ? " and p.id_branch=".$id_branch."" :'')." 
+                                ".($FromDt!='' && $ToDt!='' ? " and (DATE(p.date_payment)  BETWEEN '".$FromDt."' AND '".$ToDt."')" :'')."  
+                                 GROUP BY date(p.date_payment)");
+        
+        }
+        //echo $this->db->last_query();exit;
+        return $sql->result_array();
+        
+    }
+    
+}
+?>

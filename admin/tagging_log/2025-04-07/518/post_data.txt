@@ -1,0 +1,1 @@
+[{"last_tag_code":"UMC-00004","new_tag_code":"00005","tag_id":193857,"date_time":"2025-04-07 12:32:27","ip_address":"117.215.113.72"}][{"last_tag_code":"VJ8-00002","new_tag_code":"00003","tag_id":193858,"date_time":"2025-04-07 12:33:50","ip_address":"117.215.113.72"}]

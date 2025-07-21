@@ -1,0 +1,5 @@
+
+ Existing --2025-06-03 16:52:07 -- : {"id_employee":"518","firstname":"Support","lastname":"Logimax","emp_code":"","device_uuid":"51974c0d0767385f"}
+ CurrentPost -- 2025-06-03 16:52:07 -- : id_employee:{"id_employee":"518","app_type":"1","uuid":"6","enable_device":"1"}
+ Existing --2025-06-03 16:56:14 -- : {"id_employee":"518","firstname":"Support","lastname":"Logimax","emp_code":"","device_uuid":"e9c7ccbe64470cc8"}
+ CurrentPost -- 2025-06-03 16:56:14 -- : id_employee:{"id_employee":"518","app_type":"1","uuid":"1","enable_device":"1"}

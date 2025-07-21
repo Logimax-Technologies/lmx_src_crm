@@ -1,0 +1,1 @@
+[{"last_tag_code":"8-00230","new_tag_code":"00231","tag_id":194088,"date_time":"2025-05-12 11:04:57","ip_address":"182.60.64.156"}][{"last_tag_code":"GBT-01223","new_tag_code":"01224","tag_id":194089,"date_time":"2025-05-12 12:55:51","ip_address":"117.216.98.19"}]
