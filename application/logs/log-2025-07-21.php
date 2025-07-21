@@ -8,3 +8,7 @@ ERROR - 2025-07-21 04:38:56 --> Severity: Notice  --> Undefined index: show_rate
 ERROR - 2025-07-21 04:38:56 --> Severity: Notice  --> Undefined index: show_rate /home/retaillogimaxind/public_html/etail_v3/application/views/chitscheme/newarrivals_description.php 21
 ERROR - 2025-07-21 04:38:56 --> Severity: Notice  --> Undefined index:  /home/retaillogimaxind/public_html/etail_v3/application/views/chitscheme/newarrivals_description.php 22
 ERROR - 2025-07-21 04:38:56 --> Severity: Notice  --> Undefined index: product_description /home/retaillogimaxind/public_html/etail_v3/application/views/chitscheme/newarrivals_description.php 26
+ERROR - 2025-07-21 13:22:01 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/models/mobileapi_model.php 350
+ERROR - 2025-07-21 13:22:53 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/models/mobileapi_model.php 350
+ERROR - 2025-07-21 13:29:31 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
+ERROR - 2025-07-21 13:29:31 --> Severity: Notice  --> Undefined variable: data /home/retaillogimaxind/public_html/etail_v3/application/views/layout/header.php 191
