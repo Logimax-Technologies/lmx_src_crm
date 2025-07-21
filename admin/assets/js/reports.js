@@ -9782,8 +9782,8 @@ function getPaymentDateRangeList() {
             '<td style="text-align:left;">' + items.payment_through + '</td>' +
             '<td style="text-align:left;">' + items.acc_status + '</td>' +
             '<td style="text-align:left;">' + items.ref_no + '</td>' +
-            '<td style="text-align:left;">' + items.paid_employee + '</td>' +
             '<td>' + formatDate(items.custom_payment_date.split(' ')[0]) + '</td>' +
+            '<td style="text-align:left;">' + items.paid_employee + '</td>' +
             '<td style="text-align:left;">' + items.remarks + '</td>' +
             '</tr>';
         });
@@ -9798,10 +9798,10 @@ function getPaymentDateRangeList() {
             '<td></td>' +
             '<td></td>' +
             '<td></td>' +
-            '<td></td>' +
             '<td><strong style="color:red;">SUB TOTAL</strong></td>' +
             '<td style="text-align:right;color:red;"><strong>' + indianCurrency.format(parseFloat(paid_amount).toFixed(2)) + '</strong></td>' +
             '<td style="text-align:right;color:red;"><strong>' + (metal_weight != 0 ? parseFloat(metal_weight).toFixed(3) : "") + '</strong></td>' +
+            '<td></td>' +
             '<td></td>' +
             '<td></td>' +
             '<td></td>' +
@@ -9828,11 +9828,11 @@ function getPaymentDateRangeList() {
         '<td></td>' +
         '<td></td>' +
         '<td></td>' +
-        '<td></td>' +
         '<td><strong style="color:green;">GRAND TOTAL</strong></td>' +
         '<td style="text-align:right;color:red;"><strong class="badge bg-green" style="font-size: 15px;">INR ' + indianCurrency.format(parseFloat(total_pay_amount).toFixed(2)) + '</strong></td>' +
         '<td style="text-align:right;color:red;"></td>' +
         '<td style="text-align:right;"><strong class="badge bg-yellow" style="font-size: 15px;">G : ' + parseFloat(total_gold_metal_weight).toFixed(3) + '  gm  </strong><strong class="badge bg-grey" style="font-size: 15px;color:white;margin-top:20px;">S : ' + parseFloat(total_silver_metal_weight).toFixed(3) + ' gm .</strong></td>' +
+        '<td></td>' +
         '<td></td>' +
         '<td></td>' +
         '<td></td>' +

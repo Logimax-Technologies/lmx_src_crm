@@ -523,6 +523,8 @@
                           <th>Account Status</th>
 
                           <th>Ref No</th>
+                          
+                          <th>Payment Date</th>
 
                           <th>Employee</th>
 

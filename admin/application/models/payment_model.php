@@ -5433,7 +5433,7 @@ IF(s.scheme_type =1 and s.max_weight !=s.min_weight,true,false) as is_flexible_w
         return $this->db->query($sql)->result_array();
     }
     //Plan 2 and Plan 3 Scheme Enquiry Data with date picker//
-    function get_metalrate_by_branch($id_branch, $id_metal, $id_purity)
+    function get_metalrate_by_branch($id_branch, $id_metal, $id_purity, $date="")
     {
         $today = date('Y-m-d H:i:s');
         $rate_field = '';
@@ -5461,9 +5461,19 @@ IF(s.scheme_type =1 and s.max_weight !=s.min_weight,true,false) as is_flexible_w
     			left join branch_rate br on br.id_metalrate=metal_rates.id_metalrates 
     			where br.status=1";
             } else {
-                $sql = "select " . $rate_field . " from metal_rates 
+				if($date != ''){
+					$date_obj = DateTime::createFromFormat('d-m-y', $date);
+					 $formatted_date = $date_obj->format('Y-m-d');
+					$sql =  "select " . $rate_field . " from metal_rates 
+					left join branch_rate br on br.id_metalrate=metal_rates.id_metalrates
+					where date(add_date) = '" . $formatted_date . "'";
+					// print_r($sql);exit;
+					}else{
+
+				$sql = "select " . $rate_field . " from metal_rates 
     			left join branch_rate br on br.id_metalrate=metal_rates.id_metalrates order by id_metalrates desc limit 1";
-            }
+			}
+			}
             $result = $this->db->query($sql);	//echo $sql;exit;
             if ($result->num_rows() > 0) {
                 return $result->row($rate_field);
@@ -6510,7 +6520,7 @@ IF(s.scheme_type =1 and s.max_weight !=s.min_weight,true,false) as is_flexible_w
                                         if(sa.is_closed=0 and sa.active=1,'Active',if(sa.is_closed=1 and sa.active=0,'Closed','')) as acc_status,
                                         IFNULL((select concat(IFNULL(e.firstname,''),' ',IFNULL(e.lastname,''),' ',IFNULL(e.emp_code,'')) from employee e left join payment pp on pp.id_employee=e.id_employee where pp.id_payment=p.id_payment and pp.payment_status=1 ),'-') as paid_employee,sa.fixed_wgt,
                                         s.scheme_type,s.flexible_sch_type,s.gst,s.gst_type,s.wgt_convert,
-										p.metal_rate, p.is_editing_enabled, Date_Format(p.metalrate_edit_date, '%d-%m-%Y %r') as metalrate_edit_date ,
+										p.metal_rate, 
 										CASE 
 										WHEN pmd.payment_mode = 'NB'
 										     THEN pmd.net_banking_date
